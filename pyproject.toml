@@ -1,0 +1,26 @@
+[project]
+name = "deep-learning"
+version = "0.1.0"
+description = "Deep Learning course repository: lectures, laboratories, and executable experiments for Inzynieria i zarzadzanie sztuczna inteligencja."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "jupyterlab>=4.6.4",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "pyyaml>=6.0.3",
+    "torch>=2.14.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
