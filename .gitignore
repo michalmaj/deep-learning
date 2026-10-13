@@ -1,0 +1,24 @@
+# Local agent workspace — never committed (COURSE_SPEC.md §2)
+decisions/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv / venvs
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# OS
+.DS_Store

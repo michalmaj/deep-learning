@@ -1,0 +1,33 @@
+# Dataset registry for this course.
+#
+# Every dataset used by a lecture or laboratory must be registered here
+# before it is downloaded, cached, or committed. See data/README.md and
+# COURSE_SPEC.md §24-27 for the policy this file implements.
+#
+# Schema per entry:
+#
+# - id: example-dataset               # stable slug, used in code/scripts
+#   name: Example Dataset
+#   source:
+#     provider: Kaggle                # e.g. Kaggle, torchvision, Hugging Face, UCI
+#     author: Example Author
+#     url: https://example.org/dataset
+#   license:
+#     name: CC BY 4.0
+#     url: https://creativecommons.org/licenses/by/4.0/
+#   redistribution:
+#     allowed: true                   # false/unclear -> do not commit the data
+#     notes: "..."
+#   citation:
+#     text: "..."
+#     bibtex: |
+#       @dataset{...}
+#   course_usage:
+#     lectures: [5]
+#     labs: [5]
+#   files:
+#     - path: data/example/train.csv
+#       sha256: "..."
+#
+# Empty for now: no dataset has been introduced yet.
+datasets: []

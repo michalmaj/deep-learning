@@ -1,0 +1,28 @@
+# Registry of third-party images/figures used in lectures or labs.
+#
+# Every external asset stored under third_party/ must have an entry here
+# before it is used. See third_party/README.md and COURSE_SPEC.md §29-32.
+#
+# Schema per entry:
+#
+# - id: lec06-lenet
+#   file: third_party/images/lec06/lenet.png
+#   title: "Gradient-Based Learning Applied to Document Recognition"
+#   author:
+#     - Yann LeCun
+#     - Léon Bottou
+#     - Yoshua Bengio
+#     - Patrick Haffner
+#   source: "Proceedings of the IEEE"
+#   year: 1998
+#   url: "https://..."
+#   accessed: "YYYY-MM-DD"
+#   license: "..."
+#   usage_basis: "..."
+#   used_in:
+#     - lectures/06_cnn/lecture.md
+#   modifications: "none"
+#   notes: "..."
+#
+# Empty for now: no third-party asset has been introduced yet.
+assets: []
