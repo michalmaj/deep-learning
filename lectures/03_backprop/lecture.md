@@ -121,9 +121,23 @@ I analogicznie jak dla warstwy drugiej:
 
 $$\frac{\partial \ell}{\partial W^{(1)}} = \delta^{(1)} x^\top, \qquad \frac{\partial \ell}{\partial b^{(1)}} = \delta^{(1)}$$
 
-Ten sam wzór $\delta \mapsto \delta \cdot (\text{wejście})^\top$ dla wag i $\delta \mapsto \delta$ dla biasu powtarza się w każdej warstwie — to jest ten "powtarzalny krok", który w sieci o $L$ warstwach wykonujemy $L$ razy, raz na warstwę, idąc od wyjścia do wejścia.
+Ten sam wzór $\delta \mapsto \delta \cdot (\text{wejście})^\top$ dla wag i $\delta \mapsto \delta$ dla biasu powtarza się w każdej warstwie — to jest ten "powtarzalny krok", który w sieci o $K$ warstwach wykonujemy $K$ razy, raz na warstwę, idąc od wyjścia do wejścia (liczbę warstw oznaczamy $K$, tak jak w wykładzie 2 — $L$ w tym kursie zawsze oznacza stratę).
 
 ### Wersja wsadowa (batch)
+
+Powyżej $\delta^{(l)}$ był gradientem napływającym do warstwy $l$ **dla
+jednego przykładu** — wektorem o tylu wpisach, ile neuronów ma ta warstwa
+(np. $\delta^{(1)}\in\mathbb R^{m}$ dla warstwy ukrytej o $m$ neuronach).
+Dla batcha $N$ przykładów ten sam gradient liczymy dla każdego przykładu
+naraz — dostajemy więc nie wektor, a **macierz** $\Delta^{(l)}\in\mathbb
+R^{N\times m}$: jeden **wiersz** na przykład, dokładnie taki sam wektor
+$\delta^{(l)}$, jaki policzylibyśmy dla tego przykładu z osobna. Dużą
+literą $\Delta$ oznaczamy więc dalej to samo pojęcie co $\delta$ (gradient
+napływający do danej warstwy), tylko zebrane dla wielu przykładów naraz —
+nie jest to inny byt, tylko ten sam wektor powielony wierszami. Dzięki
+temu te same wzory ($\delta \mapsto \dots$) przechodzą na $\Delta$
+niemal bez zmian, tylko z transpozycjami/sumami dopasowanymi do kształtu
+macierzy zamiast wektora (zobacz niżej).
 
 W module 1 i 2 dane trzymaliśmy jako $X \in \mathbb{R}^{N\times n}$ (wiersz = przykład) — zgodnie z konwencją `nn.Linear`, $Z = XW^\top + b$. Zachowujemy tę konwencję. Niech $\hat Y, Y \in \mathbb{R}^{N\times 1}$, $L = \frac{1}{N}\sum_{i=1}^N (\hat y_i - y_i)^2$. Czynnik $\frac1N$ (uśrednienie straty po przykładach, jak w wykładzie 1) **musi** wejść do gradientu już na starcie propagacji wstecznej:
 
@@ -131,7 +145,27 @@ $$\Delta^{(2)} := \frac{\partial L}{\partial Z^{(2)}} = \frac{2}{N}\big(\hat Y -
 
 $$\frac{\partial L}{\partial W^{(2)}} = \big(\Delta^{(2)}\big)^\top A^{(1)}, \qquad \frac{\partial L}{\partial b^{(2)}} = \sum_{i=1}^N \Delta^{(2)}_i$$
 
-Dlaczego suma po przykładach dla biasu? W propagacji w przód $b^{(2)}$ jest **dodawany do każdego** z $N$ wierszy (broadcasting) — każdy przykład "widzi" ten sam bias. W propagacji wstecz efekt broadcastingu odwraca się w **sumowanie**: gradient biasu to suma wkładów od wszystkich przykładów, które go użyły. To jeden z najczęstszych błędów przy ręcznej implementacji (zapomniane sumowanie po batchu dla gradientu biasu) — wrócimy do tego w sekcji *Częste błędne przekonania*.
+**Krótko o broadcastingu.** $b^{(2)}$ ma kształt $(k,)$ — jeden wpis na
+neuron wyjściowy, bez wymiaru przykładów. Ale $A^{(1)}(W^{(2)})^\top$ ma
+kształt $(N, k)$ — jeden wiersz na przykład. Żeby je dodać, NumPy/PyTorch
+**broadcastuje** $b^{(2)}$: traktuje go tak, jakby miał kształt $(1, k)$,
+i "powiela" (bez fizycznego kopiowania pamięci) wzdłuż wymiaru przykładów,
+aż dopasuje się do $(N, k)$ — w efekcie ten sam wektor $b^{(2)}$ jest
+dodawany do *każdego* z $N$ wierszy osobno. To ogólna zasada broadcastingu:
+wymiar o rozmiarze 1 (albo nieobecny) jest rozciągany tak, by dopasować
+się do większego wymiaru po drugiej stronie operacji — tutaj: wymiar
+"przykłady" jest obecny w $A^{(1)}(W^{(2)})^\top$, a nieobecny w
+$b^{(2)}$, więc to $b^{(2)}$ jest rozciągane, nie odwrotnie.
+
+Dlaczego suma po przykładach dla biasu? Skoro w propagacji w przód
+$b^{(2)}$ jest **dodawany do każdego** z $N$ wierszy przez broadcasting —
+każdy przykład "widzi" ten sam bias — to w propagacji wstecz efekt tego
+broadcastingu odwraca się w **sumowanie**: gradient biasu to suma
+wkładów od wszystkich przykładów, które go użyły (stąd $\sum_{i=1}^N$ we
+wzorach niżej, a nie np. średnia czy wartość z jednego przykładu). To
+jeden z najczęstszych błędów przy ręcznej implementacji (zapomniane
+sumowanie po batchu dla gradientu biasu) — wrócimy do tego w sekcji
+*Częste błędne przekonania*.
 
 Dalej, analogicznie do wersji skalarnej:
 
@@ -161,7 +195,7 @@ W notebooku te same liczby wychodzą z `autograd` co do siódmego miejsca po prz
 
 Notebook [`examples.ipynb`](examples.ipynb):
 
-1. **Graf skalarny: trzy metody** — gradient $\partial L/\partial w$, $\partial L/\partial b$ z przykładu rozwiązanego, policzony wzorem ręcznym, `autograd` i różnicami skończonymi (centralnymi): $\frac{\partial L}{\partial \theta}\approx \frac{L(\theta+h)-L(\theta-h)}{2h}$.
+1. **Graf skalarny: trzy metody** — gradient $\partial L/\partial w$, $\partial L/\partial b$ z przykładu rozwiązanego, policzony wzorem ręcznym, `autograd` i różnicami skończonymi (centralnymi): $\frac{\partial L}{\partial \theta}\approx \frac{L(\theta+h)-L(\theta-h)}{2h}$. To ten sam mechanizm "zweryfikuj wzór względem `autograd`", który w wykładzie 2 zastosowaliśmy do samej pochodnej aktywacji ($\sigma'$, $\tanh'$, $\text{ReLU}'$) — tu robimy to samo dla gradientu **całej straty** względem parametrów, czyli dla wyniku pełnego algorytmu propagacji wstecznej, nie pojedynczej funkcji.
 2. **Wpływ kroku $h$ na różnice skończone** — wykres błędu względem `autograd` w funkcji $h$ (w `float64`): zbyt duże $h$ daje błąd obcięcia (przybliżenie przestaje być lokalne), zbyt małe $h$ daje błąd zaokrągleń (odejmowanie dwóch bliskich sobie liczb zmiennoprzecinkowych). Istnieje "najlepsze" $h$ pomiędzy.
 3. **Sieć z jedną warstwą ukrytą, batch > 1: trzy metody** — te same trzy metody dla pełnej sieci (2 wejścia, kilka neuronów ukrytych z sigmoid, 1 wyjście liniowe), na batchu kilku przykładów, weryfikując **wszystkie cztery** gradienty ($W^{(1)}, b^{(1)}, W^{(2)}, b^{(2)}$) i ich **kształty**.
 4. **Akumulacja gradientów** — dwa kolejne wywołania `backward()` bez `zero_grad()` pokazują, że `.grad` się *sumuje*, nie nadpisuje.
