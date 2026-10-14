@@ -67,7 +67,7 @@ Dzięki temu, że $\phi$ ma dobrze określoną pochodną, całą sieć można tr
 
 $$z = Wx + b \in \mathbb{R}^m, \qquad a = \phi(z) \quad \text{(element po elemencie)}$$
 
-**MLP** to złożenie $L$ takich warstw: $a^{(0)} = x$, a dla $l = 1, \dots, L$:
+**MLP** to złożenie $K$ takich warstw (liczbę warstw oznaczamy $K$, żeby nie kolidować z $L$ — symbolem straty, zobacz sekcja *Strata dla klasyfikacji binarnej* niżej i wykłady 1, 3): $a^{(0)} = x$, a dla $l = 1, \dots, K$:
 
 $$z^{(l)} = W^{(l)} a^{(l-1)} + b^{(l)}, \qquad a^{(l)} = \phi^{(l)}\big(z^{(l)}\big)$$
 
@@ -81,7 +81,7 @@ Przekształcenie $f(x) = Wx + b$ nazywamy **afinicznym** (liniowe plus przesuni�
 
 $$f_2\big(f_1(x)\big) = W_2\big(W_1 x + b_1\big) + b_2 = \underbrace{(W_2 W_1)}_{W'} x + \underbrace{(W_2 b_1 + b_2)}_{b'} = W' x + b'$$
 
-Wynik ma dokładnie postać $W'x + b'$ — czyli **nadal jest afiniczny**. Ten sam argument, zastosowany indukcyjnie, działa dla dowolnej liczby złożonych ze sobą warstw: $f_L \circ f_{L-1} \circ \dots \circ f_1$ jest afiniczne, niezależnie od tego, czy $L = 2$ czy $L = 200$.
+Wynik ma dokładnie postać $W'x + b'$ — czyli **nadal jest afiniczny**. Ten sam argument, zastosowany indukcyjnie, działa dla dowolnej liczby złożonych ze sobą warstw: $f_K \circ f_{K-1} \circ \dots \circ f_1$ jest afiniczne, niezależnie od tego, czy $K = 2$ czy $K = 200$ (liczbę warstw oznaczamy $K$, nie $L$ — $L$ rezerwujemy dla straty).
 
 **Wniosek:** sieć zbudowana wyłącznie z warstw $z = Wx+b$ *bez* nieliniowości między nimi ma dokładnie taką samą moc reprezentacyjną jak pojedyncza warstwa liniowa $W'x + b'$ — żadna liczba dodatkowych warstw tego nie zmieni. Dopiero wstawienie nieliniowej $\phi$ między warstwy łamie tę własność: $f_2(\phi(f_1(x)))$ nie da się w ogólności sprowadzić do jednego przekształcenia afinicznego.
 
