@@ -17,6 +17,10 @@ venv/
 # Jupyter
 .ipynb_checkpoints/
 
+# Downloaded datasets (torchvision cache used by lecture/lab notebooks) —
+# never committed; see data/registry.yml for provenance/licensing.
+data_cache/
+
 # Secrets
 .env
 
