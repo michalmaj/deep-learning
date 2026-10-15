@@ -111,3 +111,137 @@ datasets:
     # e144d726b3acfaa3e44228e80efcd344, t10k-images
     # 5c965bf0a639b31b8f53240b1b52f4d7, t10k-labels
     # 7320c461ea6c1c855c0b718fb2a4b134.
+
+  - id: resnet18-imagenet1k-v1
+    name: "ResNet18 pretrained weights (ImageNet-1K, torchvision IMAGENET1K_V1)"
+    source:
+      provider: torchvision / PyTorch
+      author: "PyTorch Contributors (architecture: He, Zhang, Ren, Sun, 2016)"
+      url: https://download.pytorch.org/models/resnet18-f37072fd.pth
+    license:
+      name: "Not a single unified license -- see notes"
+      url: https://github.com/pytorch/vision/blob/main/LICENSE
+    redistribution:
+      allowed: false
+      notes: >
+        This is a pretrained model checkpoint (weights), not a dataset, but follows
+        the same "document provenance, never commit the binary" policy. The
+        torchvision code itself is BSD-3-Clause, but torchvision's own
+        documentation explicitly states: "The pre-trained models provided in this
+        library may have their own licenses or terms and conditions derived from
+        the dataset used for training. It is your responsibility to determine
+        whether you have permission to use the models for your use case."
+        (https://docs.pytorch.org/vision/stable/models.html, accessed 2026-10-15).
+        These weights were trained on ImageNet-1K, whose own terms of access
+        (image-net.org) restrict the dataset itself to "non-commercial research
+        and educational purposes" -- consistent with this course's use (teaching),
+        but NOT a blanket permission for arbitrary (e.g. commercial) use of the
+        resulting weights. Downloaded on demand via
+        torchvision.models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1), which
+        verifies the file itself; never committed to this repository.
+    citation:
+      text: >
+        He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning for
+        Image Recognition. CVPR, 770-778. Pretrained weights distributed by
+        PyTorch/torchvision (IMAGENET1K_V1), trained on: Deng, J., Dong, W.,
+        Socher, R., Li, L.-J., Li, K., & Fei-Fei, L. (2009). ImageNet: A
+        Large-Scale Hierarchical Image Database. CVPR.
+      bibtex: |
+        @inproceedings{he2016resnet,
+          author    = {He, Kaiming and Zhang, Xiangyu and Ren, Shaoqing and Sun, Jian},
+          title     = {Deep Residual Learning for Image Recognition},
+          booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+          year      = {2016},
+          pages     = {770--778}
+        }
+    course_usage:
+      lectures: [7]
+      labs: [7]
+    # No `files:` list: never stored at a repo-relative path. Integrity verified by
+    # torchvision itself on download. File: resnet18-f37072fd.pth (~44.7 MB).
+
+  - id: caltech101
+    name: Caltech 101
+    source:
+      provider: torchvision
+      author: Fei-Fei Li, Marco Andreetto, Marc'Aurelio Ranzato, Pietro Perona (Caltech)
+      url: https://data.caltech.edu/records/mzrjq-6wc02
+    license:
+      name: CC BY 4.0
+      url: https://creativecommons.org/licenses/by/4.0/
+    redistribution:
+      allowed: true
+      notes: >
+        Not redistributed in this repository regardless of license terms:
+        downloaded on demand via torchvision.datasets.Caltech101, which fetches
+        the official archive directly from data.caltech.edu and verifies its MD5
+        itself. No copy is ever committed to git. Course usage: a balanced
+        10-class subset (airplanes, Motorbikes, elephant, kangaroo, grand_piano,
+        car_side, dalmatian, butterfly, starfish, dolphin; 60 images/class) is
+        selected in code from the full 101-class download -- the subset is not a
+        separate dataset, just a sampling choice documented in the lecture
+        notebook/plan.
+    citation:
+      text: >
+        Li, F.-F., Fergus, R., & Perona, P. (2006). One-shot learning of object
+        categories. IEEE Transactions on Pattern Analysis and Machine
+        Intelligence, 28(4), 594-611. Dataset DOI: 10.22002/D1.20086.
+      bibtex: |
+        @article{li2006oneshot,
+          author  = {Li, Fei-Fei and Fergus, Rob and Perona, Pietro},
+          title   = {One-shot learning of object categories},
+          journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+          year    = {2006},
+          volume  = {28},
+          number  = {4},
+          pages   = {594--611}
+        }
+    course_usage:
+      lectures: [7]
+      labs: []
+    # No `files:` list: never stored at a repo-relative path. Integrity verified
+    # by torchvision itself on download (md5 3138e1922a9193bfa496528edbbc45d0 for
+    # caltech-101.zip, its own value, not ours).
+
+  - id: eurosat
+    name: EuroSAT (Sentinel-2 land use / land cover)
+    source:
+      provider: torchvision (mirrored via Hugging Face, torchgeo/eurosat)
+      author: Patrick Helber, Benjamin Bischke, Andreas Dengel, Damian Borth
+      url: https://github.com/phelber/EuroSAT
+    license:
+      name: MIT License
+      url: https://github.com/phelber/EuroSAT/blob/master/LICENSE
+    redistribution:
+      allowed: true
+      notes: >
+        Not redistributed in this repository regardless of license terms:
+        downloaded on demand via torchvision.datasets.EuroSAT, which fetches a
+        Hugging Face mirror (torchgeo/eurosat) of the original phelber/EuroSAT
+        release and verifies its MD5 itself. No copy is ever committed to git.
+        The underlying Sentinel-2 satellite imagery is additionally covered by
+        the Copernicus Sentinel Data Terms and Conditions (free and open under EU
+        law) -- does not conflict with the dataset's own MIT license, noted here
+        for completeness.
+    citation:
+      text: >
+        Helber, P., Bischke, B., Dengel, A., & Borth, D. (2019). EuroSAT: A Novel
+        Dataset and Deep Learning Benchmark for Land Use and Land Cover
+        Classification. IEEE Journal of Selected Topics in Applied Earth
+        Observations and Remote Sensing, 12(7), 2217-2226.
+      bibtex: |
+        @article{helber2019eurosat,
+          author  = {Helber, Patrick and Bischke, Benjamin and Dengel, Andreas and Borth, Damian},
+          title   = {EuroSAT: A Novel Dataset and Deep Learning Benchmark for Land Use and Land Cover Classification},
+          journal = {IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing},
+          year    = {2019},
+          volume  = {12},
+          number  = {7},
+          pages   = {2217--2226}
+        }
+    course_usage:
+      lectures: []
+      labs: [7]
+    # No `files:` list: never stored at a repo-relative path. Integrity verified
+    # by torchvision itself on download (md5 c8fa014336c82ac7804f0398fcb19387 for
+    # EuroSAT.zip, its own value, not ours).
