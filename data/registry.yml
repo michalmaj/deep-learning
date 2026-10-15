@@ -29,5 +29,85 @@
 #     - path: data/example/train.csv
 #       sha256: "..."
 #
-# Empty for now: no dataset has been introduced yet.
-datasets: []
+datasets:
+  - id: fashion-mnist
+    name: Fashion-MNIST
+    source:
+      provider: torchvision
+      author: Han Xiao, Kashif Rasul, Roland Vollgraf (Zalando Research)
+      url: https://github.com/zalandoresearch/fashion-mnist
+    license:
+      name: MIT License
+      url: https://github.com/zalandoresearch/fashion-mnist/blob/master/LICENSE
+    redistribution:
+      allowed: true
+      notes: >
+        Not redistributed in this repository regardless of license terms:
+        downloaded on demand via torchvision.datasets.FashionMNIST, which
+        fetches from the project's own canonical mirror
+        (fashion-mnist.s3-website.eu-central-1.amazonaws.com) and verifies
+        each file's MD5 itself. No copy is ever committed to git.
+    citation:
+      text: >
+        Xiao, H., Rasul, K., & Vollgraf, R. (2017). Fashion-MNIST: a Novel
+        Image Dataset for Benchmarking Machine Learning Algorithms.
+        arXiv:1708.07747.
+      bibtex: |
+        @article{xiao2017fashionmnist,
+          author  = {Xiao, Han and Rasul, Kashif and Vollgraf, Roland},
+          title   = {Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning Algorithms},
+          journal = {arXiv preprint arXiv:1708.07747},
+          year    = {2017}
+        }
+    course_usage:
+      lectures: [6]
+      labs: []
+    # No `files:` list: this dataset is never stored at a repo-relative
+    # path (see redistribution.notes), so scripts/verify_data.py has
+    # nothing to check locally. Integrity is verified by torchvision
+    # itself on every download, against these MD5s (its own values, not
+    # ours): train-images 8d4fb7e6c68d591d4c3dfef9ec88bf0d,
+    # train-labels 25c81989df183df01b3e8a0aad5dffbe,
+    # t10k-images bef4ecab320f06d8554ea6380940ec79,
+    # t10k-labels bb300cfdad3c16e7a12a480ee83cd310.
+
+  - id: kmnist
+    name: Kuzushiji-MNIST (KMNIST)
+    source:
+      provider: torchvision
+      author: >
+        Tarin Clanuwat, Mikel Bober-Irizar, Asanobu Kitamoto, Alex Lamb,
+        Kazuaki Yamamoto, David Ha (ROIS-DS Center for Open Data in the
+        Humanities)
+      url: https://github.com/rois-codh/kmnist
+    license:
+      name: CC BY-SA 4.0
+      url: https://creativecommons.org/licenses/by-sa/4.0/
+    redistribution:
+      allowed: true
+      notes: >
+        Not redistributed in this repository: downloaded on demand via
+        torchvision.datasets.KMNIST from the project's own canonical host
+        (codh.rois.ac.jp), which verifies each file's MD5 itself. No copy
+        is ever committed to git.
+    citation:
+      text: >
+        Clanuwat, T., Bober-Irizar, M., Kitamoto, A., Lamb, A., Yamamoto,
+        K., & Ha, D. (2018). Deep Learning for Classical Japanese
+        Literature. arXiv:1812.01718.
+      bibtex: |
+        @article{clanuwat2018kmnist,
+          author  = {Clanuwat, Tarin and Bober-Irizar, Mikel and Kitamoto, Asanobu and Lamb, Alex and Yamamoto, Kazuaki and Ha, David},
+          title   = {Deep Learning for Classical Japanese Literature},
+          journal = {arXiv preprint arXiv:1812.01718},
+          year    = {2018}
+        }
+    course_usage:
+      lectures: []
+      labs: [6]
+    # No `files:` list: see the Fashion-MNIST entry above for why (same
+    # reasoning). MD5s torchvision verifies on download: train-images
+    # bdb82020997e1d708af4cf47b453dcf7, train-labels
+    # e144d726b3acfaa3e44228e80efcd344, t10k-images
+    # 5c965bf0a639b31b8f53240b1b52f4d7, t10k-labels
+    # 7320c461ea6c1c855c0b718fb2a4b134.
