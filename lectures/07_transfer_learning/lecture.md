@@ -194,11 +194,45 @@ to nie są równoważne warunki.
 
 ## Co obserwujemy
 
-*(Wypełnione na podstawie rzeczywistych wyników w notebooku — zobacz jego wyjście;
-liczby poniżej to placeholder opisujący strukturę obserwacji, nie wolno ich czytać jako
-gotowego wniosku bez przebiegu notebooka.)* Notebook raportuje rzeczywiste liczby;
-interpretacja w tej sekcji musi się do nich odwoływać wprost, włącznie z tym, czy
-transfer learning w tym konkretnym przebiegu faktycznie dał przewagę i jaką.
+Rzeczywiste wyniki z notebooka (10 klas Caltech101, 360 obrazów treningowych):
+
+| Strategia | Param. trenowalne | Accuracy walidacyjna | Czas treningu | Inferencja/obraz |
+|---|---:|---:|---:|---:|
+| Od zera (8 epok) | 11 181 642 (100%) | 0,65 | 86,4s | 12,5ms |
+| Zamrożony backbone, naiwnie (5 epok) | 5 130 (0,05%) | 1,00 | 27,1s | — |
+| Zamrożony backbone, z cache'em (5 epok, ten sam wynik) | 5 130 | 1,00 | **7,5s** | 11,7ms |
+| Zamrożony backbone, finalnie (15 epok na cache'u) | 5 130 | 1,00 | 7,5s | — |
+| Częściowy fine-tuning, `layer4`+`fc` (8 epok) | 8 398 858 (75%) | 1,00 | 51,3s | 11,7ms |
+
+**Transfer learning dał tu ogromną, jednoznaczną przewagę** — zamrożony backbone
+osiąga accuracy walidacyjną $1{,}00$ przy $0{,}05\%$ trenowalnych parametrów, podczas
+gdy pełny trening od zera na tych samych $360$ obrazach osiąga tylko $0{,}65$. To nie
+przypadek jednego przebiegu: powtórzone na $2$ ziarnach, zamrożony backbone (cache)
+daje $1{,}00/1{,}00$ accuracy walidacyjnej i $0{,}983/1{,}00$ testowej, częściowy
+fine-tuning $1{,}00/1{,}00$ walidacyjnej i $0{,}958/0{,}992$ testowej — stabilnie
+blisko sufitu w obu przypadkach.
+
+**Czy częściowy fine-tuning dał coś ponad zamrożony backbone?** W tym konkretnym
+eksperymencie — **nie, w granicach błędu pomiaru**: obie strategie osiągają walidacyjną
+accuracy $1{,}00$ i bardzo zbliżoną testową ($0{,}98$–$1{,}00$ dla cache, $0{,}96$–$0{,}99$
+dla partial), ale częściowy fine-tuning kosztuje **$51$s zamiast $7{,}5$s** — $6$–$7\times$
+drożej bez mierzalnej korzyści jakościowej. To **nie** jest dowód, że częściowy
+fine-tuning jest bezużyteczny w ogóle — to konsekwencja tego, że wybrane klasy mają
+bardzo silne pokrycie z ImageNet, więc zamrożone cechy już niemal idealnie separują
+problem (efekt sufitu, *ceiling effect*). Przy słabszym pokryciu domeny (zobacz
+laboratorium: zdjęcia satelitarne) spodziewamy się innego wyniku — i rzeczywiście go
+tam mierzymy.
+
+**Cache vs naiwne liczenie, przy identycznej liczbie epok (5) i identycznym wyniku
+($1{,}00$ accuracy)**: $27{,}1$s naiwnie vs $7{,}5$s z cache'em — **$3{,}6\times$
+szybciej**, bez żadnej różnicy w jakości (bo backbone naprawdę się nie zmienia).
+
+**Wpływ rozmiaru danych** (eksperyment dodatkowy, $6/18/36$ obrazów na klasę):
+zamrożony backbone (cache) osiąga $0{,}992 \to 1{,}00 \to 1{,}00$ — niemal od razu
+blisko sufitu, nawet przy zaledwie $6$ obrazach na klasę. Trening od zera: $0{,}250 \to
+0{,}517 \to 0{,}575$ — rośnie z ilością danych, ale zostaje daleko w tyle nawet przy
+pełnych $36$/klasę. Przewaga transfer learningu jest **największa właśnie przy małej
+ilości danych** — to zgadza się z intuicją z sekcji *Dlaczego to jest ważne*.
 
 ## Częste błędne przekonania
 
