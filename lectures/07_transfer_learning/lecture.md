@@ -215,13 +215,22 @@ blisko sufitu w obu przypadkach.
 **Czy częściowy fine-tuning dał coś ponad zamrożony backbone?** W tym konkretnym
 eksperymencie — **nie, w granicach błędu pomiaru**: obie strategie osiągają walidacyjną
 accuracy $1{,}00$ i bardzo zbliżoną testową ($0{,}98$–$1{,}00$ dla cache, $0{,}96$–$0{,}99$
-dla partial), ale częściowy fine-tuning kosztuje **$51$s zamiast $7{,}5$s** — $6$–$7\times$
-drożej bez mierzalnej korzyści jakościowej. To **nie** jest dowód, że częściowy
-fine-tuning jest bezużyteczny w ogóle — to konsekwencja tego, że wybrane klasy mają
-bardzo silne pokrycie z ImageNet, więc zamrożone cechy już niemal idealnie separują
-problem (efekt sufitu, *ceiling effect*). Przy słabszym pokryciu domeny (zobacz
-laboratorium: zdjęcia satelitarne) spodziewamy się innego wyniku — i rzeczywiście go
-tam mierzymy.
+dla partial). Częściowy fine-tuning trwał $51$s (8 epok) wobec $7{,}5$s dla wersji
+finalnej cache'u (15 epok) — **to porównanie przy różnych budżetach epok i różnej
+liczbie aktualizacji, nie przy tym samym koszcie obliczeniowym**, więc sama różnica
+czasu nie jest miarodajnym wnioskiem o względnej efektywności obliczeniowej tych dwóch
+strategii per se (uczciwe porównanie "ten sam budżet epok" jest niżej: naiwne liczenie
+vs cache, oba przy 5 epokach). To, co *jest* tu wiarygodne — bo nie zależy od budżetu
+epok — to brak mierzalnej korzyści jakościowej: obie strategie osiągają ten sam sufit
+accuracy. To **nie** jest dowód, że częściowy fine-tuning jest bezużyteczny w ogóle —
+to konsekwencja tego, że wybrane klasy mają bardzo silne pokrycie z ImageNet, więc
+zamrożone cechy już niemal idealnie separują problem (efekt sufitu, *ceiling effect*).
+W laboratorium (zdjęcia satelitarne EuroSAT, domena wizualnie dalsza od ImageNet)
+zmierzono inny wynik — częściowy fine-tuning dał tam mierzalną poprawę. Te dwa
+eksperymenty (Caltech101 i EuroSAT) **nie wystarczają, by ustalić ogólną zależność**
+"im większe przesunięcie dziedziny, tym większa korzyść z fine-tuningu" — pokazują
+tylko, że w tych dwóch konkretnych przypadkach wynik był różny, co samo w sobie obala
+twierdzenie "częściowy fine-tuning nigdy/zawsze nie pomaga".
 
 **Cache vs naiwne liczenie, przy identycznej liczbie epok (5) i identycznym wyniku
 ($1{,}00$ accuracy)**: $27{,}1$s naiwnie vs $7{,}5$s z cache'em — **$3{,}6\times$
