@@ -181,6 +181,18 @@ wykorzystujesz, ma przynajmniej jeden dozwolony klucz (np. zapytania odpowiadaj�
 realnym, nie-paddingowym tokenom zawsze mają dostępny przynajmniej siebie samych przy
 causal mask).
 
+**Dodatkowa pułapka, specyficzna dla `nn.MultiheadAttention`** (zweryfikowana
+empirycznie): to, czy wiersz w pełni zamaskowany daje `NaN` czy bezpieczne zero,
+zależy od parametru `need_weights`. Z `need_weights=False` (wartość domyślna)
+`nn.MultiheadAttention` może użyć tej samej, zoptymalizowanej ścieżki co
+`F.scaled_dot_product_attention` — bezpieczne zero. Z `need_weights=True`
+(potrzebne, gdy chcemy **obejrzeć** same wagi attention — jak w notebooku i
+laboratorium) wymuszana jest jawna ścieżka z ręcznym `softmax` — i wtedy wiersz w
+pełni zamaskowany daje `NaN`, identycznie jak w naiwnej implementacji "from
+scratch" wyżej. Wniosek: nawet w ramach **jednego** API zachowanie numeryczne może
+zależeć od argumentu niezwiązanego z samym maskowaniem — kolejny powód, by nie
+zakładać zachowania bez testu.
+
 ### Ważna uwaga implementacyjna: maski NIE są przenośne między API
 
 **Zweryfikowane eksperymentalnie, nie z dokumentacji** (bezpośrednia inspekcja wag
