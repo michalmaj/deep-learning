@@ -253,8 +253,50 @@ Notebook (`examples.ipynb`):
 
 ## Co obserwujemy
 
-*(Notebook raportuje rzeczywiste liczby z wykonania — interpretacja w tej sekcji
-odwołuje się do nich wprost po zbudowaniu notebooka; zobacz jego wyjście.)*
+**A (rozwinięcie w czasie).** Ręczna komórka RNN zgadza się z `nn.RNN` co do czwartej
+cyfry po przecinku dla wszystkich trzech kroków. Zmiana wyłącznie $x_1$ zmienia **każdy**
+późniejszy stan ($h_1, h_2, h_3$) — bezpośrednia konsekwencja rekurencji.
+
+**B (zanikający gradient, $d_h=8$, strata = suma kwadratów ostatniego stanu).**
+Norma $\partial L/\partial x_1$ w funkcji $T$:
+
+| $T$ | RNN | LSTM | GRU |
+|---:|---:|---:|---:|
+| 2 | $4{,}8\times10^{-1}$ | $6{,}1\times10^{-2}$ | $1{,}6\times10^{-1}$ |
+| 10 | $9{,}8\times10^{-4}$ | $1{,}7\times10^{-3}$ | $2{,}0\times10^{-3}$ |
+| 20 | $2{,}8\times10^{-7}$ | $2{,}5\times10^{-6}$ | $1{,}1\times10^{-5}$ |
+| 40 | $2{,}7\times10^{-12}$ | $2{,}6\times10^{-10}$ | $3{,}0\times10^{-9}$ |
+| 80 | $0$ | $1{,}5\times10^{-17}$ | $1{,}2\times10^{-17}$ |
+
+Wszystkie trzy architektury zanikają do praktycznie zera przy $T=80$ (RNN dosłownie
+underflow'uje do $0$) — LSTM/GRU **spowalniają** zanikanie, nie eliminują go. Co
+więcej, przy **krótkich** sekwencjach ($T=2$) RNN ma **większy** gradient niż LSTM
+($4{,}8\times10^{-1}$ vs $6{,}1\times10^{-2}$) — przewaga bramkowania ujawnia się
+dopiero przy dłuższych sekwencjach, nie jest uniwersalna. Sprawdzone na 5 ziarnach
+przy $T=40$: kolejność GRU > LSTM > RNN utrzymuje się w większości, ale nie
+wszystkich, przebiegów (np. seed 2: LSTM $1{,}9\times10^{-9}$ > GRU
+$2{,}8\times10^{-10}$) — nie jest to matematyczna pewność dla każdej inicjalizacji.
+
+Gradient względem współdzielonej macierzy $W_h$ zachowuje się **jakościowo inaczej**:
+w RNN pozostaje rzędu $1$-$3$ dla **każdego** sprawdzonego $T$ (od $2$ do $80$), bez
+systematycznego spadku — bo sumuje wkłady ze wszystkich kroków, a bliskie kroki nie
+muszą "podróżować" daleko wstecz. To inna wielkość niż gradient względem $x_1$, z
+innym zachowaniem — nie wolno ich traktować zamiennie.
+
+**C (zadanie zależne od kolejności).** Baseline mean-pooling: val/test accuracy
+$0{,}45/0{,}51$ — dokładnie poziom przypadku (2 klasy). Vanilla RNN i GRU: **oba**
+$1{,}00/1{,}00$ — perfekcyjne rozwiązanie, mimo że RNN ma $498$ parametrów wobec
+$1330$ dla GRU ($2{,}7\times$ mniej). Różnica wynika z **dostępu do informacji**
+(uśrednienie jest niezmiennicze na permutacje), nie z pojemności modelu.
+
+**D (LSTM/GRU — bramki, parametry, czas).** Ręczne równania bramek LSTM (kolejność
+wag $[i,f,g,o]$) zgadzają się z `nn.LSTM` bit-exact, zarówno $h_t$ jak i $c_t$.
+Liczba parametrów: LSTM dokładnie $4\times$ RNN, GRU dokładnie $3\times$ (przy tym
+samym $d_{\text{in}}, d_h$) — zweryfikowane, nie przybliżone. Czas forward passu
+($d_{\text{in}}=32, d_h=64, T=50$, batch $64$): RNN $1{,}3$ms, GRU $2{,}0$ms
+($1{,}6\times$), LSTM $3{,}4$ms ($2{,}6\times$) — rośnie z liczbą bramek, ale **nie
+proporcjonalnie** do liczby parametrów ($3\times$/$4\times$) — ten sam wzorzec
+"parametry $\neq$ koszt obliczeniowy", co w modułach 5-7.
 
 ## Częste błędne przekonania
 
