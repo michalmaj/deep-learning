@@ -245,3 +245,42 @@ datasets:
     # No `files:` list: never stored at a repo-relative path. Integrity verified
     # by torchvision itself on download (md5 c8fa014336c82ac7804f0398fcb19387 for
     # EuroSAT.zip, its own value, not ours).
+
+  - id: sms-spam-collection
+    name: SMS Spam Collection
+    source:
+      provider: UCI Machine Learning Repository
+      author: Tiago A. Almeida, Jose Maria Gomez Hidalgo
+      url: https://archive.ics.uci.edu/dataset/228/sms+spam+collection
+    license:
+      name: CC BY 4.0
+      url: https://creativecommons.org/licenses/by/4.0/
+    redistribution:
+      allowed: true
+      notes: >
+        Not redistributed in this repository regardless of license terms:
+        downloaded on demand via a direct HTTPS request (Python stdlib
+        urllib/zipfile, no new dependency) from the official UCI static file
+        URL, with SHA-256 verified against the value below (our own
+        verification -- UCI's page does not publish one itself, unlike the
+        torchvision-managed datasets in this registry). No copy is ever
+        committed to git.
+    citation:
+      text: >
+        Almeida, T. A., & Gomez Hidalgo, J. M. (2011). SMS Spam Collection.
+        UCI Machine Learning Repository. DOI: 10.24432/C5CC84.
+      bibtex: |
+        @misc{almeida2011smsspam,
+          author       = {Almeida, Tiago A. and Gomez Hidalgo, Jose Maria},
+          title        = {{SMS Spam Collection}},
+          howpublished = {UCI Machine Learning Repository},
+          year         = {2011},
+          note         = {DOI: 10.24432/C5CC84}
+        }
+    course_usage:
+      lectures: []
+      labs: [9]
+    # No `files:` list: never stored at a repo-relative path (downloaded to the
+    # gitignored data_cache/ directory). SHA-256 of the zip archive, verified
+    # by our own download code (not by a library):
+    # 1587ea43e58e82b14ff1f5425c88e17f8496bfcdb67a583dbff9eefaf9963ce3
