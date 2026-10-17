@@ -10,6 +10,11 @@ the opposite boolean-mask conventions between
 `F.scaled_dot_product_attention` and `nn.MultiheadAttention`, and
 `model.eval()` not auto-disabling dropout passed as a constant
 `dropout_p` to a functional call.
+
+`test_transformer_beats_gru_at_long_range_across_several_seeds` additionally
+checks, across 3 seeds, that the notebook's headline GRU-vs-Transformer
+comparison at T=64 is not a single-seed artifact (found missing in the
+08-10 review).
 """
 
 import math
@@ -184,6 +189,103 @@ def test_layernorm_output_has_zero_mean_and_unit_std_per_position():
     out = nn.LayerNorm(16)(x)
     assert torch.allclose(out.mean(dim=-1), torch.zeros(2, 5), atol=1e-5)
     assert torch.allclose(out.std(dim=-1, unbiased=False), torch.ones(2, 5), atol=1e-4)
+
+
+def test_transformer_beats_gru_at_long_range_across_several_seeds():
+    """The lecture's GRU-vs-Transformer comparison (examples.ipynb, T=64) was
+    flagged in the 08-10 review as resting on a single seed, unlike the
+    with/without-positional-encoding comparison in the same experiment, which
+    *is* checked across 3 seeds. This repeats the T=64 comparison (same
+    dataset generator, same architectures and training budget as the
+    notebook) across 3 seeds and checks the qualitative claim the lecture
+    actually makes -- Transformer clearly outperforms GRU at long range --
+    rather than any specific accuracy value, which would be a flaky thing to
+    pin down exactly."""
+
+    def sinusoidal_positional_encoding(seq_len, d_model):
+        pos = torch.arange(seq_len).unsqueeze(1).float()
+        i = torch.arange(d_model).unsqueeze(0).float()
+        angle_rates = 1.0 / torch.pow(10000, (2 * (i // 2)) / d_model)
+        angles = pos * angle_rates
+        pe = torch.zeros(seq_len, d_model)
+        pe[:, 0::2] = torch.sin(angles[:, 0::2])
+        pe[:, 1::2] = torch.cos(angles[:, 1::2])
+        return pe
+
+    class TinyTransformerBlock(nn.Module):
+        def __init__(self, d_model, n_heads, d_ff):
+            super().__init__()
+            self.mha = nn.MultiheadAttention(d_model, n_heads, batch_first=True, dropout=0.0)
+            self.ln1 = nn.LayerNorm(d_model)
+            self.ff = nn.Sequential(
+                nn.Linear(d_model, d_ff), nn.ReLU(), nn.Linear(d_ff, d_model)
+            )
+            self.ln2 = nn.LayerNorm(d_model)
+
+        def forward(self, x):
+            attn_out, _ = self.mha(x, x, x, need_weights=False)
+            x = self.ln1(x + attn_out)
+            return self.ln2(x + self.ff(x))
+
+    class TinyTransformerClassifier(nn.Module):
+        def __init__(self, vocab_size, seq_len, d_model=16, n_heads=2, d_ff=32, n_classes=2):
+            super().__init__()
+            self.embed = nn.Embedding(vocab_size, d_model)
+            self.register_buffer("pos_enc", sinusoidal_positional_encoding(seq_len, d_model))
+            self.block = TinyTransformerBlock(d_model, n_heads, d_ff)
+            self.fc = nn.Linear(d_model, n_classes)
+
+        def forward(self, x):
+            e = self.embed(x) + self.pos_enc.unsqueeze(0)
+            return self.fc(self.block(e).mean(dim=1))
+
+    class GRUClassifier(nn.Module):
+        def __init__(self, vocab_size, d_embed=16, d_hidden=16, n_classes=2):
+            super().__init__()
+            self.embed = nn.Embedding(vocab_size, d_embed)
+            self.gru = nn.GRU(d_embed, d_hidden, batch_first=True)
+            self.fc = nn.Linear(d_hidden, n_classes)
+
+        def forward(self, x):
+            out, _ = self.gru(self.embed(x))
+            return self.fc(out[:, -1, :])
+
+    def make_order_dataset_T(n, seed, T, vocab_size=8):
+        g = torch.Generator().manual_seed(seed)
+        base = torch.stack([torch.randperm(vocab_size, generator=g) for _ in range(n)])
+        distractors = torch.randint(vocab_size, 2 * vocab_size, (n, T - vocab_size), generator=g)
+        seqs = torch.cat([base, distractors], dim=1)
+        pos0 = (seqs == 0).float().argmax(dim=1)
+        pos1 = (seqs == 1).float().argmax(dim=1)
+        return seqs, (pos0 < pos1).long()
+
+    def train_eval(model, X_tr, y_tr, X_va, y_va, seed):
+        torch.manual_seed(seed)
+        opt = torch.optim.Adam(model.parameters(), lr=0.005)
+        loss_fn = nn.CrossEntropyLoss()
+        n = X_tr.shape[0]
+        for _ in range(30):
+            perm = torch.randperm(n)
+            for i in range(0, n, 32):
+                idx = perm[i : i + 32]
+                opt.zero_grad()
+                loss_fn(model(X_tr[idx]), y_tr[idx]).backward()
+                opt.step()
+        model.eval()
+        with torch.no_grad():
+            return (model(X_va).argmax(1) == y_va).float().mean().item()
+
+    T, vocab = 64, 8
+    X_tr, y_tr = make_order_dataset_T(800, seed=0, T=T, vocab_size=vocab)
+    X_va, y_va = make_order_dataset_T(200, seed=1, T=T, vocab_size=vocab)
+
+    for seed in [0, 1, 2]:
+        tf_acc = train_eval(TinyTransformerClassifier(2 * vocab, T), X_tr, y_tr, X_va, y_va, seed)
+        gru_acc = train_eval(GRUClassifier(2 * vocab), X_tr, y_tr, X_va, y_va, seed)
+        assert tf_acc - gru_acc > 0.2, (
+            f"seed={seed}: expected Transformer to clearly beat GRU at T={T}, "
+            f"got tf={tf_acc:.3f} gru={gru_acc:.3f}"
+        )
 
 
 def test_gradients_are_finite_through_full_transformer_block():
