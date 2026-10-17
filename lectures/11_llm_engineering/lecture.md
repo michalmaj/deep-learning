@@ -522,6 +522,23 @@ niezawodnej poprawności faktograficznej na złożonych pytaniach.
   modelu jako automatycznie prawdziwej (bez weryfikacji) jest błędem
   użytkownika/systemu, nie modelu — model nigdy nie obiecał poprawności.
 
+**Trzy różne, niezależne kryteria — żadne nie gwarantuje pozostałych:**
+
+1. **Poprawne wykonanie kodu** — jeśli model generuje kod, czy ten kod
+   **faktycznie się wykonuje** bez błędu (kwestia składniowa języka
+   programowania, nie języka naturalnego).
+2. **Poprawność składni wygenerowanego tekstu** — czy tekst jest
+   gramatycznie/strukturalnie dobrze sformułowany (np. w tym module: czy
+   odpowiedź jest płynnym, gramatycznym angielskim).
+3. **Poprawność merytoryczna** — czy treść odpowiedzi jest **faktycznie
+   prawdziwa/trafna**.
+
+Kod może się wykonać bez błędu i dać **złą** odpowiedź (błąd logiczny, nie
+składniowy). Tekst może być gramatycznie bezbłędny i **merytorycznie
+fałszywy** (halucynacja, wyżej). Żadne z tych trzech kryteriów automatycznie
+nie implikuje pozostałych — oceniając wygenerowaną treść (sekcja "Ocena
+jakości" wyżej, i laboratorium), trzeba sprawdzić **każde z nich osobno**.
+
 To jest **wprowadzenie** do tych tematów (świadomość, nie głęboka analiza) —
 pełne bezpieczeństwo LLM to osobny obszar, poza zakresem tego modułu.
 
