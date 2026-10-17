@@ -284,3 +284,47 @@ datasets:
     # gitignored data_cache/ directory). SHA-256 of the zip archive, verified
     # by our own download code (not by a library):
     # 1587ea43e58e82b14ff1f5425c88e17f8496bfcdb67a583dbff9eefaf9963ce3
+
+  - id: smollm2-135m-instruct
+    name: "SmolLM2-135M-Instruct pretrained weights"
+    source:
+      provider: Hugging Face Hub
+      author: "Hugging Face (Loubna Ben Allal et al., HuggingFaceTB team)"
+      url: https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct
+    license:
+      name: Apache License 2.0
+      url: https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct/blob/main/LICENSE
+    redistribution:
+      allowed: true
+      notes: >
+        Apache 2.0 permits redistribution, but this repository still follows
+        its own "document provenance, never commit the binary" policy for
+        downloaded weights (same pattern as resnet18-imagenet1k-v1 above).
+        Not gated on the Hub (verified via the Hub API: `"gated": false`).
+        Downloaded on demand via
+        `AutoModelForCausalLM.from_pretrained("HuggingFaceTB/SmolLM2-135M-Instruct",
+        revision="12fd25f77366fa6b3b4b768ec3050bf629380bac")`, pinned to that
+        exact commit SHA so the weights can't silently change under a moving
+        tag. `transformers`/`huggingface_hub` verify file integrity themselves
+        on download; never committed to this repository.
+    citation:
+      text: >
+        Ben Allal, L., Lozhkov, A., Bakouch, E., et al. (2025). SmolLM2: When
+        Smol Goes Big -- Data-Centric Training of a Small Language Model.
+        arXiv:2502.02737.
+      bibtex: |
+        @misc{benallal2025smollm2,
+          author        = {Ben Allal, Loubna and Lozhkov, Anton and Bakouch, Elie and others},
+          title         = {{SmolLM2}: When Smol Goes Big -- Data-Centric Training of a Small Language Model},
+          year          = {2025},
+          eprint        = {2502.02737},
+          archivePrefix = {arXiv},
+          primaryClass  = {cs.CL}
+        }
+    course_usage:
+      lectures: [11]
+      labs: [11]
+    # No `files:` list: never stored at a repo-relative path (downloaded to the
+    # default Hugging Face cache, outside this repo). Actual downloaded
+    # model.safetensors size, measured directly (not estimated from parameter
+    # count): 257MB (fp32). 134,515,008 parameters.
