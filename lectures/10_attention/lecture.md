@@ -23,8 +23,8 @@ mogła się po drodze zanikać). Attention odwraca tę zasadę: zamiast polegać
 na skompresowanym stanie, każda pozycja może **bezpośrednio** "zajrzeć" do
 reprezentacji dowolnej innej pozycji, ważąc ją tym, jak bardzo jest istotna. Zobaczymy
 to dosłownie w eksperymencie porównawczym z GRU: na zadaniu, gdzie dwa istotne tokeny
-są odległe o $32$ pozycje, GRU traci niemal całą skuteczność, a mały Transformer —
-nie.
+są odległe o $64$ pozycje, GRU traci większość skuteczności (spada blisko poziomu
+przypadku), a mały Transformer radzi sobie wyraźnie lepiej (choć też nie idealnie).
 
 ## Intuicja
 
@@ -96,6 +96,11 @@ $\in\mathbb R^{T\times d_v}$. Dla batcha rozmiaru $B$: dokładamy wymiar z przod
 $Q,K\in\mathbb R^{B\times T\times d_k}$ itd., $QK^\top\in\mathbb R^{B\times T\times T}$
 — macierz wag attention jest **osobna dla każdego przykładu w batchu**.
 
+**Uwaga o notacji.** Rozmiar batcha oznaczamy tu $B$, nie $N$ jak w modułach
+1-3/6-7 — świadomie, bo w tym module $N$ jest już zajęte (niżej: liczba bloków
+Transformer ułożonych jeden po drugim). $B$ to jedyny tu symbol dla "liczby
+przykładów naraz", bez kolizji w obrębie tego dokumentu.
+
 ## Przykład rozwiązany: 3 pozycje, $d_k=4$
 
 $$Q=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&0&0\end{pmatrix}\quad K=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&1&1\end{pmatrix}\quad V=\begin{pmatrix}1&2\\3&4\\5&6\end{pmatrix}$$
@@ -112,13 +117,17 @@ $$\begin{pmatrix}0{,}4223&0{,}1554&0{,}4223\\0{,}1554&0{,}4223&0{,}4223\\0{,}274
 **4-5. Ważona kombinacja $V$ = końcowa reprezentacja:**
 $$\begin{pmatrix}3{,}000&4{,}000\\3{,}534&4{,}534\\3{,}356&4{,}356\end{pmatrix}$$
 
-Zweryfikowane bit-exact względem `F.scaled_dot_product_attention` w notebooku.
+Zweryfikowane w granicach tolerancji numerycznej (`atol=1e-6`) względem
+`F.scaled_dot_product_attention` w notebooku.
 
 ## Multi-head attention
 
 Zamiast jednej projekcji $Q,K,V$ o pełnym wymiarze $d_{\text{model}}$, multi-head
 attention dzieli na $H$ **niezależnych** głów, każda o mniejszym wymiarze
-$d_k = d_{\text{model}}/H$:
+$d_k = d_{\text{model}}/H$. **Uwaga o notacji:** $H$ tutaj to liczba głów attention —
+**inne znaczenie** niż $H$ w module 6 (wysokość obrazu w konwencji NCHW). Ten sam
+symbol, zupełnie inna domena (sekwencje vs obrazy) — rozróżnia go kontekst, tak jak
+$k$ w module 6 (rozmiar kernela) i $k$ w module 8 (k-NN):
 
 $$\text{head}_i = \text{Attention}(XW^Q_i, XW^K_i, XW^V_i), \qquad i=1,\ldots,H$$
 $$\text{MultiHead}(X) = \text{Concat}(\text{head}_1,\ldots,\text{head}_H)\,W^O$$
@@ -130,7 +139,8 @@ R^{d_{\text{model}}\times d_{\text{model}}}$. W praktyce (i w `nn.MultiheadAtten
 projekcje $Q,K,V$ wszystkich głów liczy się **jedną** macierzą
 $W^{QKV}\in\mathbb R^{d_{\text{model}}\times 3d_{\text{model}}}$ (złączoną), a dopiero
 potem dzieli wynik na $H$ głów — matematycznie równoważne $H$ osobnym projekcjom,
-zweryfikowane bit-exact w notebooku przez ręczne rozcięcie `in_proj_weight`.
+zweryfikowane w granicach tolerancji numerycznej (`atol=1e-5`) w notebooku przez
+ręczne rozcięcie `in_proj_weight`.
 
 ❌ "Każda głowa uczy się innej, rozpoznawalnej relacji (np. 'głowa składniowa',
 'głowa semantyczna')."
@@ -159,6 +169,24 @@ ogranicza na podstawie **treści danego przykładu** (które pozycje są realne,
 od długości konkretnej sekwencji w batchu). Model dekodera ze zmienną długością
 sekwencji w batchu potrzebuje **obu naraz** — zweryfikowane w notebooku: połączona
 maska to iloczyn (logiczny AND) obu masek z osobna.
+
+### Padding w RNN a padding w attention — to nie ten sam mechanizm
+
+Moduł 9 uczy `pack_padded_sequence` jako sposobu na ignorowanie paddingu w
+RNN/LSTM/GRU — łatwo stąd wynieść, że maska paddingu w attention "robi to samo".
+**Nie robi.** To dwa różne mechanizmy, nie dwie nazwy jednej rzeczy:
+
+| | `pack_padded_sequence` (RNN, moduł 9) | `key_padding_mask` (attention) |
+|---|---|---|
+| Co dzieje się z pozycją paddingu | **Nie jest przetwarzana w ogóle** — warstwa rekurencyjna fizycznie pomija ten krok | **Jest przetwarzana normalnie** przez embedding, FFN, LayerNorm — zerowana jest tylko jej **waga w sumie attention** |
+| Pozycja paddingu jako zapytanie | Nie istnieje (sekwencja się już skończyła) | **Wciąż produkuje jakiś wynik** — nie jest pomijana jako krok obliczeniowy, tylko później ignorowana |
+
+Konsekwencja: samo zamaskowanie attention **nie wystarcza**, żeby padding był
+całkowicie bez wpływu na wynik — jeśli reprezentacja całej sekwencji powstaje przez
+uśrednienie *wszystkich* pozycji (nie tylko rzeczywistych), padding wpłynie na
+wynik, nawet gdy attention poprawnie go zignorowało przy ważeniu. Potrzebna jest
+**jeszcze** poprawna agregacja na końcu — zobacz zadanie diagnostyczne w
+laboratorium tego modułu.
 
 ### Maska boolowska a addytywna
 
@@ -218,7 +246,8 @@ Wzór $\text{Attention}(Q,K,V)$ **nie odwołuje się nigdzie do indeksu pozycji*
 $j$ poza tym, które konkretne wiersze $X$ bierze — jeśli permutujemy wiersze wejścia
 $X$, wyjście permutuje się **dokładnie tak samo** (własność nazywana
 **równoważnością permutacyjną**, *permutation equivariance*). Zweryfikowane w
-notebooku: `output(permutuj(X)) == permutuj(output(X))`, bit-exact.
+notebooku: `output(permutuj(X))` zgadza się z `permutuj(output(X))` w granicach
+tolerancji numerycznej (`atol=1e-6`).
 
 Konsekwencja: jeśli zbudujemy model klasyfikujący sekwencję przez self-attention +
 agregację **niewrażliwą na kolejność** (np. średnią po pozycjach), całość jest
@@ -329,9 +358,10 @@ tokenie, bo podczas treningu "widział" całą sekwencję naraz.
 Wszystkie liczby niżej pochodzą z rzeczywistego wykonania `examples.ipynb` (nie z
 szacunków) — zobacz notebook po pełne wyjście.
 
-- **Eksperyment A.** Ręczna implementacja scaled dot-product attention zgadza się
-  bit-exact (`atol=1e-6`) z `F.scaled_dot_product_attention` na przykładzie liczbowym
-  z 3 pozycjami. Zmiana jednego zapytania zmienia **tylko** odpowiadający mu wiersz
+- **Eksperyment A.** Ręczna implementacja scaled dot-product attention zgadza się,
+  w granicach tolerancji numerycznej (`atol=1e-6`), z
+  `F.scaled_dot_product_attention` na przykładzie liczbowym z 3 pozycjami. Zmiana
+  jednego zapytania zmienia **tylko** odpowiadający mu wiersz
   wyniku; zmiana jednego klucza/wartości zmienia **wszystkie** wiersze (każde
   zapytanie może do niego "zajrzeć"). Zweryfikowano wprost: `nn.MultiheadAttention`
   interpretuje maskę boolowską (`attn_mask`, `key_padding_mask`) **odwrotnie** niż
@@ -341,14 +371,16 @@ szacunków) — zobacz notebook po pełne wyjście.
   `model.eval()` nie wyłącza dropoutu przekazywanego jako stały argument funkcji
   (potwierdzone: dwa wywołania `NaiveAttention.eval()` dają różne wyniki).
 - **Eksperyment B.** Ręczna konstrukcja multi-head attention (rozcięcie
-  `in_proj_weight`, podział na głowy, konkatenacja, `out_proj`) zgadza się bit-exact
-  (`atol=1e-5`) z `nn.MultiheadAttention`, zarówno output jak i wagi per głowa.
-  Liczba parametrów dla $d_{\text{model}}=8$, $H=2$: $288$, zgodna ze wzorem
+  `in_proj_weight`, podział na głowy, konkatenacja, `out_proj`) zgadza się, w
+  granicach tolerancji numerycznej (`atol=1e-5`), z `nn.MultiheadAttention`, zarówno
+  output jak i wagi per głowa. Liczba parametrów dla $d_{\text{model}}=8$, $H=2$:
+  $288$, zgodna ze wzorem
   $3d_{\text{model}}^2+3d_{\text{model}}+d_{\text{model}}^2+d_{\text{model}}$.
 - **Eksperyment C.** Równoważność permutacyjna self-attention i niezmienniczość
   reprezentacji uśrednionej (oraz niezmienniczość reprezentacji stylu CLS na
-  permutację pozostałych tokenów) — potwierdzone bit-exact. Na zadaniu zależnym od
-  kolejności (8-elementowy słownik, etykieta = kolejność tokenów 0 i 1): **z**
+  permutację pozostałych tokenów) — potwierdzone w granicach tolerancji numerycznej
+  (`atol=1e-6`). Na zadaniu zależnym od kolejności (8-elementowy słownik, etykieta =
+  kolejność tokenów 0 i 1): **z**
   positional encoding, `val_acc=test_acc=1,000`; **bez** PE, `val_acc=0,475`,
   `test_acc=0,485` — **identyczne na każdym z 3 testowanych ziaren** (0, 1, 2), co
   potwierdza, że to ograniczenie reprezentacyjne, nie nieszczęśliwa inicjalizacja.
@@ -360,14 +392,22 @@ szacunków) — zobacz notebook po pełne wyjście.
   parametry) na trudniejszym wariancie zadania (dystraktory dołączone za stałą,
   wczesną parą decydujących tokenów — wymusza pamięć na całą długość "ogona"):
   $T=8,16,32$ — oba modele `val_acc=1,000`; **$T=64$ — Transformer $0{,}860$, GRU
-  $0{,}480$** (blisko poziomu przypadku) — bezpośrednia, zmierzona konsekwencja
-  zanikającego gradientu z modułu 9: GRU musi przenieść informację o pozycji tokenów
-  0/1 przez $56$ kroków samego szumu, Transformer ma do nich bezpośredni dostęp
-  niezależnie od odległości. Transformer **też** się pogarsza przy $T=64$ (nie jest
-  to „zawsze wygrywa”) — przy tym samym, niezmienionym budżecie treningowym. Czas
-  treningu: Transformer szybszy niż GRU przy większym $T$ (np. $1{,}22$s vs $2{,}41$s
-  przy $T=64$), ale to mikrobenchmark na bardzo krótkich sekwencjach — nie
-  wyciągamy z tego daleko idących wniosków o rzeczywistej wydajności.
+  $0{,}480$** (blisko poziomu przypadku) — **zaobserwowana różnica accuracy**,
+  zmierzona z jednego przebiegu (w przeciwieństwie do porównania z/bez PE wyżej w
+  tym samym eksperymencie, to konkretne porównanie nie jest sprawdzone na wielu
+  ziarnach). Moduł 9 (Eksperyment B) **zmierzył niezależnie**, na innym zadaniu, że
+  norma gradientu GRU względem odległego wejścia zanika wykładniczo z długością
+  sekwencji. Spadek accuracy GRU przy $T=64$ jest **zgodny z hipotezą**, że ten sam
+  mechanizm przyczynił się do wyniku — GRU musi przenieść informację o pozycji
+  tokenów 0/1 przez $56$ kroków samego szumu, Transformer ma do nich bezpośredni
+  dostęp niezależnie od odległości — ale w **tym** eksperymencie nie zmierzyliśmy
+  normy gradientu GRU na tym konkretnym zadaniu: to wiarygodna, ale niepotwierdzona
+  bezpośrednio hipoteza, nie udowodniona przyczyna. Transformer **też** się pogarsza
+  przy $T=64$ (nie jest to „zawsze wygrywa”) — przy tym samym, niezmienionym budżecie
+  treningowym. Czas treningu: Transformer szybszy niż GRU przy większym $T$ (np.
+  $1{,}22$s vs $2{,}41$s przy $T=64$), ale to mikrobenchmark na bardzo krótkich
+  sekwencjach — nie wyciągamy z tego daleko idących wniosków o rzeczywistej
+  wydajności.
 
 ## Częste błędne przekonania
 
@@ -392,8 +432,9 @@ innego powodu niż zanikający gradient.
 
 ❌ "Mały Transformer zawsze rozwiąże zadanie sekwencyjne lepiej niż RNN/LSTM/GRU."
 
-✅ Zmierzone wprost (eksperyment porównawczy, niżej): na krótkich sekwencjach ($T=8$)
-GRU radzi sobie równie dobrze; przy $T=64$, przy tym samym, niezmienionym budżecie
+✅ Zmierzone wprost (eksperyment porównawczy, sekcja "Co obserwujemy" wyżej): na
+krótkich sekwencjach ($T=8$) GRU radzi sobie równie dobrze; przy $T=64$, przy tym
+samym, niezmienionym budżecie
 treningowym, **nasz mały Transformer też nie jest idealny** (nie 100%) — wielkość i
 budżet treningu mają znaczenie, architektura sama w sobie nie gwarantuje sukcesu.
 
