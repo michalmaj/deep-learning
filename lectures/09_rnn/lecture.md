@@ -144,7 +144,8 @@ następnej warstwy.
 równoważne pojedynczemu biasowi (suma dwóch stałych to stała), tylko inny podział
 parametrów. Wagi `weight_ih_l0`/`weight_hh_l0` to **cztery macierze sklejone w
 jedną**, w ustalonej kolejności $[i,f,g,o]$ — zweryfikowane w notebooku przez ręczne
-rozcięcie tensora wag i porównanie z `nn.LSTM` bit-exact.
+rozcięcie tensora wag i porównanie z `nn.LSTM` w granicach tolerancji numerycznej
+(`atol=1e-6`).
 
 ❌ "LSTM całkowicie eliminuje zanikający gradient i gwarantuje zapamiętanie dowolnie
 odległych informacji."
@@ -176,8 +177,10 @@ mniej parametrów (3 bramki zamiast 4 zestawów wag LSTM — zweryfikowane:
 $3\times$ parametrów vanilla RNN, dokładnie, nie w przybliżeniu), prostszy mechanizm,
 czasem porównywalna jakość — **nie zawsze**, zależy od zadania (eksperyment D).
 
-**Zgodność z `torch.nn.GRU`:** kolejność bramek w tensorach wag to $[r,z,n]$,
-zweryfikowana bit-exact w notebooku analogicznie do LSTM.
+**Zgodność z `torch.nn.GRU`:** kolejność bramek w tensorach wag to $[r,z,n]$
+(dokumentacja PyTorch) — w przeciwieństwie do LSTM wyżej, notebook **nie** odtwarza
+tu ręcznie równań bramek GRU względem `nn.GRU`; `nn.GRU` jest używany bezpośrednio w
+eksperymentach B i D.
 
 ## Przykład rozwiązany: 3 kroki vanilla RNN
 
@@ -191,7 +194,8 @@ $$h_1 = \tanh(W_x x_1 + W_h h_0 + b) = \tanh\begin{pmatrix}0{,}6\\0{,}0\end{pmat
 
 $$h_2 = \tanh(W_x x_2 + W_h h_1 + b) = \begin{pmatrix}-0{,}0923\\0{,}5692\end{pmatrix}, \qquad h_3 = \begin{pmatrix}0{,}2743\\0{,}7767\end{pmatrix}$$
 
-**Zweryfikowane bit-exact względem `nn.RNN`** (notebook): te same $W_x,W_h,b$
+**Zweryfikowane w granicach tolerancji numerycznej (`atol=1e-6`) względem `nn.RNN`**
+(notebook): te same $W_x,W_h,b$
 wstawione jako `rnn.weight_ih_l0`/`weight_hh_l0`/`bias_ih_l0` (z `bias_hh_l0=0`, żeby
 sumaryczny bias zgadzał się z $b$ powyżej — zobacz uwagę o dwóch biasach PyTorcha),
 `nn.RNN` daje te same trzy stany co do szóstej cyfry po przecinku. **Te same $W_x,
@@ -290,7 +294,8 @@ $1330$ dla GRU ($2{,}7\times$ mniej). Różnica wynika z **dostępu do informacj
 (uśrednienie jest niezmiennicze na permutacje), nie z pojemności modelu.
 
 **D (LSTM/GRU — bramki, parametry, czas).** Ręczne równania bramek LSTM (kolejność
-wag $[i,f,g,o]$) zgadzają się z `nn.LSTM` bit-exact, zarówno $h_t$ jak i $c_t$.
+wag $[i,f,g,o]$) zgadzają się z `nn.LSTM` w granicach tolerancji numerycznej
+(`atol=1e-6`), zarówno $h_t$ jak i $c_t$.
 Liczba parametrów: LSTM dokładnie $4\times$ RNN, GRU dokładnie $3\times$ (przy tym
 samym $d_{\text{in}}, d_h$) — zweryfikowane, nie przybliżone. Czas forward passu
 ($d_{\text{in}}=32, d_h=64, T=50$, batch $64$): RNN $1{,}3$ms, GRU $2{,}0$ms
