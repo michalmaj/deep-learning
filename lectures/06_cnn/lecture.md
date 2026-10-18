@@ -50,7 +50,7 @@ $$Y[i,j] = \sum_{p=0}^{k-1}\sum_{q=0}^{k-1} X[i+p,\, j+q]\cdot K[p,q] \;(+\, b)$
 
 ### Uwaga terminologiczna: konwolucja a korelacja wzajemna
 
-Wzór powyżej to **korelacja wzajemna** (*cross-correlation*) — dokładnie to, co liczy `torch.nn.Conv2d` (zweryfikowane w notebooku: ręczny wzór bez odwracania filtra zgadza się z `nn.Conv2d` co do bitu). Matematyczna **konwolucja** w ścisłym sensie wymaga dodatkowo odwrócenia filtra: $Y[i,j] = \sum_{p,q} X[i-p,j-q]K[p,q]$. Dla uczenia sieci ta różnica **nie ma znaczenia praktycznego** — sieć i tak uczy się wag filtra od zera, więc nauczy się ich odwróconej wersji, jeśli to by było potrzebne — ale nazwa "warstwa konwolucyjna" dla operacji, która w ścisłym sensie jest korelacją wzajemną, to utrwalony w całej dziedzinie skrót myślowy, wart znajomości wprost.
+Wzór powyżej to **korelacja wzajemna** (*cross-correlation*) — dokładnie to, co liczy `torch.nn.Conv2d` (zweryfikowane w notebooku: ręczny wzór bez odwracania filtra zgadza się z `nn.Conv2d` w granicach tolerancji numerycznej, `torch.allclose(..., atol=1e-6)`). Matematyczna **konwolucja** w ścisłym sensie wymaga dodatkowo odwrócenia filtra: $Y[i,j] = \sum_{p,q} X[i-p,j-q]K[p,q]$. Dla uczenia sieci ta różnica **nie ma znaczenia praktycznego** — sieć i tak uczy się wag filtra od zera, więc nauczy się ich odwróconej wersji, jeśli to by było potrzebne — ale nazwa "warstwa konwolucyjna" dla operacji, która w ścisłym sensie jest korelacją wzajemną, to utrwalony w całej dziedzinie skrót myślowy, wart znajomości wprost.
 
 ### Rozmiar wyjścia: kernel size, stride, padding
 
@@ -95,7 +95,7 @@ Analogicznie dla pozostałych ośmiu pozycji (pełne wyliczenie i weryfikacja w 
 
 $$Y = \begin{pmatrix}-4&-2&4\\0&-4&-1\\1&0&-2\end{pmatrix}$$
 
-— zgodne co do bitu z `torch.nn.Conv2d(1,1,kernel_size=3,bias=False)` po wstawieniu tego samego filtra jako wag.
+— zgodne w granicach tolerancji numerycznej (`atol=1e-6`) z `torch.nn.Conv2d(1,1,kernel_size=3,bias=False)` po wstawieniu tego samego filtra jako wag.
 
 ## Eksperyment
 
