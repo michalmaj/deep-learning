@@ -75,12 +75,14 @@ class _TinyBlock(nn.Module):
         self.ln2 = nn.LayerNorm(d_model)
 
     def forward(self, x, key_padding_mask):
-        # need_weights=True (not the default False) to match the lab notebook,
-        # which inspects per-head attention weights in extension R2 (optional,
-        # was section 10 before the 2026-10-18 pacing restructure) -- this matters
-        # here because it forces nn.MultiheadAttention's explicit-softmax path
-        # rather than the fused fast path, and only the explicit path produces
-        # NaN (rather than a safe zero) for an all-masked row.
+        # need_weights=True is actually nn.MultiheadAttention's default -- passed
+        # explicitly here for clarity, matching the lab notebook's extension R2
+        # (optional, inspects per-head attention weights; was section 10 before
+        # the 2026-10-18 pacing restructure). This matters because need_weights=True
+        # forces nn.MultiheadAttention's explicit-softmax path rather than the
+        # fused fast path, and only the explicit path produces NaN (rather than a
+        # safe zero) for an all-masked row -- need_weights=False must be set
+        # explicitly to get the safe-zero behavior instead.
         attn_out, _ = self.mha(x, x, x, key_padding_mask=key_padding_mask, need_weights=True)
         x = self.ln1(x + attn_out)
         return self.ln2(x + self.ff(x))
