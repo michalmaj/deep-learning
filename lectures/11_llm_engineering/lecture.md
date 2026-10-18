@@ -583,10 +583,10 @@ wyjście.
   jawnie dołączona do wejścia.
 - **Eksperyment E.** `use_cache=True` wyraźnie szybsze niż `False`, z
   przewagą rosnącą z długością: przy $16$ nowych tokenach $0{,}18$s vs
-  $0{,}44$s ($2{,}4\times$); przy $128$ tokenach $1{,}18$s vs $4{,}54$s
-  ($3{,}8\times$) — rosnąca przewaga, zgodna z teorią ($O(T)$ na krok bez
+  $0{,}44$s ($2{,}5\times$); przy $128$ tokenach $1{,}29$s vs $5{,}64$s
+  ($4{,}4\times$) — rosnąca przewaga, zgodna z teorią ($O(T)$ na krok bez
   cache vs $O(1)$ na krok z cache). Dłuższy prompt ($437$ vs $31$ tokenów,
-  to samo generowanie=$32$ tokeny): $0{,}44$s vs $0{,}28$s — dłuższy prefill,
+  to samo generowanie=$32$ tokeny): $0{,}47$s vs $0{,}32$s — dłuższy prefill,
   ale decode wciąż dominuje przy tej skali. Wzór pamięci cache
   ($2NH_{kv}d_{\text{head}}T\cdot\text{bytes}$) dał $737\,280$ bajtów dla
   $T=16$ — **dokładnie** (identyczność bitowa, nie przybliżenie) zgodne z

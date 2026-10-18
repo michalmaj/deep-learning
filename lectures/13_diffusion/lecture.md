@@ -387,8 +387,8 @@ komponent), $2000$ próbek treningowych.
   rezydualny sygnał), $T=100$ cosinusowy→$0{,}0000$ (szybsza destrukcja
   sygnału na końcu).
 - **Eksperyment B.** Trening ($T=1000$, 200 epok, MLP $2{+}16\to128\to128\to2$,
-  2000 próbek): czas $0{,}85$s na CPU. Strata spada z $0{,}86$ (epoka 1) do
-  $0{,}31$ (epoka 200), nie monotonicznie gładko — typowe dla tego zadania.
+  2000 próbek): czas $0{,}78$s na CPU. Strata spada z $0{,}86$ (epoka 1) do
+  $0{,}337$ (epoka 200), nie monotonicznie gładko — typowe dla tego zadania.
 - **Eksperyment C.** Reverse diffusion od $x_T\sim N(0,I)$: po $T=1000$
   krokach, wygenerowane próbki pokrywają wszystkie 8 modów rozkładu
   treningowego (fraction-near-mode $0{,}868$, pokrycie 8/8, średnia

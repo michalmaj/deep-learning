@@ -66,7 +66,9 @@ Krok zwykłego SGD z tym gradientem:
 
 $$\theta \leftarrow \theta - \eta\big(\nabla L(\theta) + \lambda\theta\big) = \underbrace{(1-\eta\lambda)\theta}_{\text{"skurczenie" wag}} - \eta\nabla L(\theta)$$
 
-To jest dokładnie to, co nazywamy **weight decay**: każdy krok najpierw mnoży wagi przez $(1-\eta\lambda) < 1$ ("kurczy" je w stronę zera), a potem wykonuje zwykły krok gradientowy. **Dla zwykłego SGD te dwa sformułowania — "dodaj $\frac{\lambda}{2}\|\theta\|^2$ do straty" i "pomnóż wagi przez $(1-\eta\lambda)$ w każdym kroku" — są dokładnie tym samym wzorem**, nie dwoma podobnymi technikami (zweryfikowane co do bitu w notebooku, przeciw `torch.optim.SGD(weight_decay=λ)`; zwróć uwagę, że to musi być **ten sam, pojedynczy krok** — osobne "najpierw pełny krok gradientowy, a potem oddzielne skurczenie" daje, co ciekawe, **inny**, nieco mniejszy wynik, co też zweryfikowano liczbowo).
+To jest dokładnie to, co nazywamy **weight decay**: każdy krok najpierw mnoży wagi przez $(1-\eta\lambda) < 1$ ("kurczy" je w stronę zera), a potem wykonuje zwykły krok gradientowy. **Dla zwykłego SGD te dwa sformułowania — "dodaj $\frac{\lambda}{2}\|\theta\|^2$ do straty" i "pomnóż wagi przez $(1-\eta\lambda)$ w każdym kroku" — są dokładnie tym samym wzorem**, nie dwoma podobnymi technikami (zweryfikowane w granicach tolerancji numerycznej w notebooku, `atol=1e-3`, przeciw `torch.optim.SGD(weight_decay=λ)`). Zwróć uwagę, że to musi być **ten sam, pojedynczy krok**: osobne "najpierw pełny krok gradientowy $\theta'=\theta-\eta\nabla L(\theta)$, a potem oddzielne skurczenie $(1-\eta\lambda)\theta'$" daje
+$$(1-\eta\lambda)\theta'= (1-\eta\lambda)\theta - \eta(1-\eta\lambda)\nabla L(\theta),$$
+czyli różni się od wzoru wyżej dodatkowym czynnikiem $(1-\eta\lambda)$ przy składniku gradientowym — różnica to dokładnie $\eta^2\lambda\nabla L(\theta)$, więc dla $\lambda\neq0$ to ogólnie **inny** wynik niż jeden, połączony krok, a to, czy większy czy mniejszy, zależy od znaku $\nabla L(\theta)$ (nie jest to uniwersalnie "mniejszy wynik" w żadną stronę).
 
 ### L2 a weight decay dla optymalizatorów adaptacyjnych — UWAGA, to nie to samo
 
