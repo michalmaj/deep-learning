@@ -58,7 +58,7 @@ Dla wejścia o rozmiarze $H$ (analogicznie dla $W$), rozmiarze filtra $K$, paddi
 
 $$H' = \left\lfloor \frac{H + 2P - K}{S} \right\rfloor + 1$$
 
-(zweryfikowane w notebooku dla $20$ losowych kombinacji $H,K,S,P$ — zgodne z `nn.Conv2d` co do piksela). Intuicje: większy $K$ → mniejsze wyjście (filtr "zjada" więcej brzegu); $P>0$ → dopisanie zer po brzegach, żeby przeciwdziałać kurczeniu się mapy cech (dla $P=\lfloor K/2\rfloor$, $S=1$ wyjście ma ten sam rozmiar co wejście — tzw. "same padding"); większy $S$ → filtr "przeskakuje" piksele, wyjście mniejsze, mniej obliczeń.
+(zweryfikowane w zestawie testów, `tests/test_lecture_06_notebook.py`, dla $8$ ustalonych kombinacji $H,K,S,P$ — zgodne z `nn.Conv2d` co do piksela). Intuicje: większy $K$ → mniejsze wyjście (filtr "zjada" więcej brzegu); $P>0$ → dopisanie zer po brzegach, żeby przeciwdziałać kurczeniu się mapy cech (dla $P=\lfloor K/2\rfloor$, $S=1$ wyjście ma ten sam rozmiar co wejście — tzw. "same padding"); większy $S$ → filtr "przeskakuje" piksele, wyjście mniejsze, mniej obliczeń.
 
 ### Wiele kanałów wejściowych, wiele filtrów wyjściowych
 
@@ -72,7 +72,7 @@ Jeden filtr zawsze daje **jedną** mapę wyjściową, niezależnie od liczby kan
 
 $$\#\text{parametrów} = \underbrace{(C_{in}\cdot k\cdot k)}_{\text{wagi jednego filtra}} \cdot\, C_{out} \;+\; \underbrace{C_{out}}_{\text{biasy}} = (C_{in} k^2 + 1)\, C_{out}$$
 
-(zweryfikowane w notebooku dla $4$ konfiguracji, w tym $1\times1$ i $5\times5$ — zgodne z `Conv2d` co do parametru). **Kluczowe: ten wzór nie zależy od $H$ ani $W$** — warstwa konwolucyjna ma tyle samo parametrów niezależnie od tego, czy obraz wejściowy ma $28\times28$ czy $280\times280$ pikseli (bo ten sam mały filtr jest tylko przesuwany po większym obszarze). Warstwa w pełni połączona (`Linear`) łącząca spłaszczony obraz $C_{in}\times H\times W$ z $C_{out}$ wyjściami ma $C_{in}\cdot H\cdot W\cdot C_{out} + C_{out}$ parametrów — **rośnie wprost proporcjonalnie do rozmiaru obrazu**. Dla obrazu $28\times28\times1$ i $32$ filtrów $3\times3$: konwolucja ma $(1\cdot9+1)\cdot32=320$ parametrów; warstwa `Linear` o tej samej liczbie wyjść ma $28\cdot28\cdot32+32=25\,120$ parametrów — **ponad $78\times$ więcej**.
+(zweryfikowane w zestawie testów, `tests/test_lecture_06_notebook.py`, dla $4$ konfiguracji $(C_{in},C_{out},k)$, w tym $k=5$ — zgodne z `Conv2d` co do parametru). **Kluczowe: ten wzór nie zależy od $H$ ani $W$** — warstwa konwolucyjna ma tyle samo parametrów niezależnie od tego, czy obraz wejściowy ma $28\times28$ czy $280\times280$ pikseli (bo ten sam mały filtr jest tylko przesuwany po większym obszarze). Warstwa w pełni połączona (`Linear`) łącząca spłaszczony obraz $C_{in}\times H\times W$ z $C_{out}$ wyjściami ma $C_{in}\cdot H\cdot W\cdot C_{out} + C_{out}$ parametrów — **rośnie wprost proporcjonalnie do rozmiaru obrazu**. Dla obrazu $28\times28\times1$ i $32$ filtrów $3\times3$: konwolucja ma $(1\cdot9+1)\cdot32=320$ parametrów; warstwa `Linear` o tej samej liczbie wyjść ma $28\cdot28\cdot32+32=25\,120$ parametrów — **ponad $78\times$ więcej**.
 
 ❌ **To nie jest automatyczna gwarancja lepszej generalizacji.** Mniej parametrów oznacza mniejszą pojemność modelu (wykład 5) w tym konkretnym sensie — ale to, czy to pomaga czy szkodzi generalizacji, zależy od tego, czy założenia CNN (lokalność, współdzielenie wag) faktycznie pasują do struktury danych. Dla obrazów pasują bardzo dobrze; dla danych bez struktury przestrzennej (np. tabularnych cech z modułu 5) konwolucja nie miałaby żadnego uzasadnienia.
 
