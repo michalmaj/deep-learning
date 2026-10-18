@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 01: podstawy PyTorch — tensory, urządzenia, pierwszy model
 
 Czas: ok. 2 godziny. Bazuje na mechanizmie z [`lectures/01_intro/lecture.md`](../../lectures/01_intro/lecture.md)
