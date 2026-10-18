@@ -15,8 +15,9 @@ established refinement: only skip when a notebook actually needs
 network access). Always-on synthetic tests below cover the mechanics
 this lab is actually about: the correct vs. inverted `key_padding_mask`
 convention for `nn.MultiheadAttention`, and the resulting NaN on a
-fully-unpadded sequence that the diagnostic task (section 12) is built
-around.
+fully-unpadded sequence that the diagnostic task (section 9, renumbered
+2026-10-18 when sections 9-10 -- length-bucket accuracy and attention-
+weight inspection -- moved to optional extensions R1/R2) is built around.
 """
 
 from pathlib import Path
@@ -75,7 +76,8 @@ class _TinyBlock(nn.Module):
 
     def forward(self, x, key_padding_mask):
         # need_weights=True (not the default False) to match the lab notebook,
-        # which inspects per-head attention weights in section 10 -- this matters
+        # which inspects per-head attention weights in extension R2 (optional,
+        # was section 10 before the 2026-10-18 pacing restructure) -- this matters
         # here because it forces nn.MultiheadAttention's explicit-softmax path
         # rather than the fused fast path, and only the explicit path produces
         # NaN (rather than a safe zero) for an all-masked row.
