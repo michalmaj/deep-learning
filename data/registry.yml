@@ -60,7 +60,7 @@ datasets:
           year    = {2017}
         }
     course_usage:
-      lectures: [6]
+      lectures: [6, 14]
       labs: [12]
     # No `files:` list: this dataset is never stored at a repo-relative
     # path (see redistribution.notes), so scripts/verify_data.py has
@@ -156,7 +156,7 @@ datasets:
         }
     course_usage:
       lectures: [7]
-      labs: [7]
+      labs: [7, 14]
     # No `files:` list: never stored at a repo-relative path. Integrity verified by
     # torchvision itself on download. File: resnet18-f37072fd.pth (~44.7 MB).
 
@@ -241,7 +241,7 @@ datasets:
         }
     course_usage:
       lectures: []
-      labs: [7]
+      labs: [7, 14]
     # No `files:` list: never stored at a repo-relative path. Integrity verified
     # by torchvision itself on download (md5 c8fa014336c82ac7804f0398fcb19387 for
     # EuroSAT.zip, its own value, not ours).
