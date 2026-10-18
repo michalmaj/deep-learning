@@ -60,7 +60,7 @@ datasets:
           year    = {2017}
         }
     course_usage:
-      lectures: [6, 14]
+      lectures: [6, 14, 15]
       labs: [12]
     # No `files:` list: this dataset is never stored at a repo-relative
     # path (see redistribution.notes), so scripts/verify_data.py has
@@ -241,7 +241,7 @@ datasets:
         }
     course_usage:
       lectures: []
-      labs: [7, 14]
+      labs: [7, 14, 15]
     # No `files:` list: never stored at a repo-relative path. Integrity verified
     # by torchvision itself on download (md5 c8fa014336c82ac7804f0398fcb19387 for
     # EuroSAT.zip, its own value, not ours).
