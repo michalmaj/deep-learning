@@ -198,11 +198,11 @@ Rzeczywiste wyniki z notebooka (10 klas Caltech101, 360 obrazów treningowych):
 
 | Strategia | Param. trenowalne | Accuracy walidacyjna | Czas treningu | Inferencja/obraz |
 |---|---:|---:|---:|---:|
-| Od zera (8 epok) | 11 181 642 (100%) | 0,65 | 86,4s | 12,5ms |
-| Zamrożony backbone, naiwnie (5 epok) | 5 130 (0,05%) | 1,00 | 27,1s | — |
-| Zamrożony backbone, z cache'em (5 epok, ten sam wynik) | 5 130 | 1,00 | **7,5s** | 11,7ms |
-| Zamrożony backbone, finalnie (15 epok na cache'u) | 5 130 | 1,00 | 7,5s | — |
-| Częściowy fine-tuning, `layer4`+`fc` (8 epok) | 8 398 858 (75%) | 1,00 | 51,3s | 11,7ms |
+| Od zera (8 epok) | 11 181 642 (100%) | 0,65 | 86,5s | 13,37ms |
+| Zamrożony backbone, naiwnie (5 epok) | 5 130 (0,05%) | 1,00 | 26,6s | — |
+| Zamrożony backbone, z cache'em (5 epok, ten sam wynik) | 5 130 | 1,00 | **7,75s** | 11,63ms |
+| Zamrożony backbone, finalnie (15 epok na cache'u) | 5 130 | 1,00 | 7,8s | — |
+| Częściowy fine-tuning, `layer4`+`fc` (8 epok) | 8 398 858 (75%) | 1,00 | 51,0s | 12,41ms |
 
 **Transfer learning dał tu ogromną, jednoznaczną przewagę** — zamrożony backbone
 osiąga accuracy walidacyjną $1{,}00$ przy $0{,}05\%$ trenowalnych parametrów, podczas
@@ -215,7 +215,7 @@ blisko sufitu w obu przypadkach.
 **Czy częściowy fine-tuning dał coś ponad zamrożony backbone?** W tym konkretnym
 eksperymencie — **nie, w granicach błędu pomiaru**: obie strategie osiągają walidacyjną
 accuracy $1{,}00$ i bardzo zbliżoną testową ($0{,}98$–$1{,}00$ dla cache, $0{,}96$–$0{,}99$
-dla partial). Częściowy fine-tuning trwał $51$s (8 epok) wobec $7{,}5$s dla wersji
+dla partial). Częściowy fine-tuning trwał $51{,}0$s (8 epok) wobec $7{,}8$s dla wersji
 finalnej cache'u (15 epok) — **to porównanie przy różnych budżetach epok i różnej
 liczbie aktualizacji, nie przy tym samym koszcie obliczeniowym**, więc sama różnica
 czasu nie jest miarodajnym wnioskiem o względnej efektywności obliczeniowej tych dwóch
@@ -233,8 +233,9 @@ tylko, że w tych dwóch konkretnych przypadkach wynik był różny, co samo w s
 twierdzenie "częściowy fine-tuning nigdy/zawsze nie pomaga".
 
 **Cache vs naiwne liczenie, przy identycznej liczbie epok (5) i identycznym wyniku
-($1{,}00$ accuracy)**: $27{,}1$s naiwnie vs $7{,}5$s z cache'em — **$3{,}6\times$
-szybciej**, bez żadnej różnicy w jakości (bo backbone naprawdę się nie zmienia).
+($1{,}00$ accuracy)**: $26{,}6$s naiwnie vs $7{,}75$s z cache'em — **$3{,}4\times$
+szybciej** (dokładnie tyle, co notebook sam wylicza i wypisuje), bez żadnej różnicy w
+jakości (bo backbone naprawdę się nie zmienia).
 
 **Wpływ rozmiaru danych** (eksperyment dodatkowy, $6/18/36$ obrazów na klasę):
 zamrożony backbone (cache) osiąga $0{,}992 \to 1{,}00 \to 1{,}00$ — niemal od razu
