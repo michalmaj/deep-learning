@@ -125,7 +125,10 @@ Specjalny, pouczający przypadek: enkoder i dekoder **liniowe, bez
 aktywacji**, strata MSE. W tym przypadku (Baldi & Hornik, 1989) optymalne
 rozwiązanie **rozpina tę samą podprzestrzeń** (*subspace*), co $d_e$
 pierwszych głównych składowych PCA (moduł 08: `torch.linalg.eigh`) — przy
-pełnej konwergencji treningu.
+pełnej konwergencji treningu. To jest twierdzenie matematyczne o globalnym
+optimum zadania, nie obserwacja z jednego, konkretnego przebiegu treningu —
+poprawność samej relacji AE↔PCA nie wymaga, i tutaj nie przywołujemy,
+pojedynczego zmierzonego przykładu liczbowego.
 
 ❌ "Liniowy autoenkoder automatycznie nauczy się dokładnie wektorów własnych
 PCA (tej samej bazy, w tej samej kolejności, co wariancja)."
@@ -136,25 +139,26 @@ uporządkowana według wariancji, i może być **inną** bazą tej samej
 podprzestrzeni (enkoder i PCA mogą "obrócić" tę przestrzeń inaczej).
 Rekonstrukcja (błąd MSE) będzie taka sama jak dla optymalnej projekcji PCA na
 tę podprzestrzeń — ale surowe wagi enkodera generalnie **nie** są równe
-wektorom własnym PCA wprost.
-
-Zweryfikowane programowo na syntetycznych danych o znanym, ukrytym rzędzie 3
-w $\mathbb R^{10}$: po **dostatecznie długim** treningu (8000 epok, lr=0,02)
-AE osiągnął MSE rekonstrukcji $0{,001764}$ — **zgodne** z optymalnym MSE PCA
-rzędu 3 na tych danych — a kąty główne (*principal angles*) między
-podprzestrzenią rozpiętą przez wagi enkodera i podprzestrzenią PCA wyniosły
-**poniżej $0{,}2°$** dla wszystkich trzech wymiarów (identyczna podprzestrzeń
-w granicach błędu numerycznego).
+wektorom własnym PCA wprost. Jeśli chcesz **zmierzyć**, czy dwie
+podprzestrzenie (np. ta rozpięta przez wagi enkodera i ta rozpięta przez
+komponenty PCA) są "tą samą" podprzestrzenią, porównuj je przez **kąty
+główne** (*principal angles*) między podprzestrzeniami — nie przez
+bezpośrednie porównanie wektorów bazowych, ich znaków czy kolejności, bo
+baza każdej z tych podprzestrzeni jest niejednoznaczna z dokładnością do
+obrotu/odbicia wewnątrz niej.
 
 ❌ "Ta równoważność AE/PCA zachodzi automatycznie, niezależnie od tego, jak
 długo trenujemy."
 
-✅ **Nieprawda — wymaga wystarczającej konwergencji.** Ten sam eksperyment,
-zatrzymany **wcześniej** (2000 epok, mniejszy learning rate), dał podobny
-błąd rekonstrukcji, ale kąty główne do **$19{,}8°$** — podprzestrzeń była
-jeszcze wyraźnie "krzywa" względem PCA, mimo niemal takiego samego MSE.
-Niski błąd rekonstrukcji **nie** dowodzi sam z siebie, że AE "znalazł" tę
-samą podprzestrzeń co PCA — to osobne, zmierzone fakty, nie jeden i ten sam.
+✅ **Nieprawda — wymaga wystarczającej konwergencji.** Twierdzenie mówi o
+**optymalnym** rozwiązaniu zadania — AE zatrzymany przed zbieżnością (za
+mało epok, nieodpowiedni learning rate, utknięcie w gorszym punkcie) nie
+musi jeszcze rozpinać tej podprzestrzeni, nawet jeśli jego błąd
+rekonstrukcji jest już bliski optymalnemu MSE PCA. Błąd rekonstrukcji i
+zgodność podprzestrzeni (mierzona kątami głównymi, nie samym MSE) są
+**osobnymi** własnościami stanu treningu: w granicy zbiegają razem, ale
+przed osiągnięciem tej granicy niski błąd rekonstrukcji **nie dowodzi** sam
+z siebie, że AE "znalazł" tę samą podprzestrzeń co PCA.
 
 ## Dlaczego AE nie jest automatycznie dobrym modelem generatywnym
 
