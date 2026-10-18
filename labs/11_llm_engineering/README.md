@@ -1,10 +1,16 @@
 # Laboratorium 11: projektowanie i ocena niewielkiego pipeline'u inferencji LLM
 
-Czas: ok. 2 godziny. Bazuje na
+Czas: ok. 2 godziny (**105 minut rdzenia obowiązkowego + 15 minut bufora**).
+Bazuje na
 [`lectures/11_llm_engineering/lecture.md`](../../lectures/11_llm_engineering/lecture.md)
 (tokenizacja, next-token prediction, strategie dekodowania, chat templates,
 KV cache), ale to **inżynierski eksperyment**, nie kolejne zadanie
 klasyfikacyjne: budujesz i oceniasz mały, powtarzalny pipeline inferencji.
+
+**Sekcje 0-11 to rdzeń obowiązkowy. Sekcje R1-R2 (na końcu notebooka) są
+opcjonalnymi rozszerzeniami** — wykonaj je tylko, jeśli zostanie czas po
+zakończeniu rdzenia. Żadne kryterium oceny rdzenia nie wymaga ukończenia
+rozszerzeń.
 
 **Model**: `HuggingFaceTB/SmolLM2-135M-Instruct` (ten sam co w wykładzie,
 Apache 2.0 — zobacz [`data/registry.yml`](../../data/registry.yml)). To
@@ -32,27 +38,25 @@ pamięci KV cache (zobacz wykład)?
 
 ## 2. Przygotowanie promptów — Twoje zadanie
 
-Wybierz **3-5** promptów reprezentujących różne zadania — proponowane typy
-(możesz dopasować treść, zachowaj rozróżnienie **automatycznie
-sprawdzalne** vs **jakościowe**):
+Wybierz **dokładnie 3 obowiązkowe** prompty, pokrywające:
 
-1. **Ekstrakcja informacji** z krótkiego tekstu (ma jednoznaczną oczekiwaną
-   odpowiedź — automatycznie sprawdzalna, np. przez `in` albo regex).
-2. **Przekształcenie formatu** (np. data w innym formacie — jednoznaczna,
-   automatycznie sprawdzalna).
-3. **Parafraza** (NIE ma jednej "poprawnej" odpowiedzi — jakościowa ocena).
-4. **Pytanie wymagające odpowiedzi na podstawie podanego kontekstu**
-   (jednoznaczna, automatycznie sprawdzalna, jeśli odpowiedź jest w
-   kontekście).
-5. **Kontynuacja krótkiego tekstu** (jakościowa — oceniasz spójność/
-   gramatyczność, nie dokładne słowa).
+1. **jeden** prompt jednoznaczny typu **ekstrakcja informacji** z krótkiego
+   tekstu (ma jednoznaczną oczekiwaną odpowiedź — automatycznie sprawdzalna,
+   np. przez `in`),
+2. **jeden drugi** prompt jednoznaczny, innego typu (np. **przekształcenie
+   formatu** — data w innym formacie),
+3. **jeden** prompt **jakościowy** (parafraza albo kontynuacja — `expected=None`,
+   NIE ma jednej "poprawnej" odpowiedzi).
 
-Dla **każdego** promptu, który ma jednoznaczną odpowiedź, zapisz tę
-odpowiedź **z góry**, zanim zobaczysz, co model wygeneruje — inaczej ocena
-nie jest wiarygodna (łatwo "dopasować" kryteria po fakcie).
+Dla **każdego** promptu z jednoznaczną odpowiedzią, zapisz tę odpowiedź **z
+góry**, zanim zobaczysz, co model wygeneruje — inaczej ocena nie jest
+wiarygodna (łatwo "dopasować" kryteria po fakcie).
 
 Struktura danych: lista słowników `{"id", "typ", "prompt", "expected"}`
-(`expected=None` dla zadań jakościowych).
+(`expected=None` dla zadania jakościowego).
+
+**Rozszerzenie R1 (opcjonalne):** dodaj 2 kolejne prompty (np. pytanie z
+kontekstem, drugi styl kontynuacji) z pełnym traktowaniem jak w rdzeniu.
 
 ## 3. Chat template — Twoje zadanie
 
@@ -90,30 +94,39 @@ w samym modelu.
 
 ## 5. Deterministyczne generowanie i sampling — Twoje zadanie
 
-Dla **każdego** promptu z sekcji 2, wygeneruj odpowiedź przez
-`generate_response()`:
-1. greedy (`do_sample=False`),
-2. sampling z umiarkowaną temperaturą,
-3. sampling z wyższą temperaturą (lub top-k/top-p — wybierz **co najmniej
-   jedną** dodatkową strategię poza greedy i jedną temperaturą).
+Dla **wszystkich 3 obowiązkowych** promptów (sekcja 2), wygeneruj odpowiedź
+**greedy** (`do_sample=False`) przez `generate_response()`. Dodatkowo, dla
+**podzbioru** — prompt jednoznaczny, który wybierzesz (np. ekstrakcja), **i**
+prompt jakościowy — uruchom też **sampling** z dwiema temperaturami (0,7 i
+1,3). **Nie** wymagamy pełnego iloczynu "3 prompty × wszystkie strategie" —
+to nieproporcjonalne do dostępnego czasu.
 
 Użyj **ustalonego ziarna** (`torch.manual_seed(...)`) przed każdym
 wywołaniem samplingu, żeby wyniki były powtarzalne między Twoimi
 przebiegami.
 
+**Rozszerzenie R2 (opcjonalne):** uruchom sampling również dla drugiego
+promptu jednoznacznego (i dla promptów z R1, jeśli je dodałaś/eś) — czy
+sampling pomaga, szkodzi, czy nie ma znaczenia na zadaniach, którym rdzeń go
+nie dał?
+
 ## 6. Pomiar czasu i przepustowości — Twoje zadanie
 
-Dla każdej kombinacji (prompt, strategia) z sekcji 5, zmierz **rzeczywisty**
-czas wywołania `generate_response()` (`time.time()` przed/po) i policz
-**tokenów na sekundę** = liczba nowo wygenerowanych tokenów / czas. Zbierz
-wyniki w jedną tabelę (lista słowników albo `pandas.DataFrame`, jeśli wolisz).
+Dla każdej kombinacji (prompt, strategia), którą faktycznie uruchomiłaś/eś w
+sekcji 5, zmierz **rzeczywisty** czas wywołania `generate_response()`
+(`time.time()` przed/po) i policz **tokenów na sekundę** = liczba nowo
+wygenerowanych tokenów / czas. Zbierz wyniki w jedną tabelę.
 
 ## 7. Wpływ długości promptu — Twoje zadanie
 
 Wybierz **jeden** prompt i wygeneruj jego dłuższą wersję (np. dodaj
 kontekst/historię). Zmierz czas generowania **tej samej liczby** nowych
-tokenów dla krótkiej i długiej wersji promptu. Czy różnica jest duża czy
-mała względem całkowitego czasu? (Zobacz wykład: prefill vs decode.)
+tokenów dla krótkiej i długiej wersji promptu — użyj `min_new_tokens ==
+max_new_tokens`, żeby wymusić tę samą liczbę nowych tokenów dla obu (inaczej
+różnice w czasie generowania, np. wcześniejsze zatrzymanie przez EOS,
+zanieczyszczą pomiar samego wpływu długości promptu — ta pułapka jest
+realna, sprawdzona przy przygotowaniu tego laboratorium). Czy różnica jest
+duża czy mała względem całkowitego czasu? (Zobacz wykład: prefill vs decode.)
 
 ## 8. KV cache — Twoje zadanie
 
@@ -124,37 +137,37 @@ jest zgodny?)
 
 ## 9. Ocena jakości — Twoje zadanie
 
-Dla **każdej** odpowiedzi wygenerowanej w sekcji 5 (wybierz jedną strategię
-dekodowania na prompt, jeśli to dużo pracy — ale uzasadnij wybór), oceń:
+1. **Automatycznie**, dla **obu** promptów z jednoznaczną odpowiedzią
+   (sekcja 2), na ich odpowiedzi **greedy**: sprawdź
+   `p["expected"].lower() in response.lower()`.
+2. **Jakościowo**, dla promptu **jakościowego**: oceń **każdą** uruchomioną
+   w sekcji 5 strategię (greedy + ewentualny sampling) pod względem:
+   - **poprawności wykonania instrukcji** — czy model zrobił to, o co
+     prosiliśmy?
+   - **kompletności** — czy odpowiedź jest ucięta w połowie myśli?
+   - **zgodności z wymaganym formatem** (jeśli prompt określał format),
+   - **naturalności/spójności** odpowiedzi,
+   - **powtarzalności** (dla promptów z `do_sample=True`, czy wielokrotne
+     wywołanie z różnymi ziarnami dałoby podobny wynik?).
 
-1. **Poprawność wykonania instrukcji** — czy model zrobił to, o co
-   prosiliśmy? (Dla promptów z `expected` — sprawdzenie automatyczne, np.
-   `expected.lower() in response.lower()`.)
-2. **Poprawność faktograficzna** — tam, gdzie da się zweryfikować (np.
-   odpowiedź na pytanie z kontekstem — czy fakt w odpowiedzi zgadza się z
-   podanym kontekstem?).
-3. **Kompletność** — czy odpowiedź jest ucięta w połowie myśli (częste przy
-   małym `max_new_tokens`)?
-4. **Zgodność z wymaganym formatem** (jeśli prompt określał format).
-5. **Powtarzalność** — dla promptów z `do_sample=True`, czy **wielokrotne**
-   wywołanie (różne ziarna) daje konsekwentnie podobny wynik, czy
-   kompletnie inny za każdym razem?
-
-**Dla ocen jakościowych (parafraza, kontynuacja)**: napisz **krótkie
-uzasadnienie oparte na konkretnym fragmencie odpowiedzi** — nie "wygląda
-nieźle". Np. "parafraza zachowała znaczenie ('fox'/'dog' nadal obecne), ale
-użyła dokładnie tych samych 3 słów co oryginał w kluczowym miejscu — słaba
-parafraza" jest konkretną oceną; "brzmi dobrze" nie jest.
+**Dla oceny jakościowej**: napisz **krótkie uzasadnienie oparte na
+konkretnym fragmencie odpowiedzi** — nie "wygląda nieźle". Np. "parafraza
+zachowała znaczenie ('fox'/'dog' nadal obecne), ale użyła dokładnie tych
+samych 3 słów co oryginał w kluczowym miejscu — słaba parafraza" jest
+konkretną oceną; "brzmi dobrze" nie jest.
 
 ❌ "Ta odpowiedź wygląda lepiej, więc jest lepsza."
 
-✅ Rozdzielamy powyższe pięć kryteriów właśnie, żeby **nie** oceniać jednym,
+✅ Rozdzielamy powyższe kryteria właśnie, żeby **nie** oceniać jednym,
 subiektywnym wrażeniem (zobacz wykład).
+
+**Rozszerzenie R1/R2 (opcjonalne):** jeśli wykonałaś/eś R1 lub R2, oceń je
+tym samym schematem.
 
 ## 10. Zadanie diagnostyczne
 
 Poniższy kod (w notebooku) **wygląda** poprawnie — nie rzuca wyjątku (dla
-niektórych promptów), generuje jakiś tekst — ale ma błąd: pomylenie
+krótkiego promptu), generuje jakiś tekst — ale ma błąd: pomylenie
 `max_length` z `max_new_tokens`.
 
 **Zadanie:**
@@ -166,7 +179,9 @@ niektórych promptów), generuje jakiś tekst — ale ma błąd: pomylenie
    obcinanie".)
 3. Uruchom **ten sam** kod z **dłuższym** promptem (wystarczająco długim,
    żeby `prompt_len >= max_length`) — co się teraz dzieje? (Podpowiedź:
-   inne, głośniejsze zachowanie niż przy krótkim prompcie.)
+   inne, głośniejsze zachowanie niż przy krótkim prompcie — konkretnie,
+   `transformers` rzuca `ValueError` wprost, zamiast po cichu zwrócić zbyt
+   mało tokenów.)
 4. Popraw kod (`max_new_tokens=` zamiast `max_length=`).
 5. Zweryfikuj poprawkę: dla **obu** długości promptu, liczba nowo
    wygenerowanych tokenów musi być zgodna z zamierzoną.
@@ -176,13 +191,11 @@ niektórych promptów), generuje jakiś tekst — ale ma błąd: pomylenie
 Odpowiedz, uzasadniając rzeczywistymi liczbami/przykładami z sekcji 5-10:
 
 1. Która strategia dekodowania dała najbardziej **użyteczne** wyniki dla
-   zadań z jednoznaczną odpowiedzią (ekstrakcja/format/kontekst)? Czy
-   sampling pomógł, zaszkodził, czy nie miał znaczenia dla **tych
-   konkretnych** zadań?
-2. Dla zadań jakościowych (parafraza/kontynuacja) — czy wyższa temperatura
-   dała **subiektywnie** lepsze wyniki? Czy różnorodność (sekcja 5) była
-   duża czy mała — i czy to zależało od **zadania**, nie tylko od
-   parametrów?
+   Twoich dwóch zadań z jednoznaczną odpowiedzią? Czy sampling (tam, gdzie
+   go przetestowałaś/eś) pomógł, zaszkodził, czy nie miał znaczenia?
+2. Dla zadania jakościowego — czy wyższa temperatura dała **subiektywnie**
+   lepsze wyniki? Czy różnorodność miała znaczenie dla **tego konkretnego**
+   zadania?
 3. Jaki jest zmierzony koszt (czas, tokeny/s) Twojego pipeline'u? Jak
    zmienia się z długością promptu i z `use_cache`?
 4. Jakie konkretne ograniczenia modelu/pipeline'u zaobserwowałaś/eś (sekcja
@@ -192,45 +205,64 @@ Odpowiedz, uzasadniając rzeczywistymi liczbami/przykładami z sekcji 5-10:
    "lepsza" konfiguracja (np. wyższa temperatura, większy budżet tokenów)
    zawsze oznacza lepszy wynik dla **każdego** typu zadania z sekcji 2?
 
+## Rozszerzenia (opcjonalne — R1-R2, jeśli zostanie czas)
+
+- **R1.** Dodaj 2 kolejne prompty (np. pytanie z kontekstem, inny styl
+  kontynuacji) do listy z sekcji 2 i przeprowadź dla nich to samo
+  traktowanie (sekcje 5, 6, 9) co dla promptów obowiązkowych.
+- **R2.** Uruchom sampling (obie temperatury) również dla drugiego promptu
+  jednoznacznego (i dla promptów z R1) — czy sampling pomaga, szkodzi, czy
+  nie ma znaczenia dla zadań, którym rdzeń go nie dał?
+- Dodaj **szósty** prompt własnego projektu, w innym stylu niż propozycje
+  wyżej.
+- Zmierz wpływ `repetition_penalty` na kontynuację tekstu (czy zmniejsza
+  powtarzalność fraz przy dłuższym generowaniu?).
+
 ## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
 
 | Blok | Czas |
-|---|---|
-| Sekcje 0-1 (konfiguracja, model) | 10 min |
-| Sekcja 2 (przygotowanie promptów) | 10 min |
+|---|---:|
+| Sekcje 0-1 (konfiguracja, model) | 7 min |
+| Sekcja 2 (przygotowanie promptów, 3 obowiązkowe) | 8 min |
 | Sekcja 3 (chat template) | 10 min |
 | Sekcja 4 (generate_response + weryfikacja) | 15 min |
-| Sekcja 5 (strategie dekodowania × prompty) | 15 min |
-| Sekcja 6 (pomiar czasu/przepustowości) | 10 min |
-| Sekcja 7 (wpływ długości promptu) | 10 min |
-| Sekcja 8 (KV cache) | 10 min |
-| Sekcja 9 (ocena jakości) | 20 min |
-| Sekcja 10 (zadanie diagnostyczne) | 15 min |
-| Sekcja 11 (wnioski) | 10 min |
+| Sekcja 5 (greedy + sampling, zakres zredukowany) | 12 min |
+| Sekcja 6 (pomiar czasu/przepustowości) | 8 min |
+| Sekcje 7-8 (długość promptu, KV cache) | 10 min |
+| Sekcja 9 (ocena jakości, zakres zredukowany) | 15 min |
+| Sekcja 10 (zadanie diagnostyczne) | 12 min |
+| Sekcja 11 (wnioski) | 8 min |
+| **Rdzeń (sekcje 0-11)** | **105 min** |
+| Bufor | 15 min |
+| **Całość** | **ok. 120 min** |
 
-Suma: 135 min — priorytet mają sekcje 2-5 i 9-10 (rdzeń pipeline'u i
-diagnostyka); sekcje 7-8 mogą zostać skrócone (jeden pomiar zamiast kilku),
-jeśli czasu zabraknie. Generowanie krótkich odpowiedzi (≤60 tokenów) na tym
-modelu trwa sekundy na CPU — budżet czasowy idzie w projektowanie i analizę,
-nie w czekanie na model.
+Priorytet, jeśli czasu zabraknie nawet w rdzeniu: sekcje 2-5 (rdzeń
+pipeline'u) i 9-10 (ocena i diagnostyka). Generowanie krótkich odpowiedzi
+(≤40 tokenów) na tym modelu trwa pojedyncze sekundy na CPU — budżet czasowy
+idzie w projektowanie i analizę, nie w czekanie na model (zweryfikowane:
+pełne rozwiązanie wzorcowe, łącznie z ładowaniem modelu, 7 wywołaniami
+`generate()` w sekcji 5 i całą diagnostyką, wykonuje się w kilkadziesiąt
+sekund).
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** dodaj **szósty** prompt
-własnego projektu, w innym stylu niż propozycje wyżej. Albo: zmierz wpływ
-`repetition_penalty` na kontynuację tekstu (czy zmniejsza powtarzalność
-fraz przy dłuższym generowaniu?).
+**Rozszerzenia R1-R2 są opcjonalne** i nie są wliczone do rdzenia.
 
 ## Kryteria oceny
 
-- Co najmniej 3 prompty, z jawnie zapisanym `expected` **przed**
-  wygenerowaniem odpowiedzi, dla zadań z jednoznacznym wynikiem.
+Wszystkie poniższe kryteria dotyczą **rdzenia (sekcje 0-11)** — żadne nie
+wymaga ukończenia rozszerzeń R1-R2.
+
+- Dokładnie 3 obowiązkowe prompty, z jawnie zapisanym `expected` **przed**
+  wygenerowaniem odpowiedzi, dla obu zadań z jednoznacznym wynikiem.
 - `format_prompt`/`generate_response` poprawnie oddzielają prompt od nowo
   wygenerowanej odpowiedzi — asercja z sekcji 4 przechodzi.
 - Chat template użyty poprawnie (`apply_chat_template`, bez ręcznie
   dodanych tokenów specjalnych).
+- Greedy uruchomiony dla wszystkich 3 promptów; sampling (obie temperatury)
+  uruchomiony dla co najmniej 2 z nich, w tym promptu jakościowego.
 - Pomiar czasu rozdziela przynajmniej: krótki vs długi prompt (sekcja 7),
   `use_cache` True vs False (sekcja 8).
 - Ocena jakości (sekcja 9) rozdziela automatyczne kontrole (dla zadań z
-  jednoznacznym wynikiem) od jakościowych ocen z konkretnym uzasadnieniem
+  jednoznacznym wynikiem) od jakościowej oceny z konkretnym uzasadnieniem
   — nie jedna, subiektywna etykieta na wszystko.
 - Zadanie diagnostyczne wskazuje konkretną przyczynę (`max_length` liczy
   **całkowitą** długość, `max_new_tokens` liczy tylko nowe tokeny), nie
