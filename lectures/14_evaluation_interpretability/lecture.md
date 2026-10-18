@@ -257,15 +257,35 @@ rozpiętości — niżej).
 ### Mały przykład liczbowy
 
 Dwa kanały, mapa $2\times 2$ każdy. $A^0 = \begin{pmatrix}1&2\\3&4\end{pmatrix}$,
-$A^1=\begin{pmatrix}0&1\\1&0\end{pmatrix}$. Gradient (zweryfikowany
-programowo przez `backward()` na tiny CNN, nie ręcznie wymyślony):
-$\alpha_0^c=0{,}0008$, $\alpha_1^c=0{,}0214$ (realne wartości z notebooka —
-małe, bo to wczesny, mało wytrenowany punkt sieci; wielkość **absolutna**
-jest tu drugorzędna, ważny jest **względny** wkład kanałów). Ważona suma:
-$0{,}0008\cdot A^0 + 0{,}0214\cdot A^1$, ReLU, interpolacja. Zweryfikowane w
-notebooku: implementacja hook-based (forward/backward hooks) zgadza się
-**dokładnie** (atol$=10^{-5}$) z niezależnym, ręcznym obliczeniem przez
-`retain_grad()`.
+$A^1=\begin{pmatrix}0&1\\1&0\end{pmatrix}$ — **hipotetyczne, ręcznie
+wybrane** wartości, do zilustrowania wzoru, nie wynik żadnego treningu.
+Przyjmijmy równie hipotetyczny, ręcznie wybrany gradient
+$\partial z_c/\partial A^k$: dla kanału 0,
+$\begin{pmatrix}-0{,}2&-0{,}2\\-0{,}2&0{,}2\end{pmatrix}$, dla kanału 1,
+$\begin{pmatrix}0{,}2&0{,}4\\0{,}4&0{,}2\end{pmatrix}$.
+
+Krok 2 (globalne uśrednienie, $1/(HW)=1/4$):
+$\alpha_0^c = (-0{,}2-0{,}2-0{,}2+0{,}2)/4 = -0{,}1$,
+$\alpha_1^c = (0{,}2+0{,}4+0{,}4+0{,}2)/4 = 0{,}3$ — zauważ, że $\alpha_k^c$
+**może być ujemne** (kanał "argumentujący przeciw" klasie $c$, nie tylko
+"za" nią).
+
+Ważona suma: $\alpha_0^c A^0 + \alpha_1^c A^1 =
+-0{,}1\begin{pmatrix}1&2\\3&4\end{pmatrix} +
+0{,}3\begin{pmatrix}0&1\\1&0\end{pmatrix} =
+\begin{pmatrix}-0{,}1&0{,}1\\0{,}0&-0{,}4\end{pmatrix}$. Po ReLU:
+$\begin{pmatrix}0&0{,}1\\0{,}0&0\end{pmatrix}$ — tylko jedna komórka (prawy
+górny róg) ma pozytywny wpływ na $z_c$ po uwzględnieniu obu kanałów; resztę
+ReLU zeruje.
+
+Cały ten przykład jest **w pełni ręcznie policzalny** krok po kroku z samej
+definicji $\alpha_k^c$ podanej wyżej — nie pochodzi z żadnego konkretnego
+treningu czy notebooka. Niezależnie od niego, zgodność praktycznej,
+hook-based implementacji (forward/backward hooks) z niezależnym, ręcznym
+obliczeniem przez `retain_grad()` jest sprawdzona w zestawie testów
+(`tests/test_lecture_14_notebook.py`, nie w tym notebooku, na osobnej, małej,
+losowo zainicjalizowanej sieci) — **w granicach tolerancji numerycznej**
+(`atol=1e-5`), nie jako identyczność bitowa.
 
 ### Trzy różne cele — trzy różne pytania
 
