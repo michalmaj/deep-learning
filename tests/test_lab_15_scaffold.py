@@ -1,0 +1,206 @@
+"""The lab 15 scaffold (provided code, not the student TODOs) must run.
+
+Unlike other labs, module 15's "notebook" is really a small application
+(`app/`, `benchmark.py`, `monitoring.py`) exercised from `lab.ipynb`. The
+full lab.ipynb scaffold-to-first-TODO execution needs a real EuroSAT +
+ResNet18 artifact, so it is skipped under CI=true, matching modules
+07/12/14. The always-on tests below import the REAL application modules
+(never an independent copy) and exercise them two ways:
+
+1. The GIVEN parts (load_artifact, health/ready/model-info endpoints,
+   send_requests, histogram_counts) must work correctly -- verified here
+   with a tiny, randomly-initialized ResNet18 artifact built with
+   `weights=None` (no network access, no download).
+2. The TODO parts (preprocess_image_bytes, predict, the /predict endpoint,
+   compute_stats, psi) must fail with NotImplementedError -- confirming
+   the scaffold is in the expected "not yet implemented" state, without
+   publishing the private solution's actual implementations.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+import nbformat
+import pytest
+import torch
+import torch.nn as nn
+from fastapi.testclient import TestClient
+from nbclient import NotebookClient
+from torchvision.models import resnet18
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+LAB_DIR = REPO_ROOT / "labs" / "15_production"
+NOTEBOOK_PATH = LAB_DIR / "lab.ipynb"
+
+sys.path.insert(0, str(LAB_DIR))
+
+
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="needs a real EuroSAT + ResNet18 artifact; run locally before opening a PR",
+)
+def test_lab_15_scaffold_runs_until_first_todo():
+    nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
+    client = NotebookClient(
+        nb,
+        timeout=180,
+        kernel_name="python3",
+        allow_errors=True,
+        resources={"metadata": {"path": str(LAB_DIR)}},
+    )
+    client.execute()
+
+    code_cells = [c for c in nb.cells if c.cell_type == "code"]
+
+    def _cell_error(cell):
+        for output in cell.get("outputs", []):
+            if output.get("output_type") == "error":
+                return output
+        return None
+
+    errors = [(i, _cell_error(c)) for i, c in enumerate(code_cells)]
+    first_error_index, first_error = next(e for e in errors if e[1] is not None)
+
+    for i, error in errors:
+        if i < first_error_index:
+            assert error is None, f"scaffold cell {i} failed unexpectedly: {error}"
+
+    assert first_error["ename"] == "NotImplementedError", (
+        f"expected the first failure to be the artifact-consistency TODO, "
+        f"got {first_error['ename']}: {first_error['evalue']}"
+    )
+
+
+@pytest.fixture
+def fake_artifact_dir(tmp_path):
+    """A tiny, randomly-initialized ResNet18 artifact -- no network access,
+    no download, built purely from a local architecture (weights=None)."""
+    model = resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 3)
+    torch.save(model.state_dict(), tmp_path / "weights.pt")
+    metadata = {
+        "model_version": "test-0.0.1",
+        "architecture": "resnet18",
+        "num_classes": 3,
+        "class_names": ["A", "B", "C"],
+        "input_size": [224, 224],
+        "input_channels": 3,
+    }
+    with open(tmp_path / "metadata.json", "w") as f:
+        json.dump(metadata, f)
+    return str(tmp_path)
+
+
+def test_load_artifact_works_with_no_network_access(fake_artifact_dir):
+    from app import model as model_module
+
+    loaded = model_module.load_artifact(fake_artifact_dir)
+    assert loaded.class_names == ["A", "B", "C"]
+    assert loaded.model_version == "test-0.0.1"
+    assert loaded.input_size == [224, 224]
+
+
+def test_preprocess_image_bytes_is_not_yet_implemented():
+    from app import model as model_module
+
+    with pytest.raises(NotImplementedError):
+        model_module.preprocess_image_bytes(b"irrelevant bytes")
+
+
+def test_predict_is_not_yet_implemented(fake_artifact_dir):
+    from app import model as model_module
+
+    loaded = model_module.load_artifact(fake_artifact_dir)
+    with pytest.raises(NotImplementedError):
+        model_module.predict(loaded, b"irrelevant bytes")
+
+
+def test_server_given_endpoints_work_with_fake_artifact(fake_artifact_dir, monkeypatch):
+    monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
+    # server.py reads the env var at import time via a module-level default;
+    # reload to pick up the patched artifact dir for this test.
+    import importlib
+
+    from app import server as server_module
+
+    importlib.reload(server_module)
+
+    with TestClient(server_module.app) as client:
+        r_health = client.get("/health")
+        r_ready = client.get("/ready")
+        r_info = client.get("/model-info")
+
+    assert r_health.status_code == 200
+    assert r_health.json() == {"status": "ok"}
+    assert r_ready.status_code == 200
+    assert r_ready.json() == {"ready": True}
+    assert r_info.status_code == 200
+    assert r_info.json()["class_names"] == ["A", "B", "C"]
+
+
+def test_predict_endpoint_is_not_yet_implemented(fake_artifact_dir, monkeypatch):
+    monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
+    import importlib
+
+    from app import server as server_module
+
+    importlib.reload(server_module)
+
+    with TestClient(server_module.app) as client:
+        with pytest.raises(NotImplementedError):
+            client.post("/predict", files={"file": ("x.png", b"irrelevant", "image/png")})
+
+
+def test_compute_stats_is_not_yet_implemented():
+    from benchmark import compute_stats
+
+    with pytest.raises(NotImplementedError):
+        compute_stats([0.001, 0.002, 0.0015])
+
+
+def test_send_requests_given_scaffold_propagates_until_predict_is_implemented(
+    fake_artifact_dir, monkeypatch
+):
+    """send_requests itself is given, but it calls client.post("/predict", ...)
+    with no try/except, so TestClient re-raises the endpoint's own
+    NotImplementedError straight through it until /predict is implemented."""
+    monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
+    import importlib
+
+    from app import server as server_module
+
+    importlib.reload(server_module)
+
+    from benchmark import send_requests
+
+    with TestClient(server_module.app) as client:
+        with pytest.raises(NotImplementedError):
+            send_requests(client, b"irrelevant", 3)
+
+
+def test_psi_is_not_yet_implemented():
+    from monitoring import psi
+
+    with pytest.raises(NotImplementedError):
+        psi(torch.tensor([50.0, 50.0]), torch.tensor([70.0, 30.0]))
+
+
+def test_histogram_counts_given_scaffold_works():
+    from monitoring import histogram_counts
+
+    values = torch.tensor([0.1, 0.2, 0.3, 0.9])
+    bin_edges = torch.linspace(0.0, 1.0, 3)
+    counts = histogram_counts(values, bin_edges)
+    assert counts.sum().item() == 4
+    assert counts[0].item() == 3  # 0.1, 0.2, 0.3 in [0, 0.5)
+    assert counts[1].item() == 1  # 0.9 in [0.5, 1.0]
+
+
+def test_brightness_feature_given_scaffold_works():
+    from monitoring import brightness_feature
+
+    images = torch.full((2, 3, 4, 4), 0.5)
+    result = brightness_feature(images)
+    assert torch.allclose(result, torch.tensor([0.5, 0.5]))
