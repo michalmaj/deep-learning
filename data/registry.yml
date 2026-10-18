@@ -61,7 +61,7 @@ datasets:
         }
     course_usage:
       lectures: [6]
-      labs: []
+      labs: [12]
     # No `files:` list: this dataset is never stored at a repo-relative
     # path (see redistribution.notes), so scripts/verify_data.py has
     # nothing to check locally. Integrity is verified by torchvision
@@ -103,7 +103,7 @@ datasets:
           year    = {2018}
         }
     course_usage:
-      lectures: []
+      lectures: [12]
       labs: [6]
     # No `files:` list: see the Fashion-MNIST entry above for why (same
     # reasoning). MD5s torchvision verifies on download: train-images
