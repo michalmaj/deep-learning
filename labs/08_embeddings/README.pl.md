@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 08: system wyszukiwania podobnych obrazów (content-based image retrieval)
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/08_embeddings/lecture.md`](../../lectures/08_embeddings/lecture.md)
