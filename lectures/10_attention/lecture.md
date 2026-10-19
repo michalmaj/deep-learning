@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 10 — Attention i architektura Transformer
 
 ## Cele wykładu

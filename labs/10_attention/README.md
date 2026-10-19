@@ -1,218 +1,230 @@
-# Laboratorium 10: mały Transformer do klasyfikacji sekwencji zależnych od kolejności
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny (**100-105 minut rdzenia obowiązkowego + 15-20 minut
-bufora**). Bazuje na
-[`lectures/10_attention/lecture.md`](../../lectures/10_attention/lecture.md)
-(scaled dot-product attention, multi-head attention, maskowanie, positional
-encoding, blok Transformer), ale na **innym, trudniejszym zadaniu** niż wykład:
-sekwencje o **zmiennej długości** (prawdziwy padding, czego wykładowy eksperyment D
-nie wymagał) z **dystraktorami** (losowymi tokenami niosącymi zero informacji).
+# Lab 10: a small Transformer for order-dependent sequence classification
 
-**Sekcje 0-10 to rdzeń obowiązkowy. Sekcje R1-R4 (na końcu notebooka) są
-opcjonalnymi rozszerzeniami** — wykonaj je tylko, jeśli zostanie czas po
-zakończeniu rdzenia. Żadne kryterium oceny rdzenia nie wymaga ukończenia
-rozszerzeń.
+Time: about 2 hours (**100-105 minutes of required core + 15-20 minutes of
+buffer**). Builds on
+[`lectures/10_attention/lecture.en.md`](../../lectures/10_attention/lecture.en.md)
+(scaled dot-product attention, multi-head attention, masking, positional
+encoding, the Transformer block), but on a **different, harder task** than
+the lecture: sequences of **variable length** (real padding, which the
+lecture's Experiment D did not require) with **distractors** (random tokens
+carrying zero information).
 
-## Zadanie
+**Sections 0-10 are the required core. Sections R1-R4 (at the end of the
+notebook) are optional extensions** -- do them only if time remains after
+finishing the core. No core grading criterion requires completing the
+extensions.
 
-Każda sekwencja (długość losowa z zakresu $[10,40]$) zawiera dokładnie dwa
-wyróżnione tokeny, `A` i `B`, w losowych pozycjach, oraz same losowe tokeny
-rozpraszające (dystraktory) na resztę pozycji. **Etykieta = czy `A` występuje przed
-`B`.** Długość sekwencji jest losowana **niezależnie** od etykiety (zweryfikuj to w
-sekcji 1) — model nie może "oszukać" zadania heurystyką ignorującą kolejność (np.
-"krótsze sekwencje = klasa 0").
+## Task
 
-## 0. Konfiguracja (gotowe)
+Every sequence (random length from $[10,40]$) contains exactly two
+distinguished tokens, `A` and `B`, at random positions, with the remaining
+positions filled by random distractor tokens. **Label = whether `A` appears
+before `B`.** Sequence length is drawn **independently** of the label
+(verify this in section 1) -- the model cannot "cheat" the task with a
+heuristic that ignores order (e.g. "shorter sequences = class 0").
 
-Import bibliotek, urządzenie, ziarno losowości, `torch.set_num_threads(4)`.
+## 0. Setup (given)
 
-## 1. Dane: generator zadania (gotowe + krótkie zadanie)
+Library imports, device, random seed, `torch.set_num_threads(4)`.
 
-`make_dataset(n, seed)` (gotowe) zwraca `(X, lengths, y)`: `X` to tensor
-`(n, MAX_LEN)` wypełniony `PAD_ID` poza rzeczywistą długością każdej sekwencji,
-`lengths` to rzeczywiste długości, `y` to etykiety.
+## 1. Data: the task generator (given + a short task)
 
-**Zadanie:** zweryfikuj na zbiorze treningowym:
-1. balans klas (ok. 50/50),
-2. że średnia długość sekwencji **nie różni się** istotnie między klasami (gdyby się
-   różniła, model mógłby "rozwiązywać" zadanie samą długością, nie kolejnością `A`/`B`
-   — dokładnie pułapka, przed którą ostrzega brief tego laboratorium).
+`make_dataset(n, seed)` (given) returns `(X, lengths, y)`: `X` is a tensor
+`(n, MAX_LEN)` filled with `PAD_ID` beyond each sequence's real length,
+`lengths` are the real lengths, `y` are the labels.
 
-## 2. Baseline bez kolejności — Twoje zadanie
+**Task:** verify on the training set:
+1. class balance (about 50/50),
+2. that mean sequence length **does not differ** meaningfully between classes
+   (if it did, the model could "solve" the task by length alone, not by the
+   order of `A`/`B` -- exactly the trap this lab's brief warns about).
 
-Zbuduj klasyfikator oparty na uśrednieniu embeddingów tokenów (bez attention) —
-**musi pomijać padding** przy uśrednianiu. Dany jest helper `masked_mean_pool(x,
-real_mask, lengths)` — dokładnie ta sama zasada jak w module 9, sekcja 6 (już
-opanowana, nie reimplementujemy jej od zera) — Ty decydujesz, **gdzie i jak** jej
-użyć w `MeanPoolBaseline.forward`. Wytrenuj go od razu (pętla treningowa jest
-gotowa) — to Twój punkt odniesienia w sekcji 10.
+## 2. A baseline without order -- your task
 
-## 3. Positional encoding (gotowe)
+Build a classifier based on averaging token embeddings (no attention) --
+it **must skip padding** when averaging. You are given a helper
+`masked_mean_pool(x, real_mask, lengths)` -- exactly the same principle as in
+module 9, section 6 (already mastered, we do not reimplement it from
+scratch) -- you decide **where and how** to use it in
+`MeanPoolBaseline.forward`. Train it right away (the training loop is
+given) -- it is your reference point in section 10.
 
-Funkcja `sinusoidal_positional_encoding(seq_len, d_model)` z wykładu — nie
-reimplementujemy jej (już w pełni zweryfikowana tam), tylko **decydujemy, jak i
-gdzie** ją dołączyć w architekturze (sekcja 6).
+## 3. Positional encoding (given)
 
-## 4. Maska paddingu — Twoje zadanie
+The `sinusoidal_positional_encoding(seq_len, d_model)` function from the
+lecture -- we do not reimplement it (already fully verified there), only
+**decide how and where** to attach it in the architecture (section 6).
 
-Zbuduj `key_padding_mask` z `x` i `PAD_ID`. **Krytyczne:** używasz
-`nn.MultiheadAttention`, więc zgodnie z wykładem (sekcja "Ważna uwaga
-implementacyjna") `key_padding_mask` musi mieć konwencję **`True` = to jest padding,
-zignoruj** — **nie** `True` = dozwolone (ta konwencja jest **odwrotna** względem
-`F.scaled_dot_product_attention`). Pomyl te konwencje i trafisz prosto w zadanie
-diagnostyczne z sekcji 9 — zanim do niego dojdziesz, zweryfikuj własną maskę: jedna
-sekwencja bez paddingu powinna mieć maskę całkowicie `False`.
+## 4. Padding mask -- your task
 
-## 5. Blok Transformer — Twoje zadanie
+Build a `key_padding_mask` from `x` and `PAD_ID`. **Critical:** you are
+using `nn.MultiheadAttention`, so following the lecture (the "An important
+implementation note" section), `key_padding_mask` must use the convention
+**`True` = this is padding, ignore it** -- **not** `True` = allowed (this
+convention is **opposite** to `F.scaled_dot_product_attention`). Mix up
+these conventions and you will land squarely in the diagnostic task in
+section 9 -- before you get there, verify your own mask: a sequence with no
+padding should have a mask that is entirely `False`.
 
-Zbuduj `TinyTransformerBlock`: self-attention (`nn.MultiheadAttention` — projekcje
-Q/K/V nie trzeba pisać ręcznie, to już zweryfikowane na wykładzie) **+ połączenie
-rezydualne + LayerNorm + feed-forward (Linear→ReLU→Linear) + drugie połączenie
-rezydualne + drugi LayerNorm** (Post-LN, jak w `lecture.md`). To **Ty** łączysz te
-elementy — nie chowaj architektury za jednym wywołaniem `nn.TransformerEncoderLayer`.
-Pamiętaj przekazać `key_padding_mask` z sekcji 4 do `self.mha(...)`.
+## 5. Transformer block -- your task
 
-## 6. Agregacja i klasyfikator — Twoje zadanie
+Build `TinyTransformerBlock`: self-attention (`nn.MultiheadAttention` -- the
+Q/K/V projections do not need to be written by hand, this is already
+verified in the lecture) **+ residual connection + LayerNorm + feed-forward
+(Linear->ReLU->Linear) + a second residual connection + a second LayerNorm**
+(Post-LN, as in `lecture.md`). **You** combine these components -- do not
+hide the architecture behind a single call to `nn.TransformerEncoderLayer`.
+Remember to pass the `key_padding_mask` from section 4 into `self.mha(...)`.
 
-Zbuduj `Classifier`: `nn.Embedding` (+ positional encoding z sekcji 3, jeśli
-`use_pos_enc=True`) → `TinyTransformerBlock` z sekcji 5 → **agregacja do jednego
-wektora na sekwencję** (użyj `masked_mean_pool` z sekcji 2 — ta sama zasada: real_mask
-to negacja `key_padding_mask`, dzielenie przez `lengths`, nie przez `MAX_LEN`) →
-warstwa klasyfikacyjna.
+## 6. Aggregation and classifier -- your task
 
-**Weryfikacja (gotowa asercja czeka w notebooku):** ta sama sekwencja, przetworzona
-**osobno** i **zbatchowana** z inną, dłuższą sekwencją (więc inaczej dopełniona
-paddingiem), musi dać **identyczną** reprezentację w obu przypadkach. Jeśli nie
-przechodzi — masz błąd w masce (sekcja 4) albo w agregacji (ta sekcja), zanim
-dojdziesz do treningu.
+Build `Classifier`: `nn.Embedding` (+ positional encoding from section 3, if
+`use_pos_enc=True`) -> the `TinyTransformerBlock` from section 5 ->
+**aggregation to a single vector per sequence** (use `masked_mean_pool` from
+section 2 -- the same principle: `real_mask` is the negation of
+`key_padding_mask`, dividing by `lengths`, not by `MAX_LEN`) -> a
+classification layer.
 
-## 7. Trening (gotowe) i porównanie z vs bez positional encoding — Twoje zadanie
+**Verification (a ready-made assertion is waiting in the notebook):** the
+same sequence, processed **alone** and **batched** with another, longer
+sequence (so padded differently), must give an **identical** representation
+in both cases. If it does not pass -- you have a bug in the mask (section 4)
+or in the aggregation (this section), before you even get to training.
 
-`train_eval(model, epochs, lr, batch_size, seed)` jest gotowe (ta sama pętla dla
-wszystkich konfiguracji w dalszej części laboratorium). Wytrenuj **dwie**
-konfiguracje Twojego `Classifier` — `use_pos_enc=True` i `use_pos_enc=False` — tym
-samym budżetem treningowym, i zapisz je jako `model_with_pe`/`model_without_pe`.
-**`model_with_pe` jest używany ponownie w sekcji 8 i w rozszerzeniach R1/R2 —
-nie trenujesz go drugi raz.**
+## 7. Training (given) and comparing with vs. without positional encoding -- your task
 
-Dana (gotowa) jest też krótka pętla po **3 ziarnach** (0, 1, 2), uruchamiająca
-`train_eval` dla obu wariantów — trening trwa pojedyncze sekundy na CPU, więc
-uruchomienie jej 6× zajmuje mniej czasu niż jej napisanie od zera. **Twoje zadanie
-to interpretacja** wyniku (sekcja 10, pytanie 3): czy "bez PE = poziom przypadku"
-jest systematyczne, czy to przypadek jednego nieudanego przebiegu?
+`train_eval(model, epochs, lr, batch_size, seed)` is given (the same loop for
+all configurations in the rest of the lab). Train **two** configurations of
+your `Classifier` -- `use_pos_enc=True` and `use_pos_enc=False` -- with the
+same training budget, and save them as `model_with_pe`/`model_without_pe`.
+**`model_with_pe` is reused in section 8 and in extensions R1/R2 -- you do
+not train it a second time.**
 
-## 8. Ewaluacja na zbiorze testowym — Twoje zadanie
+Also given is a short loop over **3 seeds** (0, 1, 2), running `train_eval`
+for both variants -- training takes mere seconds on CPU, so running it 6x
+takes less time than writing it from scratch would. **Your task is
+interpreting** the result (section 10, question 3): is "without PE = chance
+level" systematic, or is it a fluke of a single unlucky run?
 
-Oceń `model_with_pe` z sekcji 7 (**pierwszy raz** w tym laboratorium używasz tu
-zbioru testowego do **oceny**, nie do ponownego treningu): accuracy + rozkład
-długości błędnie sklasyfikowanych przykładów (czy błędy koncentrują się przy
-konkretnych długościach?).
+## 8. Evaluation on the test set -- your task
 
-## 9. Zadanie diagnostyczne
+Evaluate `model_with_pe` from section 7 (this is the **first time** in this
+lab that you use the test set for **evaluation**, not for retraining):
+accuracy + the length distribution of misclassified examples (do errors
+concentrate at particular lengths?).
 
-Poniższy kod (w notebooku, `BuggyClassifier`) **wygląda** poprawnie — definiuje
-maskę, buduje blok, trenuje się bez wyjątku — ale ma błąd związany z **konwencją
-maski**, dokładnie tą, przed którą ostrzega sekcja 4.
+## 9. Diagnostic task
 
-**Zadanie:**
-1. Zdiagnozuj błąd — która linia, dlaczego.
-2. Uruchom trening i zaobserwuj, co się dzieje ze stratą (podpowiedź: sprawdź, czy w
-   zbiorze treningowym są sekwencje **bez żadnego paddingu**, tj. o długości
-   `MAX_LEN` — i co się dzieje z maskowaniem attention, gdy **wszystkie** pozycje
-   takiej sekwencji wypadają "zablokowane" przez odwróconą konwencję).
-3. Wyjaśnij matematycznie, nawiązując do sekcji "Wiersz z wszystkimi kluczami
-   zamaskowanymi" w `lecture.md`: co dokładnie dzieje się z `softmax`, gdy dla danego
-   zapytania zero kluczy jest dozwolonych?
-4. Popraw kod (odwróć konwencję maski).
-5. Zweryfikuj, że po poprawce strata jest zawsze skończona (`torch.isfinite`) i że
-   model trenuje się do accuracy zbliżonej do oryginalnej, poprawnej implementacji.
+The code below (in the notebook, `BuggyClassifier`) **looks** correct --
+it defines a mask, builds the block, trains without raising an exception --
+but has a bug related to the **mask convention**, exactly the one section 4
+warns about.
 
-## 10. Wnioski — Twoje zadanie
+**Task:**
+1. Diagnose the bug -- which line, and why.
+2. Run training and observe what happens to the loss (hint: check whether the
+   training set contains sequences **with no padding at all**, i.e. of
+   length `MAX_LEN` -- and what happens to attention masking when **every**
+   position of such a sequence ends up "blocked" by the inverted convention).
+3. Explain mathematically, referring to the "Rows with all keys masked"
+   section in `lecture.md`: what exactly happens to `softmax` when, for a
+   given query, zero keys are allowed?
+4. Fix the code (invert the mask convention).
+5. Verify that after the fix the loss is always finite (`torch.isfinite`) and
+   that the model trains to an accuracy close to the original, correct
+   implementation.
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami z Twojego przebiegu (sekcje 2, 7-9):
+## 10. Conclusions -- your task
 
-1. Czy potrafisz ręcznie wskazać, które elementy architektury (sekcja 5-6) odpowiadają
-   za: (a) mieszanie informacji między pozycjami, (b) wprowadzenie informacji o
-   pozycji, (c) redukcję sekwencji do jednego wektora?
-2. Jak duża jest różnica accuracy między baseline'em (sekcja 2) a Twoim
-   Transformerem **z** PE (sekcja 7) — i co to mówi o tym, czy zadanie faktycznie
-   wymaga kolejności?
-3. Czy wynik "bez PE = poziom przypadku" jest stabilny na kilku ziarnach (sekcja 7,
-   gotowa pętla), czy to przypadek jednego przebiegu?
-4. Czy maskowanie jest poprawne — czy masz dowód (asercja z sekcji 6), że model nie
-   korzysta z informacji zawartej w paddingu?
-5. Co dokładnie pokazuje (a czego **nie** pokazuje) ten eksperyment o mechanizmie
-   attention? Czy wysoka accuracy sama w sobie dowodzi, że model "rozumie" relację
-   porządkową `A`/`B`, czy tylko że skutecznie minimalizuje stratę na tym konkretnym
-   zbiorze?
-6. Jakie jest co najmniej jedno ograniczenie tego eksperymentu, które nie pozwala
-   uogólnić wniosków na dowolne zadania sekwencyjne?
+Answer, justifying with real numbers from your own run (sections 2, 7-9):
 
-## Rozszerzenia (opcjonalne — R1-R4, jeśli zostanie czas)
+1. Can you point by hand to which architectural elements (sections 5-6) are
+   responsible for: (a) mixing information between positions, (b)
+   introducing positional information, (c) reducing the sequence to a single
+   vector?
+2. How large is the accuracy gap between the baseline (section 2) and your
+   Transformer **with** PE (section 7) -- and what does that say about
+   whether the task actually requires order?
+3. Is the "without PE = chance level" result stable across several seeds
+   (section 7, given loop), or is it a one-run fluke?
+4. Is the masking correct -- do you have proof (the assertion from section 6)
+   that the model does not use information contained in the padding?
+5. What exactly does (and does **not**) this experiment show about the
+   attention mechanism? Does high accuracy by itself prove that the model
+   "understands" the `A`/`B` order relation, or only that it effectively
+   minimizes loss on this specific dataset?
+6. What is at least one limitation of this experiment that prevents
+   generalizing the conclusions to arbitrary sequential tasks?
 
-Wszystkie reużywają `model_with_pe` z sekcji 7 — **bez** ponownego treningu.
+## Extensions (optional -- R1-R4, if time remains)
 
-- **R1.** Accuracy na zbiorze walidacyjnym w co najmniej 3 przedziałach długości
-  (np. $[10,19]$, $[20,29]$, $[30,40]$) — czy skuteczność jest stabilna, czy spada
-  dla dłuższych/krótszych sekwencji?
-- **R2.** Dla jednego poprawnie sklasyfikowanego przykładu: wagi attention
-  (zapytanie = pozycja `A`, dowolna głowa). **Nie interpretuj** wysokiej wagi w
-  stronę `B` jako "dowód", że model "rozumie" relację porządkową.
-- **R3.** Ułóż **dwa** `TinyTransformerBlock` jeden po drugim (stos) — czy poprawia
-  to accuracy lub stabilność na dłuższych sekwencjach?
-- **R4.** Zamień Post-LN na Pre-LN (norma przed podwarstwą, nie po) i sprawdź, czy
-  coś się zmienia w stabilności treningu.
+All of them reuse `model_with_pe` from section 7 -- **without** retraining.
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+- **R1.** Validation-set accuracy in at least 3 length buckets (e.g.
+  $[10,19]$, $[20,29]$, $[30,40]$) -- is accuracy stable, or does it drop for
+  longer/shorter sequences?
+- **R2.** For one correctly classified example: the attention weights
+  (query = position of `A`, any head). **Do not interpret** a high weight
+  toward `B` as "proof" that the model "understands" the order relation.
+- **R3.** Stack **two** `TinyTransformerBlock`s one after another -- does
+  this improve accuracy or stability on longer sequences?
+- **R4.** Swap Post-LN for Pre-LN (norm before the sublayer, not after) and
+  check whether anything changes in training stability.
 
-| Blok | Czas |
+## Time budget (indicative, not verified in a real class)
+
+| Block | Time |
 |---|---:|
-| Sekcje 0-1 (konfiguracja, dane, weryfikacja balansu) | 8 min |
-| Sekcja 2 (baseline bez kolejności) | 8 min |
-| Sekcje 3-4 (positional encoding — przegląd, maska paddingu) | 12 min |
-| Sekcja 5 (blok Transformer) | 20 min |
-| Sekcja 6 (agregacja + klasyfikator + weryfikacja) | 13 min |
-| Sekcja 7 (trening, porównanie z/bez PE, multi-seed) | 12 min |
-| Sekcja 8 (ewaluacja testowa) | 6 min |
-| Sekcja 9 (zadanie diagnostyczne) | 13 min |
-| Sekcja 10 (wnioski) | 8 min |
-| **Rdzeń (sekcje 0-10)** | **100 min** |
-| Bufor | 15-20 min |
-| **Całość** | **ok. 120 min** |
+| Sections 0-1 (setup, data, balance verification) | 8 min |
+| Section 2 (baseline without order) | 8 min |
+| Sections 3-4 (positional encoding -- review, padding mask) | 12 min |
+| Section 5 (Transformer block) | 20 min |
+| Section 6 (aggregation + classifier + verification) | 13 min |
+| Section 7 (training, with/without PE comparison, multi-seed) | 12 min |
+| Section 8 (test evaluation) | 6 min |
+| Section 9 (diagnostic task) | 13 min |
+| Section 10 (conclusions) | 8 min |
+| **Core (sections 0-10)** | **100 min** |
+| Buffer | 15-20 min |
+| **Total** | **about 120 min** |
 
-Priorytet, jeśli czasu zabraknie nawet w rdzeniu: sekcje 4-6 (rdzeń architektury) i
-9 (diagnostyka) — to są elementy, które nie mają sensownego skróconego wariantu.
-Trening trwa pojedyncze sekundy na CPU na jeden przebieg (zweryfikowane: pełne
-rozwiązanie wzorcowe, łącznie z pętlą po 3 ziarnach i diagnostyką, wykonuje się w
-poniżej minuty) — budżet czasowy idzie w poprawną implementację maskowania/
-agregacji i analizę, nie w czekanie na trening.
+Priority if time runs short even within the core: sections 4-6 (the
+architecture's core) and 9 (diagnostics) -- these are the elements with no
+sensible shortened variant. Training takes mere seconds on CPU for a single
+run (verified: the full model solution, including the 3-seed loop and the
+diagnostics, executes in under a minute) -- the time budget should go into
+correctly implementing masking/aggregation and into analysis, not into
+waiting for training.
 
-**Rozszerzenia R1-R4 są opcjonalne** i nie są wliczone do rdzenia — zobacz sekcję
-wyżej.
+**Extensions R1-R4 are optional** and are not counted into the core -- see
+the section above.
 
-## Kryteria oceny
+## Grading criteria
 
-Wszystkie poniższe kryteria dotyczą **rdzenia (sekcje 0-10)** — żadne nie wymaga
-ukończenia rozszerzeń R1-R4.
+All of the following criteria concern the **core (sections 0-10)** -- none
+requires completing extensions R1-R4.
 
-- Balans klas i niezależność długości sekwencji od etykiety zweryfikowane liczbowo
-  (sekcja 1).
-- Baseline (sekcja 2) poprawnie pomija padding przy uśrednianiu.
-- `key_padding_mask` (sekcja 4) używa poprawnej konwencji dla `nn.MultiheadAttention`
-  (`True` = padding).
-- Blok Transformer (sekcja 5) zbudowany z widocznych elementów (attention + residual
-  + LayerNorm + FFN + residual + LayerNorm) — nie jedno wywołanie
-  `nn.TransformerEncoderLayer`.
-- Agregacja (sekcja 6) wyklucza padding — asercja "ta sama sekwencja, ten sam wynik
-  niezależnie od paddingu w batchu" przechodzi.
-- Porównanie z/bez PE (sekcja 7) sprawdzone na kilku ziarnach (gotowa pętla), nie
-  jednym przebiegu.
-- Zbiór testowy używany dopiero w sekcji 8, do oceny, nie do ponownego treningu.
-- Zadanie diagnostyczne (sekcja 9) wskazuje konkretną przyczynę (odwrócona
-  konwencja maski + wiersz w pełni zamaskowany dla sekwencji bez paddingu), nie
-  ogólnik.
-- Wnioski odwołują się do konkretnych liczb z Twojego przebiegu i wprost
-  odpowiadają, czego eksperyment **nie** dowodzi, nie tylko co dowodzi.
+- Class balance and the independence of sequence length from the label are
+  verified numerically (section 1).
+- The baseline (section 2) correctly skips padding when averaging.
+- `key_padding_mask` (section 4) uses the correct convention for
+  `nn.MultiheadAttention` (`True` = padding).
+- The Transformer block (section 5) is built from visible components
+  (attention + residual + LayerNorm + FFN + residual + LayerNorm) -- not a
+  single call to `nn.TransformerEncoderLayer`.
+- The aggregation (section 6) excludes padding -- the "same sequence, same
+  result regardless of batch padding" assertion passes.
+- The with/without PE comparison (section 7) is checked across several
+  seeds (the given loop), not a single run.
+- The test set is used only in section 8, for evaluation, not for
+  retraining.
+- The diagnostic task (section 9) points to a specific cause (inverted mask
+  convention + a fully masked row for a sequence with no padding), not a
+  generality.
+- The conclusions refer to specific numbers from your own run and explicitly
+  answer what the experiment does **not** prove, not only what it does.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/10_attention/`) i nie jest częścią tego repozytorium.
+A full model solution exists locally with the instructor
+(`decisions/solutions/10_attention/`) and is not part of this repository.

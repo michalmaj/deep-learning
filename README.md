@@ -26,12 +26,12 @@ optional speed-up, never a requirement.
 ## Status
 
 All 15 modules are complete in Polish, the course's original language.
-**English localization is in progress.** Module 1 is now fully available
-in both languages (lecture, lecture notebook, lab instructions, and lab
-notebook). Modules 2-15 are not yet localized -- their lecture and lab
-links below point to the existing, Polish-only materials, clearly marked
-as such. See [the Polish version of this page](README.pl.md) for the
-course described in its original language.
+**English localization is in progress.** Modules 1 and 10 are now fully
+available in both languages (lecture, lecture notebook, lab instructions,
+and lab notebook). Modules 2-9 and 11-15 are not yet localized -- their
+lecture and lab links below point to the existing, Polish-only materials,
+clearly marked as such. See [the Polish version of this page](README.pl.md)
+for the course described in its original language.
 
 ## Course structure
 
@@ -46,7 +46,7 @@ course described in its original language.
 | 7 | [Transfer learning and fine-tuning](lectures/07_transfer_learning/lecture.md) (Polish only) | [A pretrained vision model](labs/07_transfer_learning/README.md) (Polish only) |
 | 8 | [Embeddings and learned representations](lectures/08_embeddings/lecture.md) (Polish only) | [Embedding and similarity experiments](labs/08_embeddings/README.md) (Polish only) |
 | 9 | [RNNs, LSTM, GRU, and sequential data](lectures/09_rnn/lecture.md) (Polish only) | [Sequence/text classification](labs/09_rnn/README.md) (Polish only) |
-| 10 | [Attention and the Transformer](lectures/10_attention/lecture.md) (Polish only) | [Attention from scratch + a small Transformer](labs/10_attention/README.md) (Polish only) |
+| 10 | [Attention and the Transformer](lectures/10_attention/lecture.en.md) | [Attention from scratch + a small Transformer](labs/10_attention/README.md) |
 | 11 | [LLM engineering fundamentals](lectures/11_llm_engineering/lecture.md) (Polish only) | [Tokenization, inference, Hugging Face](labs/11_llm_engineering/README.md) (Polish only) |
 | 12 | [Autoencoders and VAE](lectures/12_autoencoders/lecture.md) (Polish only) | [Latent space / anomaly detection](labs/12_autoencoders/README.md) (Polish only) |
 | 13 | [Generative AI and diffusion](lectures/13_diffusion/lecture.md) (Polish only) | [A small generative experiment / diffusion analysis](labs/13_diffusion/README.md) (Polish only) |
