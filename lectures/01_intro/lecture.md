@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 01: Deep Learning, ML vs DL, tensory i podstawowy proces trenowania modelu
 
 ## Cele wykładu

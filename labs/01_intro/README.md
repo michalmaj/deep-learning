@@ -1,126 +1,127 @@
-# Laboratorium 01: podstawy PyTorch — tensory, urządzenia, pierwszy model
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na mechanizmie z [`lectures/01_intro/lecture.md`](../../lectures/01_intro/lecture.md)
-(regresja liniowa, gradient, pętla treningowa), ale **nie jest tym samym
-eksperymentem** — tu uogólniasz go na wiele cech i trafiasz na sytuację,
-w której model liniowy *nie wystarcza*.
+# Lab 01: PyTorch basics — tensors, devices, your first model
 
-## 1. Problem
+Time: about 2 hours. Builds on the mechanism from
+[`lectures/01_intro/lecture.en.md`](../../lectures/01_intro/lecture.en.md)
+(linear regression, gradient, training loop), but **is not the same
+experiment** — here you generalize it to multiple features and run into a
+situation where a linear model *isn't enough*.
 
-Na wykładzie trenowaliśmy model jednej zmiennej: $\hat{y} = wx + b$. W
-praktyce dane rzadko mają jedną cechę. W tym laboratorium zbudujesz
-regresję liniową **wielu zmiennych** w postaci macierzowej:
+## 1. The problem
+
+In the lecture we trained a single-variable model: $\hat{y} = wx + b$. In
+practice, data rarely has just one feature. In this lab you'll build
+**multivariate** linear regression in matrix form:
 
 $$\hat{y} = Xw + b$$
 
-gdzie $X$ ma kształt $(N, 3)$ (trzy cechy), a $w$ — kształt $(3,)$.
+where $X$ has shape $(N, 3)$ (three features), and $w$ has shape $(3,)$.
 
-Zadanie: przewidzieć ciągłą zmienną $y$ na podstawie trzech cech $x_1, x_2,
-x_3$. Jedna z tych cech wejdzie do prawdziwego procesu generującego dane w
-sposób **nieliniowy** — Twoim zadaniem będzie nie tylko wytrenować model,
-ale **wykryć i zinterpretować**, że model liniowy ma w tym miejscu
-systematyczny błąd.
+Task: predict a continuous variable $y$ from three features $x_1, x_2,
+x_3$. One of these features enters the true data-generating process in a
+**nonlinear** way — your job is not only to train a model, but to
+**detect and interpret** that the linear model has a systematic error at
+exactly that point.
 
 ## 2. Dataset
 
-Dane są syntetyczne i generowane lokalnie w notebooku (`lab.ipynb`,
-sekcja 1) — nie pobierasz niczego. Kod generujący dane jest gotowy i
-podany: to nie jest część zadania.
+The data is synthetic and generated locally in the notebook (`lab.en.ipynb`,
+section 1) — you don't download anything. The data-generating code is
+given and ready: it is not part of the task.
 
-## 3. Metryki i podział danych — Twoje zadanie
+## 3. Metrics and data split — your task
 
-Zaraz po wygenerowaniu danych notebook prosi Cię o dwie funkcje, które
-będą używane przez całą resztę laboratorium (TODO, sekcja 2):
+Right after generating the data, the notebook asks you for two functions
+that will be used throughout the rest of the lab (TODO, section 2):
 
-- funkcję dzielącą indeksy przykładów na zbiór treningowy i walidacyjny
-  (ok. 80/20),
-- metryki **MSE** (błąd średniokwadratowy) i **$R^2$**
-  ($1 - SS_{\text{res}}/SS_{\text{tot}}$).
+- a function splitting example indices into a training and validation set
+  (about 80/20),
+- the **MSE** (mean squared error) and **$R^2$**
+  ($1 - SS_{\text{res}}/SS_{\text{tot}}$) metrics.
 
-Robimy to na początku, bo baseline, trening i ewaluacja — wszystko dalej —
-korzysta z tych samych dwóch narzędzi.
+We do this at the start because the baseline, training, and evaluation —
+everything that follows — relies on these same two tools.
 
 ## 4. Baseline
 
-Zanim trenujemy jakikolwiek model, potrzebujemy punktu odniesienia. W
-notebooku dostajesz gotowy baseline: predykcja = średnia z $y$ ze zbioru
-treningowego. To jest "model", który nie patrzy na $x$ wcale — każdy
-sensowny model musi go pobić. Notebook liczy jego MSE/$R^2$ Twoimi
-funkcjami z sekcji 3.
+Before training any model, we need a reference point. The notebook gives
+you a ready-made baseline: predict the mean of $y$ from the training set.
+This is a "model" that doesn't look at $x$ at all — any sensible model
+must beat it. The notebook computes its MSE/$R^2$ using your functions
+from section 3.
 
-## 5. Model i trening — Twoje zadanie
+## 5. Model and training — your task
 
-W dalszych komórkach notebooka uzupełniasz (`# TODO`, podniesie
-`NotImplementedError`, dopóki nie uzupełnisz):
+In the following notebook cells you fill in (`# TODO`, raises
+`NotImplementedError` until you do):
 
-1. **`forward(X, w, b)`** — predykcję modelu liniowego w postaci
-   macierzowej (uogólnienie `w * x + b` z wykładu na iloczyn macierzowy).
-2. **Rozwiązanie w postaci zamkniętej** (*normal equation*) —
-   $w^\* = (X^\top X)^{-1} X^\top y$ (z kolumną jedynek dla biasu) — jako
-   niezależny od gradientu punkt odniesienia dla Twojego modelu trenowanego
-   gradientowo.
-3. **Pętlę treningową metodą spadku gradientu** — uogólnienie pętli z
-   wykładu na wektorowe $w$ (nadal bez `nn.Module`/`optim`: piszesz
-   `forward → strata → backward → aktualizacja` sam).
+1. **`forward(X, w, b)`** — the linear model's prediction in matrix form
+   (generalizing `w * x + b` from the lecture to a matrix product).
+2. **The closed-form solution** (*normal equation*) —
+   $w^\* = (X^\top X)^{-1} X^\top y$ (with a column of ones for the bias)
+   — as a gradient-free reference point for your gradient-trained model.
+3. **A gradient-descent training loop** — generalizing the lecture's loop
+   to a vector-valued $w$ (still without `nn.Module`/`optim`: you write
+   `forward → loss → backward → update` yourself).
 
-Dostarczony kod (generowanie danych, device handling, baseline, wykresy)
-działa od razu — nie musisz (i nie powinieneś) go zmieniać.
+The provided code (data generation, device handling, baseline, plots)
+works as-is — you don't need to (and shouldn't) change it.
 
-## 6. Eksperyment
+## 6. Experiment
 
-Wytrenuj model i porównaj trzy liczby: stratę baseline'u, stratę modelu
-wytrenowanego gradientowo i stratę rozwiązania w postaci zamkniętej. Strata
-z gradientu powinna być **bliska** rozwiązaniu w postaci zamkniętej (to
-jest problem wypukły — obie metody szukają tego samego optimum). Jeśli
-różnica jest duża, to sygnał, że coś w Twojej implementacji pętli
-treningowej (uczenie, krok aktualizacji, liczba epok) wymaga poprawy — nie
-ignoruj tego rozjazdu.
+Train the model and compare three numbers: the baseline's loss, the
+gradient-trained model's loss, and the closed-form solution's loss. The
+gradient-based loss should be **close** to the closed-form solution (this
+is a convex problem — both methods search for the same optimum). If the
+difference is large, that's a signal that something in your training
+loop implementation (learning rate, update step, number of epochs) needs
+fixing — don't ignore that gap.
 
-## 7. Ewaluacja
+## 7. Evaluation
 
-Policz MSE i $R^2$ swojego wytrenowanego modelu na zbiorze
-**walidacyjnym**, nie treningowym — raportowanie metryk na danych, które
-model widział podczas treningu, nie mówi niczego o tym, jak model
-generalizuje.
+Compute the MSE and $R^2$ of your trained model on the **validation**
+set, not the training set — reporting metrics on data the model saw
+during training says nothing about how well it generalizes.
 
-## 8. Analiza błędów — Twoje zadanie
+## 8. Error analysis — your task
 
-Narysuj wykres reszt (*residuals*, $\hat{y} - y$) w funkcji każdej z trzech
-cech na zbiorze walidacyjnym (kod do wykresu jest gotowy). Jedna z tych
-trzech cech pokaże **systematyczny, nieprzypadkowy wzorzec** w rozkładzie
-reszt — nie losowy szum wokół zera.
+Plot the residuals ($\hat{y} - y$) against each of the three features on
+the validation set (the plotting code is given). One of these three
+features will show a **systematic, non-random pattern** in the residual
+distribution — not random noise around zero.
 
-**Zadanie (komórka Markdown, 3–5 zdań):** zidentyfikuj, która cecha to jest,
-opisz kształt wzorca i wyjaśnij — odwołując się do tego, czego model
-liniowy *strukturalnie* nie jest w stanie reprezentować — dlaczego taki
-wzorzec się pojawia. Nie chodzi o zgadnięcie "prawdziwego wzoru" (nie
-zobaczysz go wprost w zadaniu), a o poprawne rozpoznanie *rodzaju* problemu
-(czego liniowy model nie może wyrazić) z samego wykresu reszt.
+**Task (Markdown cell, 3-5 sentences):** identify which feature this is,
+describe the shape of the pattern, and explain — referring to what a
+linear model *structurally* cannot represent — why this pattern appears.
+The point isn't to guess the "true formula" (you won't see it directly in
+the task) but to correctly recognize the *kind* of problem (what the
+linear model can't express) from the residual plot alone.
 
-## 9. Wnioski — Twoje zadanie
+## 9. Conclusions — your task
 
-Notebook kończy się krótką sekcją, w której odpowiadasz (markdown) na dwa
-pytania:
+The notebook ends with a short section where you answer (in Markdown) two
+questions:
 
-- Czy ten sam problem dałoby się rozwiązać lepiej, dodając nową *cechę*
-  (np. kwadrat jednej z istniejących) bez zmiany samego modelu liniowego?
-  Uzasadnij.
-- Dlaczego porównanie z rozwiązaniem w postaci zamkniętej jest użytecznym
-  testem poprawności Twojej pętli treningowej?
+- Could this same problem be solved better by adding a new *feature*
+  (e.g. the square of an existing one) without changing the model itself?
+  Justify your answer.
+- Why is comparing against the closed-form solution a useful correctness
+  test for your training loop?
 
-## Kryteria oceny
+## Grading criteria
 
-- `forward`, podział danych, metryki, rozwiązanie w postaci zamkniętej i
-  pętla treningowa działają (notebook wykonuje się od danej komórki do
-  końca bez błędu).
-- Strata modelu trenowanego gradientowo jest bliska stracie rozwiązania w
-  postaci zamkniętej (różnica rzędu kilku procent, nie wielokrotności).
-- Metryki MSE/$R^2$ raportowane w sekcji 7 są liczone na zbiorze
-  **walidacyjnym**, nie treningowym.
-- Interpretacja wykresu reszt poprawnie identyfikuje, która cecha ma
-  nieliniowy wpływ, i wiąże to z ograniczeniem modelu liniowego (nie z
-  "błędem w danych" czy "zbyt małym $N$").
-- Odpowiedzi we wnioskach są uzasadnione, nie jednowersowe.
+- `forward`, the data split, the metrics, the closed-form solution, and
+  the training loop all work (the notebook runs from the given cell to
+  the end without error).
+- The gradient-trained model's loss is close to the closed-form
+  solution's loss (within a few percent, not multiples).
+- The MSE/$R^2$ metrics reported in section 7 are computed on the
+  **validation** set, not the training set.
+- The residual-plot interpretation correctly identifies which feature has
+  a nonlinear effect, and ties it to the linear model's limitation (not
+  to "an error in the data" or "too small an $N$").
+- The conclusions are justified, not one-liners.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/01_intro/`) i nie jest częścią tego repozytorium.
+A full model solution exists locally with the instructor
+(`decisions/solutions/01_intro/`) and is not part of this repository.
