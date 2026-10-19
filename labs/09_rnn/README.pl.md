@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 09: klasyfikacja wiadomości SMS (spam/ham) z RNN/LSTM/GRU
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/09_rnn/lecture.md`](../../lectures/09_rnn/lecture.md)
