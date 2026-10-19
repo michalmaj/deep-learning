@@ -97,6 +97,11 @@ powinny być uruchamiane lokalnie przed otwarciem PR-a. Użyj `make test`
 (albo `uv run pytest`) dla pełnego lokalnego zestawu testów, albo
 `CI=true uv run pytest` dla szybkiego podzbioru bez sieci.
 
+Utrzymanie samej struktury dwujęzycznej (konwencja plików, mechanizm
+kontroli równoważności PL/EN, lista walidacji przed PR-em) jest
+opisane w [`CONTRIBUTING.md`](CONTRIBUTING.md) (dokument tylko po
+angielsku, analogicznie do `data/README.md`/`third_party/README.md`).
+
 ## Licencja
 
 - Oryginalny kod źródłowy: **MIT** — zobacz [`LICENSE`](LICENSE).
