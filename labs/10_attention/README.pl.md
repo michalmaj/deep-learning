@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 10: mały Transformer do klasyfikacji sekwencji zależnych od kolejności
 
 Czas: ok. 2 godziny (**100-105 minut rdzenia obowiązkowego + 15-20 minut
