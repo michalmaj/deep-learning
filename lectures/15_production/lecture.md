@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 15 — od modelu w notebooku do systemu, który można obserwować i utrzymywać
 
 ## Cele wykładu
