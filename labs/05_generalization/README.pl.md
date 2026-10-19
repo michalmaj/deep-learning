@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 05: rozpoznawanie przeuczenia i dobór regularyzacji
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/05_generalization/lecture.md`](../../lectures/05_generalization/lecture.md)
