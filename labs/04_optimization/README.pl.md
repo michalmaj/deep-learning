@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 04: eksperymentalne porównanie strategii optymalizacji
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/04_optimization/lecture.md`](../../lectures/04_optimization/lecture.md)
