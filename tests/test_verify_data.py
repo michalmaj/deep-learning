@@ -87,6 +87,24 @@ def test_unsafe_or_invalid_file_entries_are_reported(file_entry, expected_fragme
     assert any(expected_fragment in error for error in errors)
 
 
+def test_duplicate_repository_paths_are_reported_across_datasets():
+    file_entry = {"path": "data/shared.bin", "sha256": "0" * 64}
+    second_dataset = _dataset(id="second-dataset", files=[copy.deepcopy(file_entry)])
+    errors = validate_registry(
+        _registry(_dataset(files=[copy.deepcopy(file_entry)]), second_dataset)
+    )
+    assert any("duplicates another registry entry" in error for error in errors)
+
+
+def test_missing_registered_file_is_reported(tmp_path):
+    registry = _registry(
+        _dataset(files=[{"path": "data/missing.bin", "sha256": "0" * 64}])
+    )
+    errors, checked = verify_registered_files(registry, tmp_path)
+    assert checked == 1
+    assert errors == ["[example-dataset] missing file: data/missing.bin"]
+
+
 def test_registered_file_checksum_is_verified(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
