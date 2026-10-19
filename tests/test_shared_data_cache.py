@@ -1,5 +1,6 @@
 """The course should reuse one repository-level dataset cache."""
 
+import ast
 import importlib
 import json
 import sys
@@ -16,6 +17,25 @@ def _code_source(notebook_path):
         for cell in notebook["cells"]
         if cell["cell_type"] == "code"
     )
+
+
+def _execute_cache_setup(source):
+    tree = ast.parse(source)
+    setup_nodes = []
+    for node in tree.body:
+        if isinstance(node, ast.Import) and any(alias.name == "os" for alias in node.names):
+            setup_nodes.append(node)
+        elif isinstance(node, ast.ImportFrom) and node.module == "pathlib":
+            setup_nodes.append(node)
+        elif isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in {"_REPO_ROOT", "DATA_CACHE_DIR"}
+            for target in node.targets
+        ):
+            setup_nodes.append(node)
+
+    namespace = {}
+    exec(compile(ast.Module(body=setup_nodes, type_ignores=[]), "<cache-setup>", "exec"), namespace)
+    return namespace
 
 
 def test_dataset_notebooks_use_the_shared_cache_contract():
@@ -35,6 +55,22 @@ def test_dataset_notebooks_use_the_shared_cache_contract():
 
     assert legacy_references == []
     assert len(cache_notebooks) == 26
+
+
+def test_notebook_cache_setup_resolves_repo_root_and_override(monkeypatch, tmp_path):
+    notebook_path = REPO_ROOT / "labs" / "06_cnn" / "lab.ipynb"
+    source = _code_source(notebook_path)
+    monkeypatch.chdir(notebook_path.parent)
+    monkeypatch.delenv("DEEP_LEARNING_DATA_CACHE", raising=False)
+
+    namespace = _execute_cache_setup(source)
+    assert namespace["_REPO_ROOT"] == REPO_ROOT
+    assert namespace["DATA_CACHE_DIR"] == REPO_ROOT / "data_cache"
+
+    override = tmp_path / "external-cache"
+    monkeypatch.setenv("DEEP_LEARNING_DATA_CACHE", str(override))
+    namespace = _execute_cache_setup(source)
+    assert namespace["DATA_CACHE_DIR"] == override
 
 
 def test_prepare_artifact_cache_precedence(monkeypatch, tmp_path):
