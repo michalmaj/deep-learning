@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 06: Od pikseli do cech — konwolucyjne sieci neuronowe
 
 ## Cele wykładu
