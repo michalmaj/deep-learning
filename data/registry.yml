@@ -156,7 +156,7 @@ datasets:
         }
     course_usage:
       lectures: [7]
-      labs: [7, 14]
+      labs: [7, 14, 15]
     # No `files:` list: never stored at a repo-relative path. Integrity verified by
     # torchvision itself on download. File: resnet18-f37072fd.pth (~44.7 MB).
 

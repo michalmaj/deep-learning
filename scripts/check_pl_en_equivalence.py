@@ -949,6 +949,22 @@ MODULE_NOTEBOOK_PAIRS = [
         Path("labs/13_diffusion/lab.ipynb"),
         Path("labs/13_diffusion/lab.en.ipynb"),
     ),
+    (
+        Path("lectures/14_evaluation_interpretability/examples.ipynb"),
+        Path("lectures/14_evaluation_interpretability/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/14_evaluation_interpretability/lab.ipynb"),
+        Path("labs/14_evaluation_interpretability/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/15_production/examples.ipynb"),
+        Path("lectures/15_production/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/15_production/lab.ipynb"),
+        Path("labs/15_production/lab.en.ipynb"),
+    ),
 ]
 """Every localized PL/EN notebook pair this project currently maintains.
 Adding a new module's pair here is the only change needed to cover it --

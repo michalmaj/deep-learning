@@ -16,21 +16,20 @@ Sekwencja dydaktyczna przyjęta w materiałach:
 
 ## Status
 
-Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku.
-Trwa lokalizacja na język angielski — zobacz
-[angielską wersję tej strony](README.md) po aktualny status tego procesu
-modułu po module. Moduły 01-13 są już w pełni dostępne w obu językach —
-pierwsze trzynaście modułów, od podstaw PyTorcha po inżynierię LLM,
-autoenkodery/VAE i modele dyfuzyjne, można przejść od początku do końca
-po angielsku.
+Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku, a
+**wszystkie 15 modułów mają już też kompletne tłumaczenie na angielski**
+(wykład, notebook wykładowy, instrukcja laboratorium, notebook
+studencki) — cały kurs, od podstaw PyTorcha po ewaluację/
+interpretowalność i inżynierię produkcyjną, można przejść od początku do
+końca po angielsku. Ta partia lokalizacji nie przeszła jeszcze przez
+dedykowany końcowy audyt dwujęzyczny (zaplanowany jako osobny, kolejny
+etap) — zobacz [angielską wersję tej strony](README.md).
 
 ## Struktura kursu
 
 Wszystkie 15 modułów są kompletne. Link w kolumnie "Wykład" prowadzi do
-`lecture.md`, link w kolumnie "Laboratorium" do instrukcji laboratorium
-(dla modułów 1-13 — do `README.pl.md`, polskiej wersji; dla modułów 14-15
-— do `README.md`, które dla tych modułów jest wciąż polskojęzyczne, do
-czasu ich lokalizacji).
+`lecture.md`, link w kolumnie "Laboratorium" do `README.pl.md`, polskiej
+wersji instrukcji laboratorium.
 
 | # | Wykład | Laboratorium |
 |---|---|---|
@@ -47,8 +46,8 @@ czasu ich lokalizacji).
 | 11 | [Podstawy inżynierii LLM](lectures/11_llm_engineering/lecture.md) | [Tokenizacja, inferencja, Hugging Face](labs/11_llm_engineering/README.pl.md) |
 | 12 | [Autoencodery i VAE](lectures/12_autoencoders/lecture.md) | [Przestrzeń latentna / wykrywanie anomalii](labs/12_autoencoders/README.pl.md) |
 | 13 | [Generative AI i dyfuzja](lectures/13_diffusion/lecture.md) | [Mały eksperyment generatywny / analiza dyfuzji](labs/13_diffusion/README.pl.md) |
-| 14 | [Ewaluacja, interpretowalność, analiza błędów](lectures/14_evaluation_interpretability/lecture.md) | [Analiza błędów, Grad-CAM/interpretowalność](labs/14_evaluation_interpretability/README.md) |
-| 15 | [Produkcyjny DL: inferencja, koszt, monitoring, drift](lectures/15_production/lecture.md) | [Deployment/API/finalny eksperyment inżynierski](labs/15_production/README.md) |
+| 14 | [Ewaluacja, interpretowalność, analiza błędów](lectures/14_evaluation_interpretability/lecture.md) | [Analiza błędów, Grad-CAM/interpretowalność](labs/14_evaluation_interpretability/README.pl.md) |
+| 15 | [Produkcyjny DL: inferencja, koszt, monitoring, drift](lectures/15_production/lecture.md) | [Deployment/API/finalny eksperyment inżynierski](labs/15_production/README.pl.md) |
 
 ## Środowisko
 

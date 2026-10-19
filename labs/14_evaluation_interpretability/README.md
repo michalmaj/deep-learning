@@ -1,223 +1,234 @@
-# Laboratorium 14: audyt błędów i interpretacja decyzji klasyfikatora obrazów
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 120 minut. Bazuje na
-[`lectures/14_evaluation_interpretability/lecture.md`](../../lectures/14_evaluation_interpretability/lecture.md)
-(metryki, kalibracja, Grad-CAM), ale na **innym problemie** niż wykład (tam:
-Fashion-MNIST, mały CNN od zera). Tu: **EuroSAT** (zdjęcia satelitarne
-Sentinel-2, moduły 07-08) + **ResNet18** `IMAGENET1K_V1` z zamrożonym
-backbone'em i trenowaną głowicą (wzorem modułu 07).
+# Lab 14: error auditing and interpreting an image classifier's decisions
 
-**Cel**: nie jeden wykres Grad-CAM — **raport audytu klasyfikatora**,
-odpowiadający na konkretne pytania o jakość, błędy, pewność i interpretację
-decyzji modelu.
+Time: ca. 120 minutes. Builds on
+[`lectures/14_evaluation_interpretability/lecture.en.md`](../../lectures/14_evaluation_interpretability/lecture.en.md)
+(metrics, calibration, Grad-CAM), but on a **different problem** than the
+lecture (there: Fashion-MNIST, a small CNN from scratch). Here:
+**EuroSAT** (Sentinel-2 satellite images, modules 07-08) + **ResNet18**
+`IMAGENET1K_V1` with a frozen backbone and a trained head (following
+module 07).
 
-## 0. Konfiguracja i model (gotowe)
+**Goal**: not a single Grad-CAM plot -- a **classifier audit report**,
+answering concrete questions about quality, errors, confidence, and the
+interpretation of the model's decisions.
 
-Import bibliotek, ziarno losowości, wczytanie EuroSAT
-(`torchvision.datasets.EuroSAT`), wczytanie `resnet18(weights=
-ResNet18_Weights.IMAGENET1K_V1)` z zamrożonym backbone'em i nową głowicą
-`nn.Linear` (10 klas). Funkcja `extract_features()` do prekomputacji cech
-zamrożonego backbone'u (drastycznie przyspiesza trening głowicy — nie
-trzeba przeliczać konwolucji przy każdej epoce).
+## 0. Setup and model (provided)
 
-## 1. Dane i podział train/validation/test — Twoje zadanie
+Library imports, a random seed, loading EuroSAT
+(`torchvision.datasets.EuroSAT`), loading `resnet18(weights=
+ResNet18_Weights.IMAGENET1K_V1)` with a frozen backbone and a new
+`nn.Linear` head (10 classes). The `extract_features()` function
+precomputes the frozen backbone's features (drastically speeds up
+training the head -- no need to recompute the convolutions every epoch).
 
-EuroSAT ma 27000 obrazów w 10 klasach (`AnnualCrop`, `Forest`,
-`HerbaceousVegetation`, `Highway`, `Industrial`, `Pasture`, `PermanentCrop`,
-`Residential`, `River`, `SeaLake`). Dla szybkości CPU, użyj **podzbioru**
-(np. 1800 train / 400 val / 400 test, bez nakładania).
+## 1. Data and the train/validation/test split -- your task
 
-**Zadanie:**
-1. Wylosuj indeksy i podziel na `train_idx`/`val_idx`/`test_idx` —
-   **zweryfikuj programowo** brak nakładania.
-2. Wypisz rozkład klas w każdym podzbiorze — czy są wyraźnie
-   nierównomierne?
-3. Krótki komentarz: co by się stało, gdybyś użył **tego samego** podziału
-   do wyboru hiperparametrów **i** do finalnej oceny?
+EuroSAT has 27000 images in 10 classes (`AnnualCrop`, `Forest`,
+`HerbaceousVegetation`, `Highway`, `Industrial`, `Pasture`,
+`PermanentCrop`, `Residential`, `River`, `SeaLake`). For CPU speed, use a
+**subset** (e.g. 1800 train / 400 val / 400 test, with no overlap).
 
-## 2. Trening głowicy (gotowe + krótkie zadanie)
+**Task:**
+1. Sample indices and split into `train_idx`/`val_idx`/`test_idx` --
+   **verify programmatically** that there is no overlap.
+2. Print the class distribution in each subset -- is it clearly
+   unbalanced?
+3. Short comment: what would happen if you used the **same** split to
+   choose hyperparameters **and** for the final evaluation?
 
-Ekstrakcja cech (`extract_features`) i trening liniowej głowicy na
-prekomputowanych cechach są **gotowe** — to nie jest centralny temat tego
-labu (transfer learning było modułem 07). **Zadanie:** wywołaj trening na
-**`train_idx`** (nie na `val_idx` czy `test_idx`!) i wypisz czas treningu.
+## 2. Training the head (provided + a short task)
 
-## 3. Ewaluacja na niezależnym zbiorze — Twoje zadanie
+Feature extraction (`extract_features`) and training a linear head on the
+precomputed features are **provided** -- this is not the central topic of
+this lab (transfer learning was module 07). **Task:** run the training on
+**`train_idx`** (not on `val_idx` or `test_idx`!) and print the training
+time.
 
-Na **`test_idx`** (nigdy nie dotykanym do tego momentu): policz accuracy,
-macro-F1, precision/recall/F1 per-class. Zbuduj i narysuj confusion matrix
+## 3. Evaluation on an independent set -- your task
+
+On **`test_idx`** (never touched until now): compute accuracy, macro-F1,
+per-class precision/recall/F1. Build and draw the confusion matrix
 ($10\times10$).
 
-**Zadanie (komentarz):** która klasa ma najniższy recall? Czy to zgadza się
-z Twoją intuicją o tym, które kategorie krajobrazu są wizualnie podobne
-(np. `PermanentCrop` vs `AnnualCrop`, `Highway` vs `Residential`)?
+**Task (comment):** which class has the lowest recall? Does this match
+your intuition about which landscape categories look visually similar
+(e.g. `PermanentCrop` vs `AnnualCrop`, `Highway` vs `Residential`)?
 
-## 4. Najczęstsze i najkosztowniejsze błędy — Twoje zadanie
+## 4. The most frequent and most costly errors -- your task
 
-Z confusion matrix, znajdź **dwie** najczęściej mylone pary klas (patrz
-wykład — nie wybieraj ich "na oko", odczytaj z macierzy). Dla **jednej**
-z nich, zastanów się (komentarz): czy pomylenie tych dwóch konkretnych klas
-ma inny "koszt" niż pomylenie innej pary (np. czy `River`→`SeaLake` jest
-mniej kosztowne niż `Industrial`→`Residential` w jakimś realnym
-zastosowaniu)?
+From the confusion matrix, find the **two** most frequently confused
+class pairs (see the lecture -- don't pick them "by eye," read them off
+the matrix). For **one** of them, consider (comment): does confusing
+these two specific classes have a different "cost" than confusing another
+pair (e.g. is `River`→`SeaLake` less costly than `Industrial`→`Residential`
+in some real application)?
 
-## 5. Confidence poprawnych i błędnych predykcji — Twoje zadanie
+## 5. Confidence of correct and wrong predictions -- your task
 
-Policz confidence (= $\max_c \hat y_c$) dla wszystkich predykcji testowych.
-Porównaj rozkład dla poprawnych i błędnych (histogram). Znajdź **najbardziej
-pewną błędną** predykcję — zapisz jej indeks, prawdziwą i przewidzianą
-klasę, confidence.
+Compute confidence (= $\max_c \hat y_c$) for all test predictions. Compare
+the distribution for correct and wrong ones (histogram). Find the **most
+confident wrong** prediction -- record its index, true and predicted
+class, confidence.
 
-## 6. Wybór próbek do szczegółowej analizy — Twoje zadanie
+## 6. Choosing samples for detailed analysis -- your task
 
-Zdefiniuj **jawną procedurę** (nie "na oko") wyboru 3 przykładów do
-Grad-CAM/occlusion: (a) poprawna predykcja o wysokiej confidence; (b)
-pomyłka o niskiej confidence (model "wie", że nie jest pewny); (c) pomyłka o
-wysokiej confidence (myląca). Zapisz dokładnie, jak każdy został wybrany
-(np. "pierwszy przykład w `test_idx`, dla którego warunek X jest prawdą").
+Define an **explicit procedure** (not "by eye") for choosing 3 examples
+for Grad-CAM/occlusion: (a) a correct, high-confidence prediction; (b) a
+low-confidence error (the model "knows" it's unsure); (c) a
+high-confidence error (misleading). Record exactly how each was chosen
+(e.g. "the first example in `test_idx` for which condition X holds").
 
-## 7. Grad-CAM — Twoje zadanie
+## 7. Grad-CAM -- your task
 
-Zaimplementuj klasę `GradCAM` (forward hook na aktywacji wybranej warstwy,
-`register_full_backward_hook` na gradiencie, $\alpha_k^c$ = global-average-
-pool gradientu, ważona suma + ReLU, upsampling bilinearny, **obsługa
-przypadku zerowej rozpiętości** mapy). Użyj `backbone.layer4` jako wybranej
-warstwy (ostatni blok konwolucyjny ResNet18, przed `avgpool`).
+Implement the `GradCAM` class (a forward hook on the chosen layer's
+activation, `register_full_backward_hook` on the gradient, $\alpha_k^c$ =
+global-average-pool of the gradient, weighted sum + ReLU, bilinear
+upsampling, **handling the zero-spread case** for the map). Use
+`backbone.layer4` as the chosen layer (ResNet18's last convolutional
+block, before `avgpool`).
 
-**Uwaga, zweryfikowana w praktyce**: backbone jest **zamrożony**
-(`requires_grad=False`). To oznacza, że samo `model.eval()` **nie
-wystarczy** — potrzebujesz `x.requires_grad_(True)` na **wejściu**, inaczej
-graf gradientów nigdy nie dotrze do `layer4` (zobacz wykład, sekcja
-`eval()`/`no_grad()`/`inference_mode()`).
+**Note, verified in practice**: the backbone is **frozen**
+(`requires_grad=False`). This means `model.eval()` alone **is not
+enough** -- you need `x.requires_grad_(True)` on the **input**, otherwise
+the gradient graph never reaches `layer4` (see the lecture, the
+`eval()`/`no_grad()`/`inference_mode()` section).
 
-## 8. Porównanie heatmap i occlusion sensitivity — Twoje zadanie
+## 8. Comparing heatmaps and occlusion sensitivity -- your task
 
-Dla **trzech** przykładów z sekcji 6: policz i narysuj Grad-CAM (dla klasy
-**przewidzianej**). Dla **jednego** z nich (poprawna predykcja o wysokiej
-confidence), dodatkowo policz occlusion sensitivity (patch $32\times32$,
-stride $32$, baseline = znormalizowany mid-gray, **zgodny** z
-`ResNet18_Weights.IMAGENET1K_V1.transforms()` — **nie** surowe zero, bo to
-nie jest zero w przestrzeni znormalizowanej).
+For the **three** examples from section 6: compute and draw Grad-CAM (for
+the **predicted** class). For **one** of them (a correct, high-confidence
+prediction), also compute occlusion sensitivity ($32\times32$ patch,
+stride $32$, baseline = normalized mid-gray, **consistent** with
+`ResNet18_Weights.IMAGENET1K_V1.transforms()` -- **not** raw zero, since
+that is not zero in the normalized space).
 
-**Zadanie (komentarz):** regiony Grad-CAM i occlusion **zgadzają się** czy
-**różnią się**? Czy to ma sens, biorąc pod uwagę, że to są **różne pytania**
-(gradient lokalny vs efekt fizycznego usunięcia)?
+**Task (comment):** do the Grad-CAM and occlusion regions **agree** or
+**differ**? Does that make sense, given that these are **different
+questions** (local gradient vs. the effect of physically removing a
+region)?
 
-## 9. Analiza podgrup LUB odporność — Twoje zadanie (wybierz JEDNO)
+## 9. Subgroup analysis OR robustness -- your task (choose ONE)
 
-**Opcja A — podgrupy (jasność):** podziel `test_idx` na "jasne"/"ciemne"
-(mediana średniej wartości pikseli). Policz accuracy w każdej grupie.
-**Zweryfikuj rozkład klas w każdej grupie** — czy różnica accuracy mogłaby
-wynikać z różnic w rozkładzie klas, nie z samej jasności?
+**Option A -- subgroups (brightness):** split `test_idx` into
+"bright"/"dark" halves (median mean pixel value). Compute accuracy in
+each group. **Verify the class distribution in each group** -- could the
+accuracy difference come from differences in class distribution, not
+brightness itself?
 
-❌ "Różnica accuracy między grupami jasności dowodzi, że model jest
-niesprawiedliwy/stronniczy względem jasnych lub ciemnych obrazów."
+❌ "An accuracy difference between brightness groups proves the model is
+unfair/biased toward bright or dark images."
 
-✅ **Nie wolno tego zakładać bez sprawdzenia.** Jasność **koreluje** z
-klasą (np. las jest zwykle ciemniejszy niż tereny przemysłowe) — różnica
-accuracy może być **w dużej mierze** konsekwencją tego, że jedna grupa ma
-więcej przykładów z trudniejszych klas, nie efektem samej jasności.
-**Zweryfikuj to wprost**, nie zakładaj.
+✅ **This cannot be assumed without checking.** Brightness **correlates**
+with class (e.g. forest is usually darker than industrial terrain) -- the
+accuracy difference may be **largely** a consequence of one group having
+more examples from harder classes, not an effect of brightness itself.
+**Verify this explicitly**, don't assume it.
 
-**Opcja B — odporność (flip horyzontalny):** zdjęcia satelitarne nie mają
-"kanonicznej" orientacji (w przeciwieństwie np. do zdjęć ludzi) — flip
-horyzontalny **powinien** zachowywać etykietę. Policz accuracy/confidence
-na `test_idx` i jego flipowanej wersji. Znajdź **konkretne** przykłady, dla
-których predykcja **się zmieniła**.
+**Option B -- robustness (horizontal flip):** satellite images have no
+"canonical" orientation (unlike, say, photos of people) -- a horizontal
+flip **should** preserve the label. Compute accuracy/confidence on
+`test_idx` and its flipped version. Find **specific** examples whose
+prediction **changed**.
 
-❌ "Jeśli model jest odporny na flip, jest odporny na rzeczywisty
-distribution shift (inny sensor, inna sezonowość, inny region)."
+❌ "If the model is robust to a flip, it is robust to a real distribution
+shift (a different sensor, a different season, a different region)."
 
-✅ **Nieprawda.** Jedna, kontrolowana transformacja testuje **tylko** tę
-jedną transformację — nie uogólnia się automatycznie na inne, prawdziwe
-źródła zmiany rozkładu danych.
+✅ **Not true.** A single, controlled transformation tests **only** that
+one transformation -- it does not automatically generalize to other, real
+sources of distribution change.
 
-## 10. Zadanie diagnostyczne
+## 10. Diagnostic task
 
-Poniższy, **oddzielnie dostarczony** kod próbuje policzyć Grad-CAM, ale ma
-**dwa powiązane** problemy: (a) cała analiza jest zawarta w bloku
-`torch.no_grad()` (ktoś "zoptymalizował" kod, zakładając, że inferencja nie
-potrzebuje gradientów), **i** (b) nawet po usunięciu `no_grad()`, backbone
-jest zamrożony i wejście nie ma `requires_grad=True`.
+The following, **separately provided** code tries to compute Grad-CAM,
+but has **two related** problems: (a) the whole analysis is wrapped in a
+`torch.no_grad()` block (someone "optimized" the code, assuming inference
+doesn't need gradients), **and** (b) even after removing `no_grad()`, the
+backbone is frozen and the input lacks `requires_grad=True`.
 
-**Zadanie:**
-1. Uruchom dostarczony kod — zaobserwuj **konkretny** błąd (nie "coś nie
-   działa" — podaj typ wyjątku i miejsce).
-2. Usuń `torch.no_grad()`. Uruchom ponownie — **nadal** błąd. Zdiagnozuj,
-   **dlaczego** usunięcie `no_grad()` nie wystarczyło.
-3. Napraw **w pełni** (dodaj `x.requires_grad_(True)` na wejściu).
-4. Zweryfikuj: mapa Grad-CAM jest skończona (`torch.isfinite`) i ma
-   niezerową rozpiętość dla **przynajmniej jednego** z Twoich przykładów z
-   sekcji 6.
+**Task:**
+1. Run the provided code -- observe the **specific** error (not "something
+   doesn't work" -- give the exception type and location).
+2. Remove `torch.no_grad()`. Run again -- **still** an error. Diagnose
+   **why** removing `no_grad()` wasn't enough.
+3. Fix it **fully** (add `x.requires_grad_(True)` on the input).
+4. Verify: the Grad-CAM map is finite (`torch.isfinite`) and has a nonzero
+   spread for **at least one** of your examples from section 6.
 
-❌ "Ten błąd wymaga zgadywania, jak działają hooki PyTorch wewnętrznie."
+❌ "This bug requires guessing how PyTorch hooks work internally."
 
-✅ **Nie — błąd daje czysty, wyjaśnialny sygnał** (`None` gradient /
-konkretny `RuntimeError`/`AttributeError`), zrozumiały przez odwołanie do
-tego, czego się uczysz w tym module (`eval()` vs `no_grad()` vs graf
-gradientów), nie przez zgadywanie szczegółów implementacji hooków.
+✅ **No -- the error gives a clean, explainable signal** (a `None`
+gradient / a specific `RuntimeError`/`AttributeError`), understandable by
+referring to what you are learning in this module (`eval()` vs.
+`no_grad()` vs. the gradient graph), not by guessing hook implementation
+details.
 
-## 11. Raport końcowy — Twoje zadanie
+## 11. Final report -- your task
 
-Napisz krótki raport (markdown, w notebooku), odpowiadający **wprost** na:
+Write a short report (markdown, in the notebook), answering **directly**:
 
-1. Jak dobrze model klasyfikuje poszczególne klasy? (konkretne liczby)
-2. Które pomyłki są najczęstsze? (konkretne pary, z confusion matrix)
-3. Czy model bywa mocno pewny błędnych decyzji? (konkretny przykład)
-4. Na jakie regiony wejścia wskazuje Grad-CAM? (dla Twoich 3 przykładów)
-5. Czy analiza przez perturbacje (occlusion) wspiera tę interpretację?
-6. Czy zachowanie modelu zmienia się po Twojej wybranej modyfikacji wejścia
-   (sekcja 9)?
-7. Co należałoby sprawdzić przed wykorzystaniem tego modelu w praktyce?
+1. How well does the model classify each class? (specific numbers)
+2. Which errors are most frequent? (specific pairs, from the confusion
+   matrix)
+3. Does the model sometimes show high confidence in wrong decisions?
+   (a specific example)
+4. Which input regions does Grad-CAM point to? (for your 3 examples)
+5. Does the perturbation-based analysis (occlusion) support this
+   interpretation?
+6. Does the model's behavior change after your chosen input modification
+   (section 9)?
+7. What should be checked before using this model in practice?
 
-**Ważne**: przykłady z sekcji 6/8 są **wybranymi ilustracjami**, nie
-reprezentatywną próbą całego zbioru — nie wyciągaj ogólnych wniosków o
-jakości modelu z 3 heatmap. Ogólne wnioski (punkty 1-2) oprzyj na **całym**
-zbiorze testowym (sekcje 3-4), nie na wybranych przykładach.
+**Important**: the examples from sections 6/8 are **chosen illustrations**,
+not a representative sample of the whole set -- do not draw general
+conclusions about model quality from 3 heatmaps. Base general conclusions
+(points 1-2) on the **entire** test set (sections 3-4), not on selected
+examples.
 
-## Podział czasu (realistyczny, zweryfikowany względem rzeczywistego kosztu CPU)
+## Time budget (realistic, verified against actual CPU cost)
 
-| Blok | Czas |
+| Block | Time |
 |---|---|
-| Sekcja 0 (konfiguracja, model) | 5 min |
-| Sekcja 1 (dane, podział) | 10 min |
-| Sekcja 2 (trening głowicy) | 5 min |
-| Sekcja 3 (ewaluacja, confusion matrix) | 10 min |
-| Sekcja 4 (najczęstsze błędy) | 8 min |
-| Sekcja 5 (confidence) | 8 min |
-| Sekcja 6 (wybór próbek) | 5 min |
-| Sekcja 7 (Grad-CAM) | 13 min |
-| Sekcja 8 (porównanie + occlusion) | 12 min |
-| Sekcja 9 (podgrupy LUB odporność) | 8 min |
-| Sekcja 10 (zadanie diagnostyczne) | 10 min |
-| Sekcja 11 (raport) | 10 min |
+| Section 0 (setup, model) | 5 min |
+| Section 1 (data, split) | 10 min |
+| Section 2 (training the head) | 5 min |
+| Section 3 (evaluation, confusion matrix) | 10 min |
+| Section 4 (most frequent errors) | 8 min |
+| Section 5 (confidence) | 8 min |
+| Section 6 (choosing samples) | 5 min |
+| Section 7 (Grad-CAM) | 13 min |
+| Section 8 (comparison + occlusion) | 12 min |
+| Section 9 (subgroups OR robustness) | 8 min |
+| Section 10 (diagnostic task) | 10 min |
+| Section 11 (report) | 10 min |
 
-Suma: **104 min** rdzenia + **16-minutowy** bufor (razem 120 min). Koszt
-CPU: ekstrakcja cech (~2600 obrazów) ok. 30s **jednorazowo**; trening
-głowicy (30 epok na prekomputowanych cechach) <1s; Grad-CAM/occlusion dla
-kilku obrazów — sekundy. Budżet czasowy idzie w implementację Grad-CAM,
-analizę błędów i pisanie raportu, nie w czekanie na model.
+Total: **104 min** core + a **16-minute** buffer (120 min total). CPU
+cost: feature extraction (~2600 images) ca. 30s **one-time**; training
+the head (30 epochs on precomputed features) <1s; Grad-CAM/occlusion for
+a few images -- seconds. The time budget goes into implementing Grad-CAM,
+error analysis, and writing the report, not into waiting for the model.
 
-## Kryteria oceny
+## Grading criteria
 
-- Podział train/val/test zweryfikowany jako rozłączny; głowica trenowana
-  **wyłącznie** na `train_idx`.
-- Metryki (accuracy, macro-F1, per-class) policzone na **niezależnym**
-  `test_idx`, nie na danych użytych do treningu.
-- Grad-CAM zaimplementowany samodzielnie (hook-based), działa na
-  zamrożonym backbonie (z poprawnym `requires_grad` na wejściu),
-  zweryfikowany (skończone wartości, niezerowa rozpiętość).
-- Wybór próbek do analizy (sekcja 6) jest **jawny i odtwarzalny** — nie
-  "wybrałem, co wyglądało dobrze".
-- Analiza podgrup/odporności (sekcja 9) jawnie sprawdza alternatywne
-  wyjaśnienia (konfundowanie klasą), nie wyciąga wniosku o "niesprawiedliwości"
-  bez podstawy.
-- Zadanie diagnostyczne identyfikuje **obie** przyczyny błędu, nie tylko
-  pierwszą oczywistą.
-- Raport odpowiada na wszystkie 7 pytań, odwołując się do konkretnych
-  liczb/przykładów, z jasnym rozróżnieniem wniosków ogólnych (cały zbiór)
-  od ilustracji (wybrane przykłady).
+- The train/val/test split is verified to be disjoint; the head is
+  trained **exclusively** on `train_idx`.
+- Metrics (accuracy, macro-F1, per-class) are computed on the
+  **independent** `test_idx`, not on data used for training.
+- Grad-CAM is implemented independently (hook-based), works on the frozen
+  backbone (with the correct `requires_grad` on the input), verified
+  (finite values, nonzero spread).
+- The choice of samples for analysis (section 6) is **explicit and
+  reproducible** -- not "I picked what looked good."
+- The subgroup/robustness analysis (section 9) explicitly checks
+  alternative explanations (confounding by class), does not draw a
+  conclusion of "unfairness" without grounds.
+- The diagnostic task correctly identifies **both** causes of the error,
+  not just the first obvious one.
+- The report answers all 7 questions, referring to specific
+  numbers/examples, with a clear distinction between general conclusions
+  (the whole set) and illustrations (selected examples).
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/14_evaluation_interpretability/`) i nie jest częścią
-tego repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/14_evaluation_interpretability/`) and is not part of
+this repository.

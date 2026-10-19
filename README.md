@@ -25,14 +25,13 @@ optional speed-up, never a requirement.
 
 ## Status
 
-All 15 modules are complete in Polish, the course's original language.
-**English localization is in progress.** Modules 1-13 are now fully
-available in both languages (lecture, lecture notebook, lab instructions,
-and lab notebook) -- the first thirteen modules, from PyTorch basics
-through LLM engineering, autoencoders/VAEs, and diffusion models, can be
-followed start to finish in English. Modules 14-15 are not yet
-localized -- their lecture and lab links below point to the existing,
-Polish-only materials, clearly marked as such. See
+All 15 modules are complete in Polish, the course's original language,
+and **all 15 modules now also have a full English translation** (lecture,
+lecture notebook, lab instructions, and lab notebook) -- the entire
+course, from PyTorch basics through evaluation/interpretability and
+production engineering, can be followed start to finish in English. This
+localization pass has not yet been through a dedicated final bilingual
+audit (planned as a separate, subsequent step) -- see
 [the Polish version of this page](README.pl.md) for the course described
 in its original language.
 
@@ -53,8 +52,8 @@ in its original language.
 | 11 | [LLM engineering fundamentals](lectures/11_llm_engineering/lecture.en.md) | [Tokenization, inference, Hugging Face](labs/11_llm_engineering/README.md) |
 | 12 | [Autoencoders and VAE](lectures/12_autoencoders/lecture.en.md) | [Latent space / anomaly detection](labs/12_autoencoders/README.md) |
 | 13 | [Generative AI and diffusion](lectures/13_diffusion/lecture.en.md) | [A small generative experiment / diffusion analysis](labs/13_diffusion/README.md) |
-| 14 | [Evaluation, interpretability, error analysis](lectures/14_evaluation_interpretability/lecture.md) (Polish only) | [Error analysis, Grad-CAM/interpretability](labs/14_evaluation_interpretability/README.md) (Polish only) |
-| 15 | [Production DL: inference, cost, monitoring, drift](lectures/15_production/lecture.md) (Polish only) | [Deployment/API, final engineering experiment](labs/15_production/README.md) (Polish only) |
+| 14 | [Evaluation, interpretability, error analysis](lectures/14_evaluation_interpretability/lecture.en.md) | [Error analysis, Grad-CAM/interpretability](labs/14_evaluation_interpretability/README.md) |
+| 15 | [Production DL: inference, cost, monitoring, drift](lectures/15_production/lecture.en.md) | [Deployment/API, final engineering experiment](labs/15_production/README.md) |
 
 ## Environment
 

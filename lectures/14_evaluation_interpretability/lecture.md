@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 14 — Jak oceniać i interpretować modele, którym chcemy zaufać?
 
 ## Cele wykładu
@@ -136,7 +138,7 @@ jako jedna, natywnie wieloklasowa krzywa. Moduł 12's lab już zbudował pełną
 maszynerię ROC-AUC/PR-AUC (ręcznie, bez `scikit-learn`) dla **binarnego**
 zadania detekcji anomalii — ten sam kod działałby tu, zastosowany $C$ razy
 (raz na klasę), nie rozwijamy tego pełnego omówienia tutaj (poza rdzeniem
-tego wykładu — patrz sekcja "Zakres i priorytety" tej lekcji).
+tego wykładu).
 
 **Próg decyzyjny i koszty błędów.** Przy binarnej decyzji (np. "czy
 to klasa X"), wybór progu zmienia **balans** między false positives i false
@@ -222,8 +224,20 @@ warstwy** dla uśrednionej, batched reprezentacji; tu $A^k$ to **konkretna**
 mapa **jednego, wybranego** layera, indeksowana **kanałem**, nie warstwą —
 inny obiekt matematyczny). $z_c$ — logit klasy $c$ (reużycie $z$=logity,
 moduł 02+, z indeksem klasy — **nie** $y^c$, nowy symbol byłby tu
-niepotrzebny, i **nie** softmax $\hat y_c$ — patrz niżej, dlaczego to jest
-istotne rozróżnienie, nie stylistyczne).
+niepotrzebny, i **nie** softmax $\hat y_c$ — to jest istotne rozróżnienie,
+nie stylistyczne (wyjaśnienie poniżej).
+
+**Dlaczego logit, nie softmax.** Softmax $\hat y_c = \exp(z_c) /
+\sum_{c'} \exp(z_{c'})$ normalizuje przez sumę po **wszystkich** klasach —
+gradient $\partial \hat y_c/\partial A^k$ więc niesie w sobie wpływ
+**wszystkich** innych logitów (przez mianownik), nie tylko klasy $c$.
+Gradient logitu $\partial z_c/\partial A^k$ "widzi" tylko klasę $c$,
+bez tej domieszki. Dodatkowo, gdy softmax jest bliski $0$ albo $1$
+(model bardzo pewny), jego gradient **saturuje** blisko zera — Grad-CAM
+liczony na softmaksie traciłby sygnał właśnie tam, gdzie predykcja jest
+najbardziej jednoznaczna. Z tych dwóch powodów (zanieczyszczenie przez
+inne klasy, saturacja) oryginalna praca Grad-CAM (Selvaraju i in., 2017)
+celuje w logit $z_c$, nie w $\hat y_c$.
 
 **Krok 1 — gradient wyniku względem map aktywacji:**
 
