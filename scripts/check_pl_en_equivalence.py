@@ -95,7 +95,17 @@ only when it is one of:
   not a general data-flow analysis -- a string reaching a presentational
   call through two hops of assignment, a conditional, or a function
   boundary is not covered and will correctly surface as a mismatch for
-  manual review;
+  manual review. The loop-unpacking variant also unwraps two common
+  wrapper shapes around the loop's iterable before matching: `zip(a, b)`
+  (each (sub-target, sub-iterable) pair from the zip is matched
+  independently, so `for ax, (title, data) in zip(axes, [("...", ...),
+  ...]):` resolves `title` against the second zip argument) and
+  `enumerate(x)` (the index is irrelevant; the value half of the `(idx,
+  val)` target is matched directly against `x`'s elements, so `for i, tok
+  in enumerate(VOCAB):` resolves `tok` against `VOCAB`'s elements). In
+  both cases the wrapped collection may itself be a literal or a plain
+  `name = [...]` assigned earlier in the same cell (one further hop on the
+  *iterable* side only, not the call-argument side above);
 - an argument passed, anywhere in the notebook (not just the same cell),
   to a parameter of a locally defined helper function, when that
   parameter is used *exclusively* inside a presentational call within the
@@ -110,6 +120,20 @@ only when it is one of:
   name; `*args`/`**kwargs` and parameters used inside a nested function
   are not resolved and fall back to exact-match, which is the safe
   direction for a limitation to fail in.
+
+- a string key of a notebook-local **display/grouping accumulator**
+  dict: a bare `name = {}` or a dict literal with plain-string-only keys,
+  used *only* to collect results for later printing/plotting (every
+  other reference to `name` in the cell is `name[<str>] = ...`,
+  `name[<str>] += ...`, `name[<str>].append(/extend(/update(...)`, one of
+  `name.items()/.values()/.keys()`, or the bare iterable of a `for`
+  loop). A single use anywhere else -- passed to a call, subscripted
+  with a computed key, compared with `in`/`==`, reassigned to something
+  other than a dict -- disqualifies the name entirely and falls back to
+  exact-match, so a genuine config/parameter dict (e.g.
+  `{"params": layer.parameters(), "lr": 1e-4}` fed straight into an
+  optimizer) is never exempted just because its keys happen to be
+  strings.
 
 Every other string constant -- a dict key, a column/label identifier, an
 argument to an unrecognized function, a value compared against with `==`,
@@ -272,9 +296,95 @@ def _collect_function_presentational_params(
     return registry
 
 
+def _collect_accumulator_dict_names(cell_sources: list[str]) -> set[str]:
+    """Resolved once per notebook (all code cells parsed together, since
+    the dict is commonly initialized in one cell and populated/read in a
+    later one): the names of every dict that behaves as a notebook-wide
+    *display/grouping accumulator* -- see the "dict-accumulator" bullet
+    in the "String-literal protection" section. A name is a candidate the
+    moment any cell assigns it a `{}` or a dict literal with
+    plain-string-only keys; it is then dropped if ANY cell contains a
+    reference to that name outside the narrow accumulation/iteration
+    patterns the bullet describes (`name[<str>] = ...`,
+    `name[<str>] += ...`, `name[<str>].append(/extend(/update(...)`, one
+    of `name.items()/.values()/.keys()`, or the bare iterable of a `for`
+    loop) -- so a dict used for anything else (passed to a call,
+    subscripted with a computed key, compared with `in`/`==`, ...)
+    anywhere in the notebook is never treated as a display accumulator.
+    Cells that fail to parse are skipped, the safe direction for a
+    limitation to fail in.
+    """
+    trees = []
+    for source in cell_sources:
+        try:
+            trees.append(ast.parse(source))
+        except SyntaxError:
+            continue
+
+    candidates: set[str] = set()
+    for tree in trees:
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and isinstance(node.value, ast.Dict)
+                and all(
+                    isinstance(k, ast.Constant) and isinstance(k.value, str)
+                    for k in node.value.keys
+                )
+            ):
+                candidates.add(node.targets[0].id)
+
+    disqualified: set[str] = set()
+    for tree in trees:
+        parents: dict[int, ast.AST] = {}
+        for parent_node in ast.walk(tree):
+            for child_node in ast.iter_child_nodes(parent_node):
+                parents[id(child_node)] = parent_node
+
+        def _is_allowed(name_node: ast.Name) -> bool:
+            parent = parents.get(id(name_node))
+            if isinstance(parent, ast.Subscript) and parent.value is name_node:
+                key = parent.slice
+                if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                    return False
+                grandparent = parents.get(id(parent))
+                if isinstance(grandparent, ast.Assign) and grandparent.targets == [parent]:
+                    return True
+                if isinstance(grandparent, ast.AugAssign) and grandparent.target is parent:
+                    return True
+                if (
+                    isinstance(grandparent, ast.Attribute)
+                    and grandparent.value is parent
+                    and grandparent.attr in {"append", "extend", "update"}
+                ):
+                    return True
+                return False
+            if (
+                isinstance(parent, ast.Attribute)
+                and parent.value is name_node
+                and parent.attr in {"items", "values", "keys"}
+            ):
+                return True
+            return isinstance(parent, ast.For) and parent.iter is name_node
+
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Name)
+                and node.id in candidates
+                and isinstance(node.ctx, ast.Load)
+                and not _is_allowed(node)
+            ):
+                disqualified.add(node.id)
+
+    return candidates - disqualified
+
+
 def _presentational_string_ids(
     tree: ast.AST,
     global_function_params: dict[str, tuple[list[str], set[str]]] | None = None,
+    accumulator_names: set[str] | None = None,
 ) -> set[int]:
     """id() of every string Constant node allowed to differ between PL and
     EN -- see the "String-literal protection" section in the module
@@ -282,6 +392,7 @@ def _presentational_string_ids(
     """
     ids: set[int] = set()
     presentational_names: set[str] = set()
+    accumulator_names = accumulator_names or set()
 
     class _DirectVisitor(ast.NodeVisitor):
         """First pass: strings directly inside a presentational context, and
@@ -333,11 +444,40 @@ def _presentational_string_ids(
         presentational-bound name. This is what keeps the one-hop rule from
         swallowing a computationally meaningful string nested inside some
         unrelated call on the right-hand side, such as `torch.device("cpu")`
-        assigned to a variable that later gets printed."""
+        assigned to a variable that later gets printed. A ternary
+        (`"a" if cond else "b"`) is the one bounded exception: each branch
+        is checked independently by the same plain-string-only rule, so a
+        status label like `status = "used" if cond else "UNUSED"` is
+        covered, but `status = "used" if cond else compute_status()` still
+        leaves the `compute_status()` branch unmarked and exact-matched."""
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             ids.add(id(node))
         elif isinstance(node, ast.JoinedStr):
             _mark_string_constants(node, ids)
+        elif isinstance(node, ast.IfExp):
+            _mark_if_plain_string(node.body)
+            _mark_if_plain_string(node.orelse)
+
+    # Same-cell `name = [...]`/`name = (...)` literal assignments, so a
+    # `for ... in zip(axes, configs):` can resolve `configs` back to the
+    # list it was built from a few lines above -- see the one-hop
+    # docstring bullet extended below for `zip`/`enumerate`.
+    list_literal_assigns: dict[str, ast.List | ast.Tuple] = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, (ast.List, ast.Tuple))
+        ):
+            list_literal_assigns[node.targets[0].id] = node.value
+
+    def _resolve_list_literal(node: ast.AST) -> ast.List | ast.Tuple | None:
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return node
+        if isinstance(node, ast.Name):
+            return list_literal_assigns.get(node.id)
+        return None
 
     class _OneHopVisitor(ast.NodeVisitor):
         """Second pass: a string bound to a name in presentational_names via
@@ -353,29 +493,87 @@ def _presentational_string_ids(
                     _mark_if_plain_string(node.value)
             self.generic_visit(node)
 
-        def visit_For(self, node: ast.For) -> None:
-            target = node.target
-            iterable = node.iter
-            if (
-                isinstance(target, ast.Tuple)
-                and isinstance(iterable, (ast.List, ast.Tuple))
-                and all(isinstance(elt, ast.Tuple) for elt in iterable.elts)
+        def _process_pair(self, target: ast.AST, iterable: ast.AST) -> None:
+            """Match a for-loop target against its iterable, after
+            unwrapping the two call shapes this course's plotting/labeling
+            code commonly loops over: `zip(a, b)` (processed pairwise,
+            independently, for each (sub-target, sub-iterable)) and
+            `enumerate(x)` (the index is irrelevant, only the value half of
+            the (idx, val) target is matched against x's elements
+            directly, not nested in a pair)."""
+            if isinstance(iterable, ast.Call) and isinstance(iterable.func, ast.Name):
+                if (
+                    iterable.func.id == "enumerate"
+                    and len(iterable.args) == 1
+                    and isinstance(target, ast.Tuple)
+                    and len(target.elts) == 2
+                ):
+                    self._process_pair(target.elts[1], iterable.args[0])
+                    return
+                if (
+                    iterable.func.id == "zip"
+                    and isinstance(target, ast.Tuple)
+                    and len(target.elts) == len(iterable.args)
+                ):
+                    for t_elt, it_arg in zip(target.elts, iterable.args):
+                        self._process_pair(t_elt, it_arg)
+                    return
+
+            resolved = _resolve_list_literal(iterable)
+            if resolved is None:
+                return
+            if isinstance(target, ast.Tuple) and all(
+                isinstance(elt, ast.Tuple) for elt in resolved.elts
             ):
                 for pos, name_node in enumerate(target.elts):
                     if (
                         isinstance(name_node, ast.Name)
                         and name_node.id in presentational_names
                     ):
-                        for elt in iterable.elts:
+                        for elt in resolved.elts:
                             if pos < len(elt.elts):
                                 _mark_if_plain_string(elt.elts[pos])
             elif isinstance(target, ast.Name) and target.id in presentational_names:
-                if isinstance(iterable, (ast.List, ast.Tuple)):
-                    for elt in iterable.elts:
-                        _mark_if_plain_string(elt)
+                for elt in resolved.elts:
+                    _mark_if_plain_string(elt)
+
+        def visit_For(self, node: ast.For) -> None:
+            self._process_pair(node.target, node.iter)
             self.generic_visit(node)
 
     _OneHopVisitor().visit(tree)
+
+    # Fourth pass: string keys of a notebook-wide *display/grouping
+    # accumulator* dict (`accumulator_names`, resolved once per notebook
+    # by `_collect_accumulator_dict_names` -- see that function and the
+    # docstring's dict-accumulator bullet for the qualifying conditions).
+    if accumulator_names:
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id in accumulator_names
+                and isinstance(node.value, ast.Dict)
+            ):
+                for key_node in node.value.keys:
+                    if isinstance(key_node, ast.Constant) and isinstance(
+                        key_node.value, str
+                    ):
+                        ids.add(id(key_node))
+
+        class _DictAccumulatorVisitor(ast.NodeVisitor):
+            def visit_Subscript(self, node: ast.Subscript) -> None:
+                if (
+                    isinstance(node.value, ast.Name)
+                    and node.value.id in accumulator_names
+                    and isinstance(node.slice, ast.Constant)
+                    and isinstance(node.slice.value, str)
+                ):
+                    ids.add(id(node.slice))
+                self.generic_visit(node)
+
+        _DictAccumulatorVisitor().visit(tree)
 
     if global_function_params:
 
@@ -525,6 +723,8 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
     en_code_sources = [c.source for c in en_cells if c.cell_type == "code"]
     pl_global_params = _collect_function_presentational_params(pl_code_sources)
     en_global_params = _collect_function_presentational_params(en_code_sources)
+    pl_accumulator_names = _collect_accumulator_dict_names(pl_code_sources)
+    en_accumulator_names = _collect_accumulator_dict_names(en_code_sources)
 
     for i, (pl_cell, en_cell) in enumerate(zip(pl_cells, en_cells)):
         if pl_cell.cell_type != en_cell.cell_type:
@@ -546,8 +746,12 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
                 problems.append(f"cell {i}: EN code does not parse: {exc}")
                 continue
 
-            pl_presentational = _presentational_string_ids(pl_tree, pl_global_params)
-            en_presentational = _presentational_string_ids(en_tree, en_global_params)
+            pl_presentational = _presentational_string_ids(
+                pl_tree, pl_global_params, pl_accumulator_names
+            )
+            en_presentational = _presentational_string_ids(
+                en_tree, en_global_params, en_accumulator_names
+            )
             if _normalize_ast(pl_tree, pl_presentational) != _normalize_ast(
                 en_tree, en_presentational
             ):
@@ -645,6 +849,38 @@ MODULE_NOTEBOOK_PAIRS = [
     (
         Path("labs/05_generalization/lab.ipynb"),
         Path("labs/05_generalization/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/06_cnn/examples.ipynb"),
+        Path("lectures/06_cnn/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/06_cnn/lab.ipynb"),
+        Path("labs/06_cnn/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/07_transfer_learning/examples.ipynb"),
+        Path("lectures/07_transfer_learning/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/07_transfer_learning/lab.ipynb"),
+        Path("labs/07_transfer_learning/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/08_embeddings/examples.ipynb"),
+        Path("lectures/08_embeddings/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/08_embeddings/lab.ipynb"),
+        Path("labs/08_embeddings/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/09_rnn/examples.ipynb"),
+        Path("lectures/09_rnn/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/09_rnn/lab.ipynb"),
+        Path("labs/09_rnn/lab.en.ipynb"),
     ),
 ]
 """Every localized PL/EN notebook pair this project currently maintains.
