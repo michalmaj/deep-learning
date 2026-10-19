@@ -1,213 +1,235 @@
-# Laboratorium 15: lokalna usługa inferencyjna z monitoringiem (EuroSAT + ResNet18)
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 120 minut. **Ostatnie laboratorium kursu** — łączy przygotowanie
-danych, trening, ewaluację, koszt i interpretowalność z poprzednich modułów
-w jednym, praktycznym eksperymencie inżynierskim. Bazuje na
-[`lectures/15_production/lecture.md`](../../lectures/15_production/lecture.md),
-ale na **innym problemie** niż wykład (tam: Fashion-MNIST od zera; tu:
-EuroSAT + ResNet18 zamrożony backbone, wzorem modułów 07/14).
+# Lab 15: a local inference service with monitoring (EuroSAT + ResNet18)
 
-**Cel**: zakończyć laboratorium z **działającym lokalnym API**, możliwością
-odtworzenia artefaktu, wynikami benchmarku i krótkim raportem decyzji o
-wdrożeniu/utrzymaniu modelu.
+Time: ca. 120 minutes. **The last lab of the course** -- it combines data
+preparation, training, evaluation, cost, and interpretability from
+earlier modules into one, practical engineering experiment. Builds on
+[`lectures/15_production/lecture.en.md`](../../lectures/15_production/lecture.en.md),
+but on a **different problem** than the lecture (there: Fashion-MNIST
+from scratch; here: EuroSAT + ResNet18 frozen backbone, following
+modules 07/14).
 
-## Struktura repozytorium tego modułu
+**Goal**: finish the lab with a **working local API**, the ability to
+reproduce the artifact, benchmark results, and a short report on the
+decision to deploy/maintain the model.
+
+## This module's directory structure
 
 ```
 labs/15_production/
-├── README.md                (ten plik)
-├── lab.ipynb                 (notebook spajający wszystko, z TODO)
-├── prepare_artifact.py       (gotowy skrypt — trening + zapis artefaktu)
+├── README.md                (this file)
+├── lab.en.ipynb               (the notebook tying everything together, with TODOs)
+├── prepare_artifact.py       (provided script -- training + saving the artifact)
 ├── app/
-│   ├── model.py               (load_artifact GOTOWE, preprocessing+predict TWOJE)
-│   ├── schemas.py              (modele odpowiedzi — gotowe)
-│   └── server.py               (endpoints health/ready/model-info gotowe, /predict TWOJE)
-├── benchmark.py               (wysyłanie żądań gotowe, liczenie statystyk TWOJE)
-└── monitoring.py              (strumienie/histogram gotowe, PSI TWOJE)
+│   ├── model.py               (load_artifact PROVIDED, preprocessing+predict YOURS)
+│   ├── schemas.py              (response models -- provided)
+│   └── server.py               (health/ready/model-info endpoints provided, /predict YOURS)
+├── benchmark.py               (sending requests provided, computing stats YOURS)
+└── monitoring.py               (streams/histogram provided, PSI YOURS)
 ```
 
-Artefakt (`artifacts/weights.pt` + `artifacts/metadata.json`) jest
-generowany **lokalnie** przez `prepare_artifact.py` i **ignorowany przez
-Git** (`.gitignore`) — nigdy nie commitujesz wag ani datasetu.
+The `app/`, `benchmark.py`, `monitoring.py`, `model_colleague.py`, and
+`prepare_artifact.py` files are **shared code**, not duplicated per
+language -- they are already in English (identifiers, docstrings,
+comments), since they are part of the service's actual, working contract,
+not instructional prose. `lab.en.ipynb` imports from these same files,
+identically to `lab.ipynb`.
 
-## Dokładne komendy
+The artifact (`artifacts/weights.pt` + `artifacts/metadata.json`) is
+generated **locally** by `prepare_artifact.py` and **ignored by Git**
+(`.gitignore`) -- you never commit the weights or the dataset.
 
-1. **Środowisko** (jeśli jeszcze nie zrobione): `uv sync`.
-2. **Przygotowanie artefaktu** (pobiera EuroSAT + wagi ResNet18 przy
-   pierwszym uruchomieniu, ~35s): `uv run python labs/15_production/prepare_artifact.py`.
-3. **Testy** (po uzupełnieniu TODO): `uv run pytest tests/test_lab_15_scaffold.py -v`.
-4. **Notebook**: `uv run jupyter lab labs/15_production/lab.ipynb` — tam
-   budujesz `TestClient`, wysyłasz żądania, uruchamiasz benchmark/monitoring.
-5. Lab **nie** wymaga uruchamiania osobnego procesu serwera (`uvicorn ...`)
-   — `fastapi.testclient.TestClient` wywołuje tę samą aplikację w procesie
-   notebooka, przez prawdziwą warstwę HTTP/walidacji.
+## Exact commands
 
-## 1. Artefakt modelu (gotowe + weryfikacja)
+1. **Environment** (if not already done): `uv sync`.
+2. **Preparing the artifact** (downloads EuroSAT + ResNet18 weights on
+   first run, ~35s): `uv run python labs/15_production/prepare_artifact.py`.
+3. **Tests** (after filling in the TODOs): `uv run pytest tests/test_lab_15_scaffold.py -v`.
+4. **Notebook**: `uv run jupyter lab labs/15_production/lab.en.ipynb` --
+   there you build a `TestClient`, send requests, run the
+   benchmark/monitoring.
+5. The lab does **not** require running a separate server process
+   (`uvicorn ...`) -- `fastapi.testclient.TestClient` calls the same
+   application inside the notebook's process, through a real HTTP/
+   validation layer.
 
-`prepare_artifact.py` trenuje głowicę (`nn.Linear`) na zamrożonych cechach
-ResNet18 (`IMAGENET1K_V1`) i zapisuje `state_dict` + `metadata.json`
-(wersja, lista klas, preprocessing, rozmiar wejścia). To jest **scaffold**
-— nie Twoje zadanie (trening głowicy to przegląd modułów 07/14, nie nowy
-temat).
+## 1. The model artifact (provided + verification)
 
-**Twoje zadanie:** uruchom skrypt, **zweryfikuj programowo** w notebooku,
-że model wczytany z artefaktu daje **identyczne** (`torch.equal`) logity co
-model bezpośrednio po treningu (ten sam obraz testowy).
+`prepare_artifact.py` trains the head (`nn.Linear`) on frozen ResNet18
+(`IMAGENET1K_V1`) features and saves `state_dict` + `metadata.json`
+(version, class list, preprocessing, input size). This is **scaffold**
+code -- not your task (training the head is a review of modules 07/14,
+not a new topic).
 
-## 2. `app/model.py` — preprocessing i inferencja — Twoje zadanie
+**Your task:** run the script, **verify programmatically** in the
+notebook that the model loaded from the artifact gives **identical**
+(`torch.equal`) logits to the model right after training (the same test
+image).
 
-`load_artifact()` jest gotowe (buduje architekturę, wczytuje wagi +
-metadane). Twoje zadanie:
+## 2. `app/model.py` -- preprocessing and inference -- your task
 
-1. `preprocess_image_bytes(data)` — zdekoduj obraz (`PIL.Image`), zastosuj
-   **dokładnie** ten preprocessing, który był użyty podczas treningu
-   (`ResNet18_Weights.IMAGENET1K_V1.transforms()` — **nie** odtwarzaj go
-   ręcznie przez `resize`/`crop`/normalizację, patrz zadanie diagnostyczne
-   niżej za to, co się psuje, gdy to zrobisz).
-2. `predict(loaded, image_bytes)` — forward pass, softmax, zbuduj słownik
-   odpowiedzi (`predicted_class`, `confidence`, `model_version`).
+`load_artifact()` is provided (it builds the architecture, loads the
+weights + metadata). Your task:
 
-## 3. `app/server.py` — kontrakt API — Twoje zadanie
+1. `preprocess_image_bytes(data)` -- decode the image (`PIL.Image`),
+   apply **exactly** the preprocessing used during training
+   (`ResNet18_Weights.IMAGENET1K_V1.transforms()` -- **do not**
+   reconstruct it by hand via `resize`/`crop`/normalization, see the
+   diagnostic task below for exactly what breaks if you do).
+2. `predict(loaded, image_bytes)` -- a forward pass, softmax, build the
+   response dict (`predicted_class`, `confidence`, `model_version`).
 
-`/health`, `/ready`, `/model-info` są gotowe. Twoje zadanie: `/predict`:
+## 3. `app/server.py` -- the API contract -- your task
 
-1. Odczytaj plik, sprawdź rozmiar (odrzuć zbyt duże, zbyt małe/puste).
-2. Wywołaj `model.predict()` z `app/model.py`.
-3. Obsłuż błędy **bez** ujawniania surowego wyjątku/tracebacka klientowi
-   (kod HTTP 400 z jasnym, ograniczonym komunikatem).
+`/health`, `/ready`, `/model-info` are provided. Your task: `/predict`:
 
-## 4. Zgodność API z bezpośrednim wywołaniem — Twoje zadanie
+1. Read the file, check its size (reject ones too large, too small/empty).
+2. Call `model.predict()` from `app/model.py`.
+3. Handle errors **without** revealing the raw exception/traceback to the
+   client (HTTP code 400 with a clear, limited message).
 
-Zbuduj `TestClient(app)`, wyślij prawdziwy obraz EuroSAT, porównaj
-odpowiedź API z bezpośrednim wywołaniem `model.predict()` na tym samym
-obrazie — **musi się zgadzać dokładnie** (ta sama klasa i confidence).
+## 4. API consistency with a direct call -- your task
 
-## 5. `benchmark.py` — pomiar kosztu — Twoje zadanie
+Build `TestClient(app)`, send a real EuroSAT image, compare the API
+response with a direct call to `model.predict()` on the same image -- it
+**must match exactly** (the same class and confidence).
 
-`send_requests(client, image_bytes, n)` jest gotowe (zbiera surowe czasy).
-Twoje zadanie: `compute_stats(times)` — mean, p50, p95 (ms), throughput
-(req/s). **Zmierz**: cold (1. żądanie) vs warm (kolejne 20+), batch size=1
-dla pojedynczych żądań (API przyjmuje jeden obraz na żądanie — throughput
-liczony z **wielu sekwencyjnych** żądań, nie batchingu w jednym żądaniu).
+## 5. `benchmark.py` -- measuring cost -- your task
 
-## 6. `monitoring.py` — PSI i kontrolowane strumienie — Twoje zadanie
+`send_requests(client, image_bytes, n)` is provided (it collects raw
+times). Your task: `compute_stats(times)` -- mean, p50, p95 (ms),
+throughput (req/s). **Measure**: cold (the 1st request) vs. warm (the
+next 20+), batch size=1 for single requests (the API accepts one image
+per request -- throughput is computed from **many sequential** requests,
+not batching within one request).
 
-`histogram_counts()` i `brightness_feature()` są gotowe. Twoje zadanie:
-`psi(ref_counts, cur_counts, eps)` — wzór PSI z wykładu, **z wygładzaniem**
-zerowych częstości (sprawdź w notebooku, co się stanie bez `eps`).
+## 6. `monitoring.py` -- PSI and controlled streams -- your task
 
-## 7. Scenariusze monitoringu — Twoje zadanie
+`histogram_counts()` and `brightness_feature()` are provided. Your task:
+`psi(ref_counts, cur_counts, eps)` -- the PSI formula from the lecture,
+**with smoothing** of zero frequencies (check in the notebook what
+happens without `eps`).
 
-**Scenariusz A (kontrola)**: niezależna próba z **tej samej** dystrybucji
-co referencyjna. Sprawdź: PSI **nie** powinno dać fałszywego alarmu.
+## 7. Monitoring scenarios -- your task
 
-**Scenariusz B (kontrolowana zmiana)**: wybierz **jedną**, mierzalną
-transformację (np. jasność +X, kontrast ×Y) i **jedną** jej siłę. Sprawdź:
-czy PSI wykrywa zmianę?
+**Scenario A (control)**: an independent sample from the **same**
+distribution as the reference one. Check: PSI **should not** give a
+false alarm.
 
-**Scenariusz C (etykiety z opóźnieniem)**: dla danych ze scenariusza B,
-policz accuracy (masz etykiety EuroSAT — symulujesz, że są dostępne "z
-opóźnieniem", po fakcie). **Porównaj** z wynikiem PSI ze scenariusza B —
-**czy drift i zmiana accuracy idą w tę samą stronę, czy nie?**
+**Scenario B (a controlled change)**: choose **one**, measurable
+transformation (e.g. brightness +X, contrast ×Y) and **one** magnitude
+for it. Check: does PSI detect the change?
 
-❌ "Jeśli PSI wykryło drift w scenariuszu B, accuracy musiała spaść w
-scenariuszu C."
+**Scenario C (delayed labels)**: for the data from scenario B, compute
+accuracy (you have EuroSAT labels -- you are simulating that they become
+available "with a delay," after the fact). **Compare** with the PSI
+result from scenario B -- **do drift and the accuracy change go in the
+same direction, or not?**
 
-✅ **Sprawdź to, nie zakładaj.** Zobacz wykład: na innym zbiorze (Fashion-
-MNIST) silny drift **obniżył** accuracy; umiarkowany — nie. Na **Twoich**
-danych (EuroSAT) wynik może wyjść **inaczej** — to jest coś, co musisz
-**zmierzyć** w tym konkretnym eksperymencie, nie przewidzieć z góry.
+❌ "If PSI detected drift in scenario B, accuracy must have dropped in
+scenario C."
 
-**Ważne**: nie dobieraj progu PSI ani siły transformacji **po** zobaczeniu
-wyniku accuracy, wyłącznie żeby "pokazać" alarm — wybierz je **przed**
-sprawdzeniem accuracy, zgodnie z metodologią ewaluacji z modułu 5/10.
+✅ **Check this, don't assume it.** See the lecture: on a different
+dataset (Fashion-MNIST), a strong drift **lowered** accuracy; a moderate
+one did not. On **your** data (EuroSAT), the result may come out
+**differently** -- this is something you must **measure** in this
+specific experiment, not predict in advance.
 
-## 8. Zadanie diagnostyczne: training-serving skew
+**Important**: don't pick the PSI threshold or the transformation
+strength **after** seeing the accuracy result, just to "show" an alarm --
+choose them **before** checking accuracy, following the evaluation
+methodology from module 5/10.
 
-Poniższy, **oddzielnie dostarczony** `model_colleague.py` implementuje
-`preprocess_image_bytes` **ręcznie** (resize do 224×224 bez pośredniego
-kroku 256→crop, bez użycia `weights.transforms()`), zamiast używać
-bibliotecznej transformacji.
+## 8. Diagnostic task: training-serving skew
 
-**Zadanie:**
-1. Uruchom predykcję tym samym obrazem przez **Twój** `model.py` i przez
-   `model_colleague.py`. Porównaj logity.
-2. Wyjaśnij **dokładnie**, który krok preprocessingu się różni i czemu to
-   ma znaczenie (odwołaj się do `ResNet18_Weights.IMAGENET1K_V1.
-   transforms()` — co dokładnie robi: `resize(256)` → `center_crop(224)` →
-   normalizacja — a czego nie robi ręczna wersja).
-3. Sprawdź na **kilku** (np. 20) prawdziwych obrazach EuroSAT: ile
-   predykcji **się zmienia** (nie tylko logity)?
-4. Potwierdź, że **Twoja** implementacja (sekcja 2) zgadza się z
-   bezpośrednim, zweryfikowanym wywołaniem (sekcja 4) — a wersja kolegi nie.
+The following, **separately provided** `model_colleague.py` implements
+`preprocess_image_bytes` **by hand** (resizing to 224×224 with no
+intermediate 256→crop step, without using `weights.transforms()`),
+instead of using the library transform.
 
-❌ "To jest błąd, który wymaga zgadywania, jak działają hooki/wewnętrzne
-mechanizmy biblioteki."
+**Task:**
+1. Run a prediction on the same image through **your** `model.py` and
+   through `model_colleague.py`. Compare the logits.
+2. Explain **exactly** which preprocessing step differs and why it
+   matters (refer to `ResNet18_Weights.IMAGENET1K_V1.
+   transforms()` -- what exactly it does: `resize(256)` →
+   `center_crop(224)` → normalization -- and what the hand-rolled version
+   does not do).
+3. Check on **several** (e.g. 20) real EuroSAT images: how many
+   predictions **change** (not just the logits)?
+4. Confirm that **your** implementation (section 2) agrees with the
+   direct, verified call (section 4) -- while the colleague's version
+   does not.
 
-✅ **Nie — to różnica w WIDOCZNYCH krokach preprocessingu**, porównywalna
-bezpośrednio (rozmiar obrazu po każdym kroku, wartości pikseli przed/po
-normalizacji) — nie wymaga zgadywania.
+❌ "This is a bug that requires guessing how the library's hooks/internal
+mechanisms work."
 
-## 9. Raport: decyzja o wdrożeniu i utrzymaniu modelu — Twoje zadanie
+✅ **No -- this is a difference in VISIBLE preprocessing steps**, directly
+comparable (image size after each step, pixel values before/after
+normalization) -- it does not require guessing.
 
-Krótki raport (markdown w notebooku), odpowiadający na:
+## 9. Report: a decision on deploying and maintaining the model -- your task
 
-1. Wersja modelu, źródło danych, protokół ewaluacji offline.
-2. Accuracy i najważniejsze ograniczenia (np. z modułu 14-stylu analizy,
-   jeśli masz czas — opcjonalnie, nie wymagane ponownie tutaj).
-3. Format wejścia/wyjścia API.
-4. Latency p50/p95, throughput (Twoje zmierzone liczby).
-5. Wyniki scenariuszy A/B/C.
-6. Poziom pewności, z jakim interpretujesz wynik driftu (jedna cecha,
-   ograniczona liczba próbek — nazwij to explicit).
-7. Znane ryzyka, rekomendowane następne działania.
+A short report (markdown in the notebook), answering:
 
-**Nie wymuszaj konkluzji "model nadaje się do produkcji."** Dopuszczalna, a
-czasem najlepsza konkluzja: *"system działa technicznie, ale przed
-rzeczywistym wdrożeniem potrzeba dodatkowych danych, testów i
-zabezpieczeń."*
+1. Model version, data source, the offline evaluation protocol.
+2. Accuracy and the most important limitations (e.g. from a module-14-style
+   analysis, if you have time -- optional, not required again here).
+3. The API's input/output format.
+4. Latency p50/p95, throughput (your measured numbers).
+5. The results of scenarios A/B/C.
+6. The level of confidence with which you interpret the drift result
+   (one feature, a limited number of samples -- name this explicitly).
+7. Known risks, recommended next steps.
 
-## Podział czasu (realistyczny, zweryfikowany względem rzeczywistego kosztu CPU)
+**Do not force the conclusion "the model is ready for production."** An
+acceptable, and sometimes the best, conclusion: *"the system works
+technically, but needs additional data, tests, and safeguards before
+real deployment."*
 
-| Blok | Czas |
+## Time budget (realistic, verified against actual CPU cost)
+
+| Block | Time |
 |---|---|
-| Sekcja 1 (artefakt, weryfikacja) | 8 min |
-| Sekcja 2 (`model.py`: preprocessing + predict) | 15 min |
-| Sekcja 3 (`server.py`: `/predict`) | 12 min |
-| Sekcja 4 (zgodność API vs bezpośrednie wywołanie) | 8 min |
-| Sekcja 5 (`benchmark.py`: statystyki) | 10 min |
-| Sekcja 6 (`monitoring.py`: PSI) | 10 min |
-| Sekcja 7 (scenariusze A/B/C) | 15 min |
-| Sekcja 8 (zadanie diagnostyczne) | 15 min |
-| Sekcja 9 (raport) | 12 min |
+| Section 1 (artifact, verification) | 8 min |
+| Section 2 (`model.py`: preprocessing + predict) | 15 min |
+| Section 3 (`server.py`: `/predict`) | 12 min |
+| Section 4 (API vs. direct call consistency) | 8 min |
+| Section 5 (`benchmark.py`: statistics) | 10 min |
+| Section 6 (`monitoring.py`: PSI) | 10 min |
+| Section 7 (scenarios A/B/C) | 15 min |
+| Section 8 (diagnostic task) | 15 min |
+| Section 9 (report) | 12 min |
 
-Suma: **105 min** rdzenia + **15-minutowy** bufor (razem 120 min). Koszt
-CPU: `prepare_artifact.py` ~35s (jednorazowo, głównie ekstrakcja cech);
-pojedyncze żądanie przez pełny stos API ~7-8ms (zmierzone); scenariusze
-monitoringu — sekundy. Budżet idzie w implementację i interpretację, nie w
-czekanie na model.
+Total: **105 min** core + a **15-minute** buffer (120 min total). CPU
+cost: `prepare_artifact.py` ~35s (one-time, mostly feature extraction); a
+single request through the full API stack ~7-8ms (measured); monitoring
+scenarios -- seconds. The budget goes into implementation and
+interpretation, not into waiting for the model.
 
-## Kryteria oceny
+## Grading criteria
 
-- Artefakt zweryfikowany jako dający **identyczne** predykcje po
-  odtworzeniu (`torch.equal`).
-- `/predict` poprawnie wywołuje **prawdziwy** preprocessing (biblioteczny,
-  nie ręcznie odtworzony) i zwraca poprawną odpowiedź.
-- Odpowiedź API zgadza się **dokładnie** z bezpośrednim wywołaniem modelu
-  dla tego samego obrazu.
-- Błędne wejścia (uszkodzony plik, zbyt duży plik) obsłużone bez wycieku
-  wewnętrznych informacji.
-- Benchmark rozróżnia cold/warm, raportuje p50/p95 z jawną metodologią
-  (liczba prób).
-- PSI poprawnie obsługuje zerowe częstości (wygładzanie, nie `inf`/`nan`).
-- Scenariusz A nie generuje fałszywego alarmu; scenariusz B/C **rzeczywiście
-  zmierzone**, nie zakładane — wniosek o relacji drift/accuracy oparty na
-  **tym** eksperymencie, nie na ogólnej zasadzie.
-- Zadanie diagnostyczne poprawnie identyfikuje różnicę preprocessingu i
-  zmierzony wpływ na predykcje (nie tylko logity).
-- Raport odpowiada na wszystkie punkty, nie wymusza konkluzji "gotowe do
-  produkcji".
+- The artifact is verified to give **identical** predictions after
+  reconstruction (`torch.equal`).
+- `/predict` correctly calls the **real** preprocessing (library-based,
+  not hand-reconstructed) and returns a correct response.
+- The API response agrees **exactly** with a direct model call for the
+  same image.
+- Invalid inputs (a corrupted file, a too-large file) are handled without
+  leaking internal information.
+- The benchmark distinguishes cold/warm, reports p50/p95 with an explicit
+  methodology (number of trials).
+- PSI correctly handles zero frequencies (smoothing, not `inf`/`nan`).
+- Scenario A does not generate a false alarm; scenario B/C are
+  **actually measured**, not assumed -- the conclusion about the drift/
+  accuracy relationship is based on **this** experiment, not a general
+  rule.
+- The diagnostic task correctly identifies the preprocessing difference
+  and its measured impact on predictions (not just the logits).
+- The report answers all the points, without forcing a "ready for
+  production" conclusion.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/15_production/`) i nie jest częścią tego
-repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/15_production/`) and is not part of this
+repository.
