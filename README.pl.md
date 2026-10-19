@@ -19,23 +19,23 @@ Sekwencja dydaktyczna przyjęta w materiałach:
 Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku.
 Trwa lokalizacja na język angielski — zobacz
 [angielską wersję tej strony](README.md) po aktualny status tego procesu
-modułu po module. Moduły 01 i 10 są już w pełni dostępne w obu językach.
+modułu po module. Moduły 01-05 i 10 są już w pełni dostępne w obu językach.
 
 ## Struktura kursu
 
 Wszystkie 15 modułów są kompletne. Link w kolumnie "Wykład" prowadzi do
 `lecture.md`, link w kolumnie "Laboratorium" do instrukcji laboratorium
-(dla modułów 1 i 10 — do `README.pl.md`, polskiej wersji; dla pozostałych
+(dla modułów 1-5 i 10 — do `README.pl.md`, polskiej wersji; dla pozostałych
 modułów — do `README.md`, które dla tych modułów jest wciąż
 polskojęzyczne, do czasu ich lokalizacji).
 
 | # | Wykład | Laboratorium |
 |---|---|---|
 | 1 | [Deep Learning, ML vs DL, tensory, pipeline treningowy](lectures/01_intro/lecture.md) | [PyTorch, tensory, device handling, pierwszy model](labs/01_intro/README.pl.md) |
-| 2 | [Perceptron, MLP, funkcje aktywacji](lectures/02_mlp/lecture.md) | [Klasyfikacja tabelaryczna z MLP](labs/02_mlp/README.md) |
-| 3 | [Backpropagation i grafy obliczeniowe](lectures/03_backprop/lecture.md) | [Backprop od zera + autograd](labs/03_backprop/README.md) |
-| 4 | [Optymalizacja: SGD, momentum, Adam](lectures/04_optimization/lecture.md) | [Porównanie optymalizatorów](labs/04_optimization/README.md) |
-| 5 | [Generalizacja, overfitting, regularyzacja](lectures/05_generalization/lecture.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.md) |
+| 2 | [Perceptron, MLP, funkcje aktywacji](lectures/02_mlp/lecture.md) | [Klasyfikacja tabelaryczna z MLP](labs/02_mlp/README.pl.md) |
+| 3 | [Backpropagation i grafy obliczeniowe](lectures/03_backprop/lecture.md) | [Backprop od zera + autograd](labs/03_backprop/README.pl.md) |
+| 4 | [Optymalizacja: SGD, momentum, Adam](lectures/04_optimization/lecture.md) | [Porównanie optymalizatorów](labs/04_optimization/README.pl.md) |
+| 5 | [Generalizacja, overfitting, regularyzacja](lectures/05_generalization/lecture.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.pl.md) |
 | 6 | [CNN i reprezentacja obrazu](lectures/06_cnn/lecture.md) | [Klasyfikacja obrazów z CNN](labs/06_cnn/README.md) |
 | 7 | [Transfer learning i fine-tuning](lectures/07_transfer_learning/lecture.md) | [Pretrenowany model wizyjny](labs/07_transfer_learning/README.md) |
 | 8 | [Embeddingi i reprezentacje uczone](lectures/08_embeddings/lecture.md) | [Eksperymenty z embeddingami i podobieństwem](labs/08_embeddings/README.md) |
