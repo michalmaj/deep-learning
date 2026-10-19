@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 11 — Od modelu Transformer do działającego systemu generowania tekstu
 
 ## Cele wykładu
