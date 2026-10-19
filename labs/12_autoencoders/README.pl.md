@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 12: wykrywanie anomalii za pomocą autoenkodera i analiza ograniczeń rekonstrukcji
 
 Czas: ok. 120 minut. Bazuje na
