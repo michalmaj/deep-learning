@@ -6,7 +6,7 @@ README.md section 5.
 
 import time
 
-import torch  # noqa: F401 - uzywane w TODO ponizej
+import torch  # noqa: F401 - used in the TODO below
 
 
 def send_requests(client, image_bytes: bytes, n: int) -> list[float]:

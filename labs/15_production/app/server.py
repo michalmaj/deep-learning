@@ -6,7 +6,7 @@ your task -- see README.md section 3.
 
 import os
 
-from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: F401 - uzywane w TODO ponizej
+from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: F401 - used in the TODO below
 
 from . import model as model_module
 from .schemas import HealthResponse, ModelInfoResponse, PredictionResponse, ReadyResponse
