@@ -30,8 +30,13 @@ and **all 15 modules now also have a full English translation** (lecture,
 lecture notebook, lab instructions, and lab notebook) -- the entire
 course, from PyTorch basics through evaluation/interpretability and
 production engineering, can be followed start to finish in English. This
-localization pass has not yet been through a dedicated final bilingual
-audit (planned as a separate, subsequent step) -- see
+localization pass has been through a final bilingual audit: all 30
+PL/EN notebook pairs pass the automated structural/numeric equivalence
+check, navigation between the two languages was verified across every
+module, and the known translation backlog was resolved -- see
+`CONTRIBUTING.md` for exactly what that audit did and did not verify (it
+checked structural and numeric parity, not prose quality via a native
+English speaker, and it has not been classroom-tested). See
 [the Polish version of this page](README.pl.md) for the course described
 in its original language.
 
