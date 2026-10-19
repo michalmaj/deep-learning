@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 03: Backpropagation, reguła łańcuchowa i automatyczne różniczkowanie
 
 ## Cele wykładu
