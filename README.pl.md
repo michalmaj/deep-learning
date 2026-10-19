@@ -19,15 +19,15 @@ Sekwencja dydaktyczna przyjęta w materiałach:
 Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku.
 Trwa lokalizacja na język angielski — zobacz
 [angielską wersję tej strony](README.md) po aktualny status tego procesu
-modułu po module. Moduł 01 jest już w pełni dostępny w obu językach.
+modułu po module. Moduły 01 i 10 są już w pełni dostępne w obu językach.
 
 ## Struktura kursu
 
 Wszystkie 15 modułów są kompletne. Link w kolumnie "Wykład" prowadzi do
 `lecture.md`, link w kolumnie "Laboratorium" do instrukcji laboratorium
-(dla modułu 1 — do `README.pl.md`, polskiej wersji; dla modułów 2-15 —
-do `README.md`, które dla tych modułów jest wciąż polskojęzyczne, do
-czasu ich lokalizacji).
+(dla modułów 1 i 10 — do `README.pl.md`, polskiej wersji; dla pozostałych
+modułów — do `README.md`, które dla tych modułów jest wciąż
+polskojęzyczne, do czasu ich lokalizacji).
 
 | # | Wykład | Laboratorium |
 |---|---|---|
@@ -40,7 +40,7 @@ czasu ich lokalizacji).
 | 7 | [Transfer learning i fine-tuning](lectures/07_transfer_learning/lecture.md) | [Pretrenowany model wizyjny](labs/07_transfer_learning/README.md) |
 | 8 | [Embeddingi i reprezentacje uczone](lectures/08_embeddings/lecture.md) | [Eksperymenty z embeddingami i podobieństwem](labs/08_embeddings/README.md) |
 | 9 | [RNN, LSTM, GRU i dane sekwencyjne](lectures/09_rnn/lecture.md) | [Klasyfikacja sekwencji/tekstu](labs/09_rnn/README.md) |
-| 10 | [Attention i Transformer](lectures/10_attention/lecture.md) | [Attention od podstaw + mały Transformer](labs/10_attention/README.md) |
+| 10 | [Attention i Transformer](lectures/10_attention/lecture.md) | [Attention od podstaw + mały Transformer](labs/10_attention/README.pl.md) |
 | 11 | [Podstawy inżynierii LLM](lectures/11_llm_engineering/lecture.md) | [Tokenizacja, inferencja, Hugging Face](labs/11_llm_engineering/README.md) |
 | 12 | [Autoencodery i VAE](lectures/12_autoencoders/lecture.md) | [Przestrzeń latentna / wykrywanie anomalii](labs/12_autoencoders/README.md) |
 | 13 | [Generative AI i dyfuzja](lectures/13_diffusion/lecture.md) | [Mały eksperyment generatywny / analiza dyfuzji](labs/13_diffusion/README.md) |
