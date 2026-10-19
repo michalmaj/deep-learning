@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 06: projektowanie, trenowanie i analiza CNN do klasyfikacji obrazów
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/06_cnn/lecture.md`](../../lectures/06_cnn/lecture.md)
