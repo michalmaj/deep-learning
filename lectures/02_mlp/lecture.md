@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 02: Perceptron, sieci wielowarstwowe (MLP) i funkcje aktywacji
 
 ## Cele wykładu
