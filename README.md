@@ -106,6 +106,10 @@ real dataset/model download, and are expected to be run locally before
 opening a PR. Run `make test` (or `uv run pytest`) for the full local
 suite, or `CI=true uv run pytest` for the fast, network-free subset.
 
+Maintaining the bilingual (Polish/English) structure itself -- the file
+convention, the PL/EN equivalence checker, and the validation checklist
+for a content PR -- is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## License
 
 - Original source code: **MIT** -- see [`LICENSE`](LICENSE).
