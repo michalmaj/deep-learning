@@ -43,9 +43,11 @@ A CPU is enough for everything here — GPU support is automatic if you
 have one, but never required. A handful of lectures and labs (mostly the
 later ones, e.g. transfer learning, embeddings, LLM inference) download a
 dataset or a pretrained model the first time you run them; after that
-they're cached locally. Training times vary by machine — none of the
-material depends on a specific speed, but a few experiments are
-noticeably slower on an older CPU.
+they're cached once in the repository-level `data_cache/` directory and
+reused across modules and languages. Set `DEEP_LEARNING_DATA_CACHE` to an
+absolute path if you prefer a cache outside the repository. Training times
+vary by machine — none of the material depends on a specific speed, but a
+few experiments are noticeably slower on an older CPU.
 
 ## Explore the material
 
