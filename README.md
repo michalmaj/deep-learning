@@ -26,9 +26,9 @@ optional speed-up, never a requirement.
 ## Status
 
 All 15 modules are complete in Polish, the course's original language.
-**English localization is in progress.** Modules 1 and 10 are now fully
+**English localization is in progress.** Modules 1-5 and 10 are now fully
 available in both languages (lecture, lecture notebook, lab instructions,
-and lab notebook). Modules 2-9 and 11-15 are not yet localized -- their
+and lab notebook). Modules 6-9 and 11-15 are not yet localized -- their
 lecture and lab links below point to the existing, Polish-only materials,
 clearly marked as such. See [the Polish version of this page](README.pl.md)
 for the course described in its original language.
@@ -38,10 +38,10 @@ for the course described in its original language.
 | # | Lecture | Lab direction |
 |---|---|---|
 | 1 | [Deep Learning, ML vs DL, tensors, training pipeline](lectures/01_intro/lecture.en.md) | [PyTorch, tensors, device handling, first model](labs/01_intro/README.md) |
-| 2 | [Perceptron, MLP, activation functions](lectures/02_mlp/lecture.md) (Polish only) | [Tabular classification with MLP](labs/02_mlp/README.md) (Polish only) |
-| 3 | [Backpropagation and computational graphs](lectures/03_backprop/lecture.md) (Polish only) | [Backprop from scratch + autograd](labs/03_backprop/README.md) (Polish only) |
-| 4 | [Optimization: SGD, momentum, Adam](lectures/04_optimization/lecture.md) (Polish only) | [Optimizer comparison](labs/04_optimization/README.md) (Polish only) |
-| 5 | [Generalization, overfitting, regularization](lectures/05_generalization/lecture.md) (Polish only) | [Dropout, weight decay, early stopping](labs/05_generalization/README.md) (Polish only) |
+| 2 | [Perceptron, MLP, activation functions](lectures/02_mlp/lecture.en.md) | [Tabular classification with MLP](labs/02_mlp/README.md) |
+| 3 | [Backpropagation and computational graphs](lectures/03_backprop/lecture.en.md) | [Backprop from scratch + autograd](labs/03_backprop/README.md) |
+| 4 | [Optimization: SGD, momentum, Adam](lectures/04_optimization/lecture.en.md) | [Optimizer comparison](labs/04_optimization/README.md) |
+| 5 | [Generalization, overfitting, regularization](lectures/05_generalization/lecture.en.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.md) |
 | 6 | [CNNs and image representation](lectures/06_cnn/lecture.md) (Polish only) | [Image classification with a CNN](labs/06_cnn/README.md) (Polish only) |
 | 7 | [Transfer learning and fine-tuning](lectures/07_transfer_learning/lecture.md) (Polish only) | [A pretrained vision model](labs/07_transfer_learning/README.md) (Polish only) |
 | 8 | [Embeddings and learned representations](lectures/08_embeddings/lecture.md) (Polish only) | [Embedding and similarity experiments](labs/08_embeddings/README.md) (Polish only) |

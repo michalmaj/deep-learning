@@ -1,102 +1,107 @@
-# Laboratorium 02: klasyfikacja tabularna z MLP
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/02_mlp/lecture.md`](../../lectures/02_mlp/lecture.md)
-(perceptron, MLP, funkcje aktywacji), ale **nie powtarza** eksperymentu z
-wykładu — inne dane, własna implementacja `nn.Module` (nie `nn.Sequential`),
-porównanie architektur/aktywacji i analiza błędnych klasyfikacji, których
-wykład nie robił.
+# Lab 02: tabular classification with an MLP
 
-## 1. Problem i dane
+Time: about 2 hours. Builds on
+[`lectures/02_mlp/lecture.en.md`](../../lectures/02_mlp/lecture.en.md)
+(the perceptron, MLP, activation functions), but **does not repeat** the
+lecture's experiment -- different data, your own `nn.Module` implementation
+(not `nn.Sequential`), an architecture/activation comparison, and a
+misclassification analysis the lecture did not do.
 
-Zadanie: klasyfikacja binarna punktów na płaszczyźnie, które leżą na dwóch
-**współśrodkowych okręgach** (pierścień zewnętrzny — klasa 0, okrąg
-wewnętrzny — klasa 1), z szumem gaussowskim. To inny rodzaj nieliniowej
-separowalności niż półksiężyce z wykładu: tutaj granica decyzyjna, której
-potrzeba, jest zamkniętą krzywą (okręgiem), nie pojedynczą "falą".
+## 1. Problem and data
 
-Dane są generowane lokalnie w notebooku (sekcja 1, kod gotowy — nie jest
-częścią zadania) i dzielone na zbiór treningowy/testowy (gotowe, sekcja 1).
+Task: binary classification of points on a plane that lie on two
+**concentric circles** (outer ring -- class 0, inner circle -- class 1),
+with Gaussian noise. This is a different kind of nonlinear separability
+than the lecture's half-moons: here the decision boundary that is needed is
+a closed curve (a circle), not a single "wave".
 
-## 2. Metryki — Twoje zadanie
+The data is generated locally in the notebook (section 1, code given --
+not part of the task) and split into a training/test set (given,
+section 1).
 
-Zaimplementuj (TODO, sekcja 2) funkcję liczącą z predykcji i etykiet:
-**TP, FP, TN, FP, TN, FN**, a z nich **accuracy, precision, recall**
-(klasa 1 — okrąg wewnętrzny — jako klasa pozytywna). Te funkcje są używane
-przez resztę notebooka, także do oceny baseline'u.
+## 2. Metrics -- your task
 
-## 3. Baseline (gotowe)
+Implement (TODO, section 2) a function that computes from predictions and
+labels: **TP, FP, TN, FN**, and from them **accuracy, precision, recall**
+(class 1 -- the inner circle -- as the positive class). These functions
+are used by the rest of the notebook, including evaluating the baseline.
 
-Pojedyncza warstwa liniowa (`nn.Linear(2, 1)`) — ten sam "model liniowy
-zawodzi na nieliniowym problemie", co na wykładzie, tylko na innych danych.
-Zobaczysz, że na okręgach model liniowy wypada **wyraźnie gorzej** niż na
-półksiężycach z wykładu (bliżej przypadkowego zgadywania) — to nie błąd,
-to konsekwencja kształtu danych: żadna prosta nie wydzieli sensownie
-pierścienia od środka.
+## 3. Baseline (given)
 
-## 4. Twój MLP — Twoje zadanie
+A single linear layer (`nn.Linear(2, 1)`) -- the same "linear model fails
+on a nonlinear problem" as in the lecture, just on different data. You will
+see that on the circles, the linear model performs **noticeably worse**
+than on the lecture's half-moons (closer to random guessing) -- this is
+not a bug, it is a consequence of the data's shape: no line can sensibly
+separate the ring from the center.
 
-Zaimplementuj (TODO, sekcja 4) **własną klasę** `MLP(nn.Module)`
-(nie `nn.Sequential`, w odróżnieniu od wykładu) z konfigurowalną liczbą
-neuronów w warstwie ukrytej i konfigurowalną funkcją aktywacji, żeby można
-jej było użyć do porównania z sekcji 6. Zaimplementuj też (TODO, sekcja 5)
-funkcję trenującą (`forward → strata (BCEWithLogitsLoss) → backward →
-optimizer.step()`), analogiczną do tej z wykładu, ale działającą na
-dowolnym przekazanym jej modelu `nn.Module`.
+## 4. Your MLP -- your task
 
-## 5. Eksperyment (gotowe, korzysta z Twojego kodu)
+Implement (TODO, section 4) **your own class** `MLP(nn.Module)` (not
+`nn.Sequential`, unlike the lecture) with a configurable number of hidden
+neurons and a configurable activation function, so it can be used for the
+comparison in section 6. Also implement (TODO, section 5) a training
+function (`forward → loss (BCEWithLogitsLoss) → backward →
+optimizer.step()`), analogous to the lecture's, but working on any
+`nn.Module` passed to it.
 
-Notebook trenuje jeden domyślny MLP Twoją klasą/funkcją i porównuje go z
-baseline'em.
+## 5. Experiment (given, uses your code)
 
-## 6. Porównanie architektur/aktywacji — Twoje zadanie
+The notebook trains one default MLP using your class/function and compares
+it against the baseline.
 
-Wybierz **co najmniej trzy** konfiguracje swojego MLP, różniące się liczbą
-neuronów w warstwie ukrytej i/lub funkcją aktywacji (TODO, sekcja 6).
-Włącz do porównania przynajmniej jedną konfigurację, co do której
-podejrzewasz, że będzie **zbyt słaba** (np. bardzo mała liczba neuronów) —
-samo porównanie "większe zawsze lepsze" niczego nie uczy. Wytrenuj każdą
-konfigurację i zbierz metryki testowe w jednej tabeli/wydruku.
+## 6. Architecture/activation comparison -- your task
 
-## 7. Ewaluacja
+Choose **at least three** configurations of your MLP, differing in the
+number of hidden neurons and/or the activation function (TODO, section 6).
+Include in the comparison at least one configuration you suspect will be
+**too weak** (e.g. a very small number of neurons) -- a comparison that
+only shows "bigger is always better" teaches nothing. Train each
+configuration and collect the test metrics in a single table/printout.
 
-Zinterpretuj (komórka Markdown, TODO) tabelę z sekcji 6: która konfiguracja
-była najlepsza, czy któraś była wyraźnie za słaba, i — jeśli tak — dlaczego
-(w kategoriach tego, co ta architektura może, a czego nie może
-reprezentować, nawiązując do dowodu z wykładu).
+## 7. Evaluation
 
-## 8. Analiza błędnych klasyfikacji — Twoje zadanie
+Interpret (Markdown cell, TODO) the table from section 6: which
+configuration was best, was any clearly too weak, and -- if so -- why (in
+terms of what that architecture can and cannot represent, referring back
+to the lecture's proof).
 
-Notebook rysuje (gotowe) granicę decyzyjną Twojego najlepszego modelu z
-zaznaczonymi błędnie sklasyfikowanymi punktami testowymi. Odpowiedz
-(Markdown, TODO, 3–5 zdań): gdzie leżą błędnie sklasyfikowane punkty
-względem granicy między pierścieniem a okręgiem? Czy to są punkty "z
-natury trudne" (blisko prawdziwej granicy, ofiary szumu), czy raczej dowód,
-że model systematycznie czegoś nie rozumie? Jak to rozstrzygniesz, patrząc
-na wykres?
+## 8. Misclassification analysis -- your task
 
-## 9. Wnioski — Twoje zadanie
+The notebook plots (given) your best model's decision boundary with the
+misclassified test points marked. Answer (Markdown, TODO, 3-5 sentences):
+where do the misclassified points lie relative to the boundary between the
+ring and the circle? Are these points that are "inherently hard" (close to
+the true boundary, victims of noise), or rather evidence that the model
+systematically misunderstands something? How will you decide, looking at
+the plot?
 
-Odpowiedz (Markdown, TODO):
+## 9. Conclusions -- your task
 
-- Czy wynik eksperymentu z sekcji 6 pasuje do tego, czego uczy dowód o
-  złożeniu przekształceń afinicznych z wykładu? Czym różni się to, co
-  pokazuje ten eksperyment, od tego, co pokazywał dowód?
-- Gdybyś miał/miała jedno zdanie rady dla kogoś projektującego architekturę
-  MLP do nowego problemu klasyfikacji, co by to było — na podstawie tego,
-  co zaobserwowałeś/aś w tym laboratorium, nie z ogólników?
+Answer (Markdown, TODO):
 
-## Kryteria oceny
+- Does the result of the experiment in section 6 match what the lecture's
+  proof about composing affine transformations teaches? How does what this
+  experiment shows differ from what the proof showed?
+- If you had to give one sentence of advice to someone designing an MLP
+  architecture for a new classification problem, what would it be --
+  based on what you observed in this lab, not generalities?
 
-- Metryki, klasa `MLP` i funkcja trenująca działają (notebook wykonuje się
-  od danej komórki do końca bez błędu).
-- Porównanie w sekcji 6 obejmuje realnie różne konfiguracje (nie trzy razy
-  to samo z inną nazwą zmiennej) i zawiera przynajmniej jedną wyraźnie
-  słabszą.
-- Interpretacja w sekcji 7 poprawnie łączy wynik liczbowy ze zdolnością
-  reprezentacyjną architektury, nie tylko go opisuje.
-- Analiza błędów w sekcji 8 odwołuje się do konkretnego położenia błędnych
-  punktów na wykresie, nie do ogólników w stylu "model czasem się myli".
-- Odpowiedzi we wnioskach są uzasadnione, nie jednowersowe.
+## Grading criteria
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/02_mlp/`) i nie jest częścią tego repozytorium.
+- The metrics, the `MLP` class, and the training function work (the
+  notebook runs from the given cell to the end without error).
+- The comparison in section 6 covers genuinely different configurations
+  (not the same thing three times under a different variable name) and
+  includes at least one clearly weaker one.
+- The interpretation in section 7 correctly connects the numeric result to
+  the architecture's representational capacity, not just describing it.
+- The error analysis in section 8 refers to the specific location of the
+  misclassified points on the plot, not generalities like "the model is
+  sometimes wrong".
+- The conclusions are justified, not one-liners.
+
+A full model solution exists locally with the instructor
+(`decisions/solutions/02_mlp/`) and is not part of this repository.

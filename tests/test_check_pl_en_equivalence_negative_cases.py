@@ -156,6 +156,133 @@ def test_variable_assigned_header_string_translation_is_allowed(tmp_path):
     assert problems == [], "a print-only variable-assigned header string must not be reported"
 
 
+def test_decimal_comma_localization_alone_is_allowed(tmp_path):
+    """Localizing a Polish decimal comma to an English decimal point in
+    LaTeX (lecture.md's `{,}` escape) is required, not a translation
+    error."""
+    pl = _notebook([nbf.v4.new_markdown_cell(r"The loss reaches $\ln 2 \approx 0{,}69$ here.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"The loss reaches $\ln 2 \approx 0.69$ here.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "a localized decimal comma must not be reported"
+
+
+def test_decimal_comma_normalization_does_not_hide_a_real_value_change(tmp_path):
+    """The decimal-comma normalization must only touch digit{,}digit, never
+    mask an actual change to the numeric value of a formula."""
+    pl = _notebook([nbf.v4.new_markdown_cell(r"The loss reaches $\ln 2 \approx 0{,}69$ here.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"The loss reaches $\ln 2 \approx 0.75$ here.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a genuinely changed numeric value must still be reported"
+
+
+def test_decimal_comma_normalization_does_not_touch_bare_commas(tmp_path):
+    """A bare comma (coordinate pair, argument separator, list) must never
+    be treated as a decimal separator -- only digit{,}digit, literally
+    wrapped in the LaTeX escape, is normalized."""
+    pl = _notebook([nbf.v4.new_markdown_cell(r"The point $(0,0)$ is the origin.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"The point $(0,1)$ is the origin.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed coordinate must still be reported, not normalized away"
+
+
+def test_thousands_separator_dropped_in_english_is_allowed(tmp_path):
+    """This course's English localization drops the Polish thin-space
+    thousands separator entirely (2\\,000 -> 2000) rather than switching
+    to the English comma convention, to avoid colliding with the
+    decimal-comma normalization."""
+    pl = _notebook([nbf.v4.new_markdown_cell(r"We generate $N=2\,000$ examples.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"We generate $N=2000$ examples.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "dropping the thousands separator in English must not be reported"
+
+
+def test_thousands_separator_normalization_does_not_hide_a_value_change(tmp_path):
+    pl = _notebook([nbf.v4.new_markdown_cell(r"We generate $N=2\,000$ examples.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"We generate $N=3000$ examples.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a genuinely changed sample count must still be reported"
+
+
+def test_text_command_label_translation_alone_is_allowed(tmp_path):
+    """This course's localization rule explicitly requires translating a
+    prose label inside \\text{...} while preserving the expression's
+    meaning (e.g. machine-epsilon's subscript) -- the content is expected
+    to differ, only the rest of the equation must still match."""
+    pl = _notebook([
+        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")
+    ])
+    en = _notebook([
+        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}/h$.")
+    ])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "a translated \\text{...} prose label must not be reported"
+
+
+def test_text_command_normalization_does_not_hide_an_operator_change(tmp_path):
+    """The \\text{...} normalization only touches text-command content --
+    a real change to the surrounding equation (here: + instead of /) must
+    still be reported."""
+    pl = _notebook([
+        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")
+    ])
+    en = _notebook([
+        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}+h$.")
+    ])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed operator next to a translated text label must still be reported"
+
+
+def test_helper_function_presentational_label_translation_is_allowed(tmp_path):
+    """A locally defined helper function's parameter that is used *only*
+    for display inside the helper's own body (here: `report`'s `name`,
+    called from a cell AFTER the one that defines it) is presentational --
+    this is the cross-cell generalization of the one-hop rule, needed
+    because module 02's `report(name, model, loss)` is defined in one cell
+    and called from a later one."""
+    pl = _notebook([
+        nbf.v4.new_code_cell(
+            'def report(name, value):\n'
+            '    print(f"{name}: {value:.3f}")'
+        ),
+        nbf.v4.new_code_cell('report("Liniowy", 0.28)\nreport("MLP", 0.01)'),
+    ])
+    en = _notebook([
+        nbf.v4.new_code_cell(
+            'def report(name, value):\n'
+            '    print(f"{name}: {value:.3f}")'
+        ),
+        nbf.v4.new_code_cell('report("Linear", 0.28)\nreport("MLP", 0.01)'),
+    ])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], (
+        "a translated label passed to a display-only helper parameter must not be reported"
+    )
+
+
+def test_helper_function_rule_does_not_exempt_a_computationally_used_parameter(tmp_path):
+    """Guard against over-generalizing: if a helper's parameter is used for
+    anything beyond display (here: `key` indexes a dict), an argument
+    passed to it must still be compared exactly."""
+    pl = _notebook([
+        nbf.v4.new_code_cell(
+            'def lookup(key, table):\n'
+            '    print(f"looking up {key}")\n'
+            '    return table[key]'
+        ),
+        nbf.v4.new_code_cell('lookup("cpu", {"cpu": 1, "cuda": 2})'),
+    ])
+    en = _notebook([
+        nbf.v4.new_code_cell(
+            'def lookup(key, table):\n'
+            '    print(f"looking up {key}")\n'
+            '    return table[key]'
+        ),
+        nbf.v4.new_code_cell('lookup("device", {"cpu": 1, "cuda": 2})'),
+    ])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a parameter used for more than display must still be compared exactly"
+
+
 def test_one_hop_rule_does_not_swallow_unrelated_nested_string(tmp_path):
     """Regression guard for the bug found while building this script: a
     variable later printed must not make an UNRELATED string nested inside

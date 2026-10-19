@@ -27,7 +27,39 @@ What this script checks, per notebook pair:
    NotImplementedError(...)` (i.e. student TODOs) is identical.
 6. Markdown cells: same count, none empty, and the LaTeX expressions
    (`$...$` and `$$...$$`, extracted in order) are identical between PL and
-   EN -- equations are never translated.
+   EN -- equations are never translated. Two narrow, bounded
+   normalizations are applied to both sides before comparing:
+   - **Decimal notation**: a Polish `X{,}Y` (the LaTeX-escaped decimal
+     comma) is normalized to `X.Y`, since localizing the decimal separator
+     is required, not a translation error -- this only touches digits
+     wrapped in the literal `{,}` escape, never a bare comma (an argument
+     separator, a coordinate pair, a list), so it cannot mask an actual
+     change to a formula.
+   - **Thousands separator**: Polish large numbers use a thin-space escape
+     between digit groups (`2\\,000`, rendering as "2 000"); this course's
+     English localization drops the separator entirely (`2000`) rather
+     than switching to the English comma convention, to avoid colliding
+     with the decimal-comma normalization above. The `\\,` is therefore
+     stripped (not replaced) from both sides before comparing, touching
+     only a digit-`\\,`-digit sequence.
+   - **`\text{...}` content**: the content of every `\text{...}` command is
+     replaced with a placeholder before comparing. This is a deliberate,
+     bounded risk: this course's localization rule explicitly requires
+     translating a prose label inside `\text{...}` while preserving the
+     expression's mathematical meaning (e.g. $\varepsilon_{\text{maszyny}}$
+     -> $\varepsilon_{\text{machine}}$, $\text{podwarstwa}(x)$ ->
+     $\text{sublayer}(x)$), so the content is *expected* to differ. The
+     real risk this accepts: if `\text{...}` is used as a technical
+     subscript rather than a prose label (e.g. $d_{\text{model}}$) and a
+     translation mistakenly changes it to a different identifier (e.g.
+     $d_{\text{data}}$) while leaving the rest of the equation unchanged,
+     this normalization will not catch it -- there is no syntactic way to
+     tell a prose label apart from a technical identifier inside
+     `\text{...}`. Guarding against that specific mistake is left to the
+     manual equation-by-equation review every lecture translation already
+     gets, not to this script. Every other part of the equation (the
+     number and position of `\text{...}` commands, every operator, symbol,
+     and numeric value outside them) is still compared exactly.
 
 ## String-literal protection
 
@@ -63,7 +95,21 @@ only when it is one of:
   not a general data-flow analysis -- a string reaching a presentational
   call through two hops of assignment, a conditional, or a function
   boundary is not covered and will correctly surface as a mismatch for
-  manual review.
+  manual review;
+- an argument passed, anywhere in the notebook (not just the same cell),
+  to a parameter of a locally defined helper function, when that
+  parameter is used *exclusively* inside a presentational call within the
+  function's own body -- e.g. `def report(name, model, loss): print(f"{name}
+  ...")` makes `report`'s `name` parameter presentational, so
+  `report("Linear", ...)` vs `report("Linear model", ...)` is allowed, but
+  `report(model, ...)`'s `model` argument is untouched because `model` is
+  also passed to a non-presentational call inside `report`. This is
+  resolved once per notebook (all code cells parsed together, since a
+  helper is typically defined in one cell and called from a later one),
+  matching positional arguments by position and keyword arguments by
+  name; `*args`/`**kwargs` and parameters used inside a nested function
+  are not resolved and fall back to exact-match, which is the safe
+  direction for a limitation to fail in.
 
 Every other string constant -- a dict key, a column/label identifier, an
 argument to an unrecognized function, a value compared against with `==`,
@@ -155,7 +201,81 @@ def _referenced_names(node: ast.AST) -> set[str]:
     }
 
 
-def _presentational_string_ids(tree: ast.AST) -> set[int]:
+def _name_load_counts(node: ast.AST) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+            counts[sub.id] = counts.get(sub.id, 0) + 1
+    return counts
+
+
+def _presentational_name_load_counts(node: ast.AST) -> dict[str, int]:
+    """Like `_name_load_counts`, but only counting Name(Load) references
+    that occur inside a presentational-call argument (or a `label=`
+    keyword) -- used to decide whether a function parameter's *every*
+    reference is presentational."""
+    counts: dict[str, int] = {}
+
+    def _add(sub_tree: ast.AST) -> None:
+        for name, n in _name_load_counts(sub_tree).items():
+            counts[name] = counts.get(name, 0) + n
+
+    class _Visitor(ast.NodeVisitor):
+        def visit_Call(self, node: ast.Call) -> None:
+            if _is_presentational_call(node):
+                for arg in node.args:
+                    _add(arg)
+                for kw in node.keywords:
+                    _add(kw.value)
+            else:
+                for kw in node.keywords:
+                    if kw.arg == "label":
+                        _add(kw.value)
+            self.generic_visit(node)
+
+    _Visitor().visit(node)
+    return counts
+
+
+def _collect_function_presentational_params(
+    cell_sources: list[str],
+) -> dict[str, tuple[list[str], set[str]]]:
+    """Resolved once per notebook (all code cells parsed together, since a
+    helper is commonly defined in one cell and called from a later one):
+    for every locally defined function, the ordered list of its parameter
+    names and the subset of those parameters whose *every* reference
+    inside the function's own body is a presentational-call argument (see
+    the "String-literal protection" section). Cells that fail to parse are
+    skipped for this registry (they still get their own syntax-error
+    report elsewhere); `*args`/`**kwargs` and parameters only used inside a
+    nested function are not resolved, which is the safe direction for a
+    limitation to fail in.
+    """
+    registry: dict[str, tuple[list[str], set[str]]] = {}
+    for source in cell_sources:
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            param_names = [a.arg for a in node.args.args]
+            total = _name_load_counts(node)
+            presentational = _presentational_name_load_counts(node)
+            presentational_params = {
+                name
+                for name in param_names
+                if presentational.get(name, 0) > 0 and total.get(name, 0) == presentational[name]
+            }
+            registry[node.name] = (param_names, presentational_params)
+    return registry
+
+
+def _presentational_string_ids(
+    tree: ast.AST,
+    global_function_params: dict[str, tuple[list[str], set[str]]] | None = None,
+) -> set[int]:
     """id() of every string Constant node allowed to differ between PL and
     EN -- see the "String-literal protection" section in the module
     docstring for the exact, narrow set of recognized contexts.
@@ -256,6 +376,29 @@ def _presentational_string_ids(tree: ast.AST) -> set[int]:
             self.generic_visit(node)
 
     _OneHopVisitor().visit(tree)
+
+    if global_function_params:
+
+        class _HelperCallVisitor(ast.NodeVisitor):
+            """Third pass: an argument passed to a presentational parameter
+            of a notebook-wide, locally defined helper function (resolved in
+            `global_function_params`) is presentational too -- see the
+            docstring's helper-function bullet."""
+
+            def visit_Call(self, node: ast.Call) -> None:
+                func = node.func
+                if isinstance(func, ast.Name) and func.id in global_function_params:
+                    param_names, presentational_params = global_function_params[func.id]
+                    for idx, arg in enumerate(node.args):
+                        if idx < len(param_names) and param_names[idx] in presentational_params:
+                            _mark_if_plain_string(arg)
+                    for kw in node.keywords:
+                        if kw.arg in presentational_params:
+                            _mark_if_plain_string(kw.value)
+                self.generic_visit(node)
+
+        _HelperCallVisitor().visit(tree)
+
     return ids
 
 
@@ -333,6 +476,27 @@ def _extract_latex(markdown_source: str) -> list[str]:
     return LATEX_PATTERN.findall(markdown_source)
 
 
+DECIMAL_COMMA_PATTERN = re.compile(r"(?<=\d)\{,\}(?=\d)")
+THOUSANDS_THINSPACE_PATTERN = re.compile(r"(?<=\d)\\,(?=\d)")
+LATEX_TEXT_COMMAND_PATTERN = re.compile(r"\\text\{[^}]*\}")
+
+
+def _normalize_latex_for_comparison(expr: str) -> str:
+    """Apply the narrow, bounded LaTeX normalizations documented in the
+    module docstring: a Polish decimal comma `X{,}Y` becomes `X.Y`, a
+    Polish thousands-separator thin space `X\\,YYY` becomes `XYYY` (this
+    course's English localization drops the separator rather than
+    switching conventions), and every `\\text{...}` command's content
+    becomes a placeholder (since translating a prose label inside
+    `\\text{...}` while preserving the expression's meaning is this
+    course's explicit localization rule, not an error -- see the module
+    docstring for the accepted risk)."""
+    expr = DECIMAL_COMMA_PATTERN.sub(".", expr)
+    expr = THOUSANDS_THINSPACE_PATTERN.sub("", expr)
+    expr = LATEX_TEXT_COMMAND_PATTERN.sub(r"\\text{STR}", expr)
+    return expr
+
+
 def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
     """Returns a list of human-readable problem descriptions; empty if the
     PL/EN pair is structurally equivalent under the rules documented in the
@@ -357,6 +521,11 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
             f"EN has {len(en_cells)} cells"
         )
 
+    pl_code_sources = [c.source for c in pl_cells if c.cell_type == "code"]
+    en_code_sources = [c.source for c in en_cells if c.cell_type == "code"]
+    pl_global_params = _collect_function_presentational_params(pl_code_sources)
+    en_global_params = _collect_function_presentational_params(en_code_sources)
+
     for i, (pl_cell, en_cell) in enumerate(zip(pl_cells, en_cells)):
         if pl_cell.cell_type != en_cell.cell_type:
             problems.append(
@@ -377,8 +546,8 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
                 problems.append(f"cell {i}: EN code does not parse: {exc}")
                 continue
 
-            pl_presentational = _presentational_string_ids(pl_tree)
-            en_presentational = _presentational_string_ids(en_tree)
+            pl_presentational = _presentational_string_ids(pl_tree, pl_global_params)
+            en_presentational = _presentational_string_ids(en_tree, en_global_params)
             if _normalize_ast(pl_tree, pl_presentational) != _normalize_ast(
                 en_tree, en_presentational
             ):
@@ -413,8 +582,12 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
             if not en_cell.source.strip():
                 problems.append(f"cell {i}: EN markdown cell is empty")
 
-            pl_latex = _extract_latex(pl_cell.source)
-            en_latex = _extract_latex(en_cell.source)
+            pl_latex = [
+                _normalize_latex_for_comparison(expr) for expr in _extract_latex(pl_cell.source)
+            ]
+            en_latex = [
+                _normalize_latex_for_comparison(expr) for expr in _extract_latex(en_cell.source)
+            ]
             if pl_latex != en_latex:
                 problems.append(
                     f"cell {i}: LaTeX expressions differ -- PL={pl_latex}, "
@@ -440,6 +613,38 @@ MODULE_NOTEBOOK_PAIRS = [
     (
         Path("labs/10_attention/lab.ipynb"),
         Path("labs/10_attention/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/02_mlp/examples.ipynb"),
+        Path("lectures/02_mlp/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/02_mlp/lab.ipynb"),
+        Path("labs/02_mlp/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/03_backprop/examples.ipynb"),
+        Path("lectures/03_backprop/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/03_backprop/lab.ipynb"),
+        Path("labs/03_backprop/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/04_optimization/examples.ipynb"),
+        Path("lectures/04_optimization/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/04_optimization/lab.ipynb"),
+        Path("labs/04_optimization/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/05_generalization/examples.ipynb"),
+        Path("lectures/05_generalization/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/05_generalization/lab.ipynb"),
+        Path("labs/05_generalization/lab.en.ipynb"),
     ),
 ]
 """Every localized PL/EN notebook pair this project currently maintains.

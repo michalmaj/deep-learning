@@ -1,136 +1,142 @@
-# Laboratorium 05: rozpoznawanie przeuczenia i dobór regularyzacji
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/05_generalization/lecture.md`](../../lectures/05_generalization/lecture.md)
-(ryzyko empiryczne vs. oczekiwane, L2/weight decay, AdamW, dropout, early
-stopping), ale na **innym problemie** niż wykład — klasyfikacja tabularna
-z cechami informacyjnymi i szumowymi, nie regresja 1D.
+# Lab 05: recognizing overfitting and choosing regularization
 
-## 1. Dane i podział (gotowe) + przeciek danych — Twoje zadanie
+Time: about 2 hours. Builds on
+[`lectures/05_generalization/lecture.en.md`](../../lectures/05_generalization/lecture.en.md)
+(empirical vs. expected risk, L2/weight decay, AdamW, dropout, early
+stopping), but on a **different problem** than the lecture -- tabular
+classification with informative and noise features, not 1D regression.
 
-Dane: 14 cech ($4$ informacyjne, $10$ czysty szum — niezwiązane z celem),
-$100$ przykładów treningowych, po $200$ walidacyjnych i testowych. Dwie
-cechy mają celowo dużo większą skalę niż pozostałe (częsta sytuacja w
-realnych danych tabularnych) — dlatego normalizacja ma tu znaczenie.
+## 1. Data and split (given) + data leakage -- your task
 
-Notebook zawiera (gotowy, ale **celowo błędny**) kod, który liczy średnią
-i odchylenie standardowe do normalizacji **na całym zbiorze danych, przed
-podziałem** na trening/walidację/test.
+Data: 14 features ($4$ informative, $10$ pure noise -- unrelated to the
+target), $100$ training examples, $200$ each for validation and test. Two
+features have deliberately much larger scale than the rest (a common
+situation in real tabular data) -- which is why normalization matters
+here.
 
-**Zadanie (Markdown, 3–5 zdań, zanim przejdziesz dalej):** na czym
-dokładnie polega błąd w tym kodzie? Dlaczego to jest data leakage, nawet
-jeśli model "dobrze działa"? Jakie dane, w jakim momencie, nie powinny być
-widoczne przy liczeniu tych statystyk?
+The notebook contains (given, but **deliberately buggy**) code that
+computes the mean and standard deviation for normalization **over the
+entire dataset, before the split** into train/validation/test.
 
-**Zadanie (kod):** napisz poprawną wersję — statystyki normalizacji
-policzone **wyłącznie** na `X_train`, zastosowane (tymi samymi, nie
-przeliczonymi na nowo) do `X_train`, `X_val` i `X_test`. Porównaj
-policzone średnie/odchylenia (błędne vs. poprawne) dla pierwszej cechy —
-różnica powinna być wyraźnie niezerowa.
+**Task (Markdown, 3-5 sentences, before moving on):** what exactly is the
+bug in this code? Why is this data leakage, even if the model "works
+well"? What data, at what point, should not be visible when computing
+these statistics?
 
-Od tego miejsca w notebooku pracujesz **wyłącznie** na poprawnie
-znormalizowanych danych.
+**Task (code):** write a correct version -- normalization statistics
+computed **only** on `X_train`, applied (the same ones, not recomputed) to
+`X_train`, `X_val`, and `X_test`. Compare the computed means/standard
+deviations (buggy vs. correct) for the first feature -- the difference
+should be clearly nonzero.
 
-## 2. Model bazowy i model o nadmiarowej pojemności (gotowe)
+From this point in the notebook you work **exclusively** on correctly
+normalized data.
 
-Baseline (klasa większościowa) i MLP `[32,32]` o pojemności wystarczającej
-do przeuczenia na $100$ przykładach są gotowe do uruchomienia — to nie
-jest część zadania.
+## 2. Baseline model and an over-capacity model (given)
 
-## 3. Pętla treningowa — Twoje zadanie
+A baseline (majority class) and an MLP `[32,32]` with capacity sufficient
+to overfit on $100$ examples are ready to run -- this is not part of the
+task.
 
-Zaimplementuj `train_model(model, epochs, lr, weight_decay=0.0,
-use_adamw=False)`: poprawna pętla z mini-batchami **nie jest tu potrzebna**
-(cały zbiór treningowy, $100$ przykładów, mieści się w jednym batchu) —
-ale kolejność `zero_grad → forward → strata (BCEWithLogitsLoss) →
-backward() → step()` oraz przełączanie `model.train()`/`model.eval()`
-przy liczeniu straty walidacyjnej musi być poprawna. Zwraca
-`(train_losses, val_losses)`.
+## 3. Training loop -- your task
 
-**Zadanie (Markdown, 3–5 zdań):** uruchom `train_model` na modelu
-`[32,32]` bez regularyzacji na $1000$ epok i narysuj krzywe (kod do
-wykresu gotowy). Jaka jest dokładność treningowa vs. walidacyjna? W
-którym miejscu krzywej widać dowód przeuczenia — nie "straty są różne",
-tylko konkretny kształt, który to pokazuje?
+Implement `train_model(model, epochs, lr, weight_decay=0.0,
+use_adamw=False)`: a correct mini-batch loop **is not needed here** (the
+whole training set, $100$ examples, fits in one batch) -- but the order
+`zero_grad -> forward -> loss (BCEWithLogitsLoss) -> backward() ->
+step()`, and switching `model.train()`/`model.eval()` when computing the
+validation loss, must be correct. Returns `(train_losses, val_losses)`.
 
-## 4. Weight decay i dropout — Twoje zadanie
+**Task (Markdown, 3-5 sentences):** run `train_model` on the `[32,32]`
+model without regularization for $1000$ epochs and plot the curves (the
+plotting code is given). What is the training vs. validation accuracy? At
+which point of the curve do you see evidence of overfitting -- not just
+"the losses are different", but the specific shape that shows it?
 
-Dla modelu `[32,32]`:
+## 4. Weight decay and dropout -- your task
 
-- przetestuj `AdamW` z `weight_decay` z listy `[0.0, 0.01, 0.1, 0.3]`,
-- przetestuj `nn.Dropout` (dodany między warstwami ukrytymi — gotowa
-  funkcja `make_model(hidden_sizes, dropout_p=...)`) z `p` z listy
+For the `[32,32]` model:
+
+- test `AdamW` with `weight_decay` from the list `[0.0, 0.01, 0.1, 0.3]`,
+- test `nn.Dropout` (added between the hidden layers -- given function
+  `make_model(hidden_sizes, dropout_p=...)`) with `p` from the list
   `[0.0, 0.2, 0.4, 0.6]`.
 
-Dla każdej konfiguracji zbierz dokładność i stratę walidacyjną. Przedstaw
-wyniki w tabeli/wydruku.
+For each configuration, collect the accuracy and validation loss. Present
+the results in a table/printout.
 
-## 5. Early stopping — Twoje zadanie
+## 5. Early stopping -- your task
 
-Dostajesz szkielet `train_with_early_stopping(model, epochs, patience,
-min_delta)` z działającą pętlą treningową, ale **bez** logiki
-zapamiętywania i przywracania najlepszego stanu modelu — to jest Twoje
-zadanie. Funkcja ma, po zakończeniu, zwrócić model **przywrócony** do
-stanu z najlepszej epoki (nie z ostatniej), oraz numer tej epoki.
+You are given the skeleton of `train_with_early_stopping(model, epochs,
+patience, min_delta)` with a working training loop, but **without** the
+logic for remembering and restoring the model's best state -- that is your
+task. The function must, when done, return the model **restored** to the
+state from the best epoch (not the last one), and the number of that
+epoch.
 
-Zweryfikuj swoją implementację: strata walidacyjna policzona na modelu
-*po* wywołaniu funkcji musi dokładnie zgadzać się z zapamiętaną najlepszą
-stratą (gotowa asercja to sprawdzi).
+Verify your implementation: the validation loss computed on the model
+*after* calling the function must exactly match the remembered best loss
+(a given assertion will check this).
 
-## 6. Kontrolowane porównanie i finalna ewaluacja — Twoje zadanie
+## 6. Controlled comparison and final evaluation -- your task
 
-Na podstawie wyników z sekcji 4–5 wybierz **jedną** konfigurację (która z
-nich: brak regularyzacji / weight decay / dropout / early stopping — albo
-kombinacja, jeśli masz ku temu podstawę z wyników) o najlepszej stracie
-**walidacyjnej**. Wytrenuj ją raz jeszcze (dla pewności, z tym samym
-ziarnem) i oceń — **po raz pierwszy w tym laboratorium** — na zbiorze
-**testowym**. Wypisz dokładność i stratę testową.
+Based on the results from sections 4-5, choose **one** configuration
+(which one: no regularization / weight decay / dropout / early stopping --
+or a combination, if your results give you grounds for it) with the best
+**validation** loss. Train it once more (to be sure, with the same seed)
+and evaluate it -- **for the first time in this lab** -- on the **test**
+set. Print the test accuracy and loss.
 
-## 7. Wnioski — Twoje zadanie
+## 7. Conclusions -- your task
 
-Odpowiedz (Markdown, uzasadnione rzeczywistymi liczbami z sekcji 4–6):
+Answer (Markdown, justified with real numbers from sections 4-6):
 
-1. Która metoda regularyzacji dała największą poprawę względem baseline'u
-   bez regularyzacji? Czy poprawiła tylko dokładność, tylko stratę, czy
-   obie miary — i czy to rozróżnienie ma znaczenie?
-2. Wróć do sekcji 1: czy błąd normalizacji przed podziałem dał w Twoim
-   przebiegu duży, wyraźny efekt na wyniku końcowym, czy mały? Niezależnie
-   od odpowiedzi — dlaczego sama procedura (liczenie statystyk na pełnym
-   zbiorze) jest błędna, nawet jeśli w konkretnym przebiegu efekt okazał
-   się mały?
-3. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar
-   danych, konkretne ziarno losowości, konkretna architektura), które
-   sprawia, że nie powinieneś/aś uogólniać wniosków z sekcji 6 na "zawsze
-   najlepsza jest metoda X"?
+1. Which regularization method gave the largest improvement over the
+   unregularized baseline? Did it improve only accuracy, only loss, or
+   both measures -- and does that distinction matter?
+2. Go back to section 1: did the pre-split normalization bug have a
+   large, clear effect on the final result in your run, or a small one?
+   Regardless of the answer -- why is the procedure itself wrong (computing
+   statistics on the full dataset), even if the effect turned out small
+   in this specific run?
+3. What is at least one limitation of this experiment (data size, the
+   specific random seed, the specific architecture) that means you should
+   not generalize the conclusions from section 6 to "method X is always
+   best"?
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+## Time budget (indicative, not verified in a real class)
 
-| Blok | Czas |
+| Block | Time |
 |---|---|
-| Sekcja 1 (diagnoza przecieku + poprawka) | 20 min |
-| Sekcja 2 (orientacja, gotowe) | 5 min |
-| Sekcja 3 (pętla treningowa + interpretacja krzywych) | 25 min |
-| Sekcja 4 (weight decay + dropout) | 25 min |
-| Sekcja 5 (early stopping) | 20 min |
-| Sekcja 6 (porównanie + test) | 15 min |
-| Sekcja 7 (wnioski) | 10 min |
+| Section 1 (leakage diagnosis + fix) | 20 min |
+| Section 2 (orientation, given) | 5 min |
+| Section 3 (training loop + curve interpretation) | 25 min |
+| Section 4 (weight decay + dropout) | 25 min |
+| Section 5 (early stopping) | 20 min |
+| Section 6 (comparison + test) | 15 min |
+| Section 7 (conclusions) | 10 min |
 
-Sekcje 1–6 to rdzeń obowiązkowy. Jeśli zostanie czas: rozszerz sweep z
-sekcji 4 o dodatkowe wartości `weight_decay`/`p`, albo spróbuj kombinacji
-dropout + weight decay jednocześnie — to już rozszerzenie, nie rdzeń.
+Sections 1-6 are the required core. If time remains: widen the sweep from
+section 4 with additional `weight_decay`/`p` values, or try combining
+dropout + weight decay at once -- this is already an extension, not the
+core.
 
-## Kryteria oceny
+## Grading criteria
 
-- Poprawka normalizacji w sekcji 1 faktycznie liczy statystyki tylko z
-  `X_train` i stosuje je (bez przeliczania) do pozostałych zbiorów.
-- `train_model` i `train_with_early_stopping` działają poprawnie
-  (notebook wykonuje się od danej komórki do końca bez błędu).
-- Early stopping rzeczywiście przywraca najlepszy stan — asercja w
-  notebooku przechodzi, nie jest pominięta/usunięta.
-- Zbiór testowy pojawia się w notebooku dokładnie raz, po wyborze
-  konfiguracji na podstawie walidacji.
-- Interpretacje i wnioski odwołują się do konkretnych liczb/kształtów
-  krzywych z Twojego przebiegu, nie do ogólników.
+- The normalization fix in section 1 actually computes statistics only
+  from `X_train` and applies them (without recomputing) to the other
+  sets.
+- `train_model` and `train_with_early_stopping` work correctly (the
+  notebook runs from the given cell to the end without error).
+- Early stopping actually restores the best state -- the assertion in the
+  notebook passes, it is not skipped/removed.
+- The test set appears in the notebook exactly once, after choosing the
+  configuration based on validation.
+- The interpretations and conclusions refer to the specific numbers/curve
+  shapes from your run, not generalities.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/05_generalization/`) i nie jest częścią tego
-repozytorium.
+A full model solution exists locally with the instructor
+(`decisions/solutions/05_generalization/`) and is not part of this
+repository.

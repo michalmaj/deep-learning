@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 05: Generalizacja, overfitting i regularyzacja
 
 ## Cele wykładu
