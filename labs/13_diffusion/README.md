@@ -1,63 +1,65 @@
-# Laboratorium 13: samodzielna implementacja i analiza niewielkiego modelu dyfuzyjnego (DDPM)
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 120 minut. Bazuje na
-[`lectures/13_diffusion/lecture.md`](../../lectures/13_diffusion/lecture.md)
-(forward/reverse diffusion, DDPM), ale na **innym problemie** niż wykład
-(tam: mieszanina 8 Gaussów na okręgu). Tu: zbiór **dwóch półksiężyców**
-(*two moons*) — geometria wklęsła, z "dziurą" między ramionami, którą
-proste metody (np. jeden dopasowany rozkład Gaussa) nie potrafią odtworzyć.
-To **nie jest** kopia eksperymentu wykładowego ze zmienionym ziarnem —
-inny kształt danych wymaga tych samych wzorów, ale innej interpretacji
-wyników.
+# Lab 13: implementing and analyzing a small diffusion model (DDPM) from scratch
 
-**Cel**: samodzielnie zaimplementować matematyczny rdzeń DDPM (harmonogram,
-zamkniętą postać forward diffusion, funkcję celu, odwrotne próbkowanie),
-zweryfikować go, i krytycznie ocenić jakość wygenerowanych próbek —
-**nie** tylko sprawdzić, czy wykres "wygląda podobnie".
+Time: ca. 120 minutes. Builds on
+[`lectures/13_diffusion/lecture.en.md`](../../lectures/13_diffusion/lecture.en.md)
+(forward/reverse diffusion, DDPM), but on a **different problem** than the
+lecture (there: a mixture of 8 Gaussians on a circle). Here: the
+**two-moons** dataset -- a concave geometry, with a "hole" between the two
+arms, that simple methods (e.g. a single fitted Gaussian) cannot
+reproduce. This is **not** a copy of the lecture experiment with a changed
+seed -- a different data shape requires the same formulas, but a different
+interpretation of the results.
 
-## 0. Konfiguracja i dane (gotowe)
+**Goal**: implement the mathematical core of DDPM independently (the
+schedule, the closed-form forward diffusion, the objective, reverse
+sampling), verify it, and critically evaluate the quality of the generated
+samples -- **not** just check whether the plot "looks similar."
 
-Import bibliotek, ziarno losowości, funkcja generująca zbiór two-moons
-(czysty NumPy/PyTorch, bez `sklearn`).
+## 0. Setup and data (provided)
 
-## 1. Wizualizacja danych — Twoje zadanie
+Library imports, a random seed, a function that generates the two-moons
+dataset (pure NumPy/PyTorch, no `sklearn`).
 
-Wygeneruj `X_train` (two-moons, $N=2000$) i narysuj wykres rozrzutu. Opisz
-(komentarz albo markdown): czym ten kształt różni się od mieszaniny Gaussów
-z wykładu — w szczególności, dlaczego pojedynczy rozkład Gaussa (jedna
-średnia, jedna macierz kowariancji) nie mógłby go dobrze opisać.
+## 1. Visualizing the data -- your task
 
-## 2. Harmonogram $\beta_t$ i obliczanie $\bar\alpha_t$ — Twoje zadanie
+Generate `X_train` (two-moons, $N=2000$) and draw a scatter plot. Explain
+(in a comment or markdown): how does this shape differ from the Gaussian
+mixture from the lecture -- in particular, why couldn't a single Gaussian
+distribution (one mean, one covariance matrix) describe it well?
 
-Zaimplementuj harmonogram liniowy: `betas = torch.linspace(beta_start,
+## 2. The schedule $\beta_t$ and computing $\bar\alpha_t$ -- your task
+
+Implement a linear schedule: `betas = torch.linspace(beta_start,
 beta_end, T)`, `alphas = 1 - betas`, `alphas_bar = torch.cumprod(alphas,
-dim=0)`. Użyj $T=500$ (patrz wykład: wystarczające, by $\bar\alpha_T$ było
-bliskie 0 dla tego zakresu $\beta$, bez niepotrzebnie wysokiego kosztu
-generowania).
+dim=0)`. Use $T=500$ (see the lecture: enough for $\bar\alpha_T$ to be
+close to 0 for this $\beta$ range, without an unnecessarily high generation
+cost).
 
-**Zweryfikuj**: wypisz $\bar\alpha_1$, $\bar\alpha_{T/2}$, $\bar\alpha_T$ —
-czy $\bar\alpha_T$ jest wystarczająco bliskie 0 (porównaj z wykładową
-dyskusją o roli końcowej wartości harmonogramu)?
+**Verify**: print $\bar\alpha_1$, $\bar\alpha_{T/2}$, $\bar\alpha_T$ -- is
+$\bar\alpha_T$ close enough to 0 (compare with the lecture's discussion of
+the role of the schedule's final value)?
 
-## 3. Zamknięta postać forward diffusion — Twoje zadanie
+## 3. The closed-form forward diffusion -- your task
 
-Zaimplementuj `q_sample(x0, t, eps, alphas_bar)`:
+Implement `q_sample(x0, t, eps, alphas_bar)`:
 $x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\varepsilon$.
 
-**Zweryfikuj** (wymagane, nie opcjonalne): dla ustalonego $x_0$ i $t$,
-porównaj **statystyki** (średnia/wariancja na wielu próbach $\varepsilon$)
-próbkowania zamkniętą postacią z symulacją krok-po-kroku (`for` po krokach
-$1,\ldots,t$, z $q(x_s\mid x_{s-1})$). **Nie** oczekuj identyczności
-pojedynczych próbek — to dwa różne, niezależne losowania; porównujesz
-**rozkłady**, nie konkretne liczby.
+**Verify** (required, not optional): for a fixed $x_0$ and $t$, compare the
+**statistics** (mean/variance over many samples of $\varepsilon$) of
+sampling via the closed form against a step-by-step simulation (a `for`
+loop over steps $1,\ldots,t$, with $q(x_s\mid x_{s-1})$). **Do not** expect
+sample-for-sample identity -- these are two different, independent draws;
+you are comparing **distributions**, not specific numbers.
 
-## 4. Sieć przewidująca szum i warunkowanie czasem — Twoje zadanie
+## 4. The noise-prediction network and time conditioning -- your task
 
-Zaimplementuj klasę `NoisePredictor(nn.Module)`:
-- `forward(x, t)` zwraca przewidywany szum (2D wektor na przykład).
-- **Musi** wykorzystywać $t$ — nie tylko przyjmować je jako argument.
-  Użyj podanej funkcji `sinusoidal_embedding(t, dim)` (gotowa, poniżej) i
-  **skonkatenuj** jej wynik z $x$ przed podaniem do warstw liniowych.
+Implement the class `NoisePredictor(nn.Module)`:
+- `forward(x, t)` returns the predicted noise (a 2D vector per example).
+- It **must** use $t$ -- not just accept it as an argument. Use the
+  provided `sinusoidal_embedding(t, dim)` function (given, below) and
+  **concatenate** its result with $x$ before feeding the linear layers.
 
 ```python
 def sinusoidal_embedding(t, dim=16):
@@ -67,188 +69,198 @@ def sinusoidal_embedding(t, dim=16):
     return torch.cat([torch.sin(args), torch.cos(args)], dim=1)
 ```
 
-**Zadanie (komentarz/markdown)**: wyjaśnij własnymi słowami, dlaczego $x_t$
-**samo** nie wystarcza modelowi do poprawnego przewidzenia szumu — czego mu
-brakuje bez znajomości $t$?
+**Task (comment/markdown)**: explain in your own words why $x_t$ **alone**
+is not enough for the model to correctly predict the noise -- what is it
+missing without knowing $t$?
 
-## 5. Funkcja celu i pętla treningowa — Twoje zadanie
+## 5. The objective and the training loop -- your task
 
-Zaimplementuj jeden krok treningowy wewnątrz podanej pętli epok (szkielet
-pętli — `for epoch in range(epochs): ...` z optymalizatorem — jest gotowy,
-**zawartość** kroku jest Twoim zadaniem):
+Implement one training step inside the provided epoch loop (the loop
+skeleton -- `for epoch in range(epochs): ...` with the optimizer -- is
+provided, the **content** of the step is your task):
 
-1. Wylosuj batch $x_0$ z `X_train`.
-2. Wylosuj $t\sim\text{Uniform}\{0,\ldots,T-1\}$ — **inny $t$ dla każdego
-   przykładu w batchu**.
-3. Wylosuj $\varepsilon\sim N(0,I)$.
-4. Skonstruuj $x_t$ (`q_sample` z sekcji 3).
-5. Policz $\varepsilon_\theta(x_t,t)$ i stratę MSE względem $\varepsilon$.
-6. Backward + krok optymalizatora.
+1. Sample a batch $x_0$ from `X_train`.
+2. Sample $t\sim\text{Uniform}\{0,\ldots,T-1\}$ -- **a different $t$ for
+   each example in the batch**.
+3. Sample $\varepsilon\sim N(0,I)$.
+4. Construct $x_t$ (`q_sample` from section 3).
+5. Compute $\varepsilon_\theta(x_t,t)$ and the MSE loss against
+   $\varepsilon$.
+6. Backward pass + an optimizer step.
 
-Zbieraj i wypisz/zwizualizuj stratę per epoka (monitorowanie — wykres
-gotowy do użycia w komórce wizualizacji).
+Collect and print/visualize the loss per epoch (monitoring -- the plot is
+ready to use in the visualization cell).
 
-## 6. Odwrotne próbkowanie — Twoje zadanie
+## 6. Reverse sampling -- your task
 
-Zaimplementuj jeden krok odwrotny `ddpm_reverse_step(model, x, t_idx,
+Implement one reverse step `ddpm_reverse_step(model, x, t_idx,
 alphas, betas, alphas_bar)`:
 
 $$\mu_\theta(x_t,t) = \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\varepsilon_\theta(x_t,t)\right)$$
 
-Dla `t_idx > 0`: $x_{t-1}=\mu_\theta+\sqrt{\beta_t}z$, $z\sim N(0,I)$. Dla
-`t_idx == 0` (ostatni krok): $x_0=\mu_\theta$ — **bez** dodanego szumu
-(patrz wykład: dlaczego ostatni krok jest inny).
+For `t_idx > 0`: $x_{t-1}=\mu_\theta+\sqrt{\beta_t}z$, $z\sim N(0,I)$. For
+`t_idx == 0` (the last step): $x_0=\mu_\theta$ -- **without** adding noise
+(see the lecture: why the last step is different).
 
-Następnie: funkcja `ddpm_sample(model, n_samples, T, ...)` zaczynająca od
-$x_T\sim N(0,I)$ i iterująca krok po kroku do $t=0$.
+Then: a function `ddpm_sample(model, n_samples, T, ...)` starting from
+$x_T\sim N(0,I)$ and iterating step by step down to $t=0$.
 
-**Zweryfikuj indeksowanie**: wypisz, ile razy pętla faktycznie wykonuje
-krok z dodanym szumem, a ile bez — powinno być $T-1$ razy z szumem, $1$ raz
-bez.
+**Verify the indexing**: print how many times the loop actually executes a
+step with added noise, and how many without -- it should be $T-1$ times
+with noise, $1$ time without.
 
-## 7. Generowanie nowych próbek i porównanie rozkładów — Twoje zadanie
+## 7. Generating new samples and comparing distributions -- your task
 
-Wygeneruj $1000$ nowych próbek. Narysuj: (a) dane treningowe, (b)
-wygenerowane próbki, na tej samej skali osi. **Jawnie podpisz**, które
-502 punkty to rekonstrukcje (nie ma ich tu — nie dajemy modelowi żadnego
-realnego $x_0$ do odtworzenia), a które to **nowe** próbki od czystego
-szumu.
+Generate $1000$ new samples. Draw: (a) the training data, (b) the
+generated samples, on the same axis scale. **Explicitly caption** that
+there are no reconstructions among the generated points (we don't give the
+model any real $x_0$ to reconstruct) -- all of them are **new** samples
+generated from pure noise.
 
-Policz **przynajmniej jedną** metrykę kwantytatywną porównującą rozkłady
-(zobacz sekcję "Ocena generowania" niżej) na **niezależnym** zbiorze
-testowym (nowa próbka two-moons, nie `X_train`).
+Compute **at least one** quantitative metric comparing the distributions
+(see the "Evaluating generation" section below) on an **independent** test
+set (a fresh two-moons sample, not `X_train`).
 
-## 8. Sprawdzenie jednej zmiany konfiguracji — Twoje zadanie
+## 8. Checking a single configuration change -- your task
 
-Wybierz **jedną** zmianę (nie więcej — brief wymaga izolowania efektu
-jednego czynnika):
-- inna liczba kroków próbkowania (użyj **poprawnego** respacing, patrz
-  wykład Eksperyment D.2 — nie przeskakuj kroków formułą jednostkowego
-  kroku), **albo**
-- inny harmonogram (np. cosinusowy, patrz wykład), **albo**
-- inna liczba epok treningu (niedotrenowany vs dotrenowany model).
+Choose **one** change (no more -- the brief requires isolating the effect
+of a single factor):
+- a different number of sampling steps (use **correct** respacing, see
+  the lecture's Experiment D.2 -- do not skip steps with the single-step
+  formula), **or**
+- a different schedule (e.g. cosine, see the lecture), **or**
+- a different number of training epochs (an undertrained vs. a
+  well-trained model).
 
-Zmierz wpływ na jakość generowania (ta sama metryka, co w sekcji 7).
+Measure the effect on generation quality (the same metric as in section
+7).
 
-## 9. Baseline — Twoje zadanie
+## 9. A baseline -- your task
 
-Dopasuj **jeden** rozkład Gaussa do `X_train`
-(`torch.distributions.MultivariateNormal` z empirycznym `mean`/`cov`).
-Wygeneruj z niego $1000$ próbek. Policz te same metryki (sekcja 7) na tym
-samym niezależnym zbiorze testowym.
+Fit a **single** Gaussian distribution to `X_train`
+(`torch.distributions.MultivariateNormal` with the empirical `mean`/`cov`).
+Generate $1000$ samples from it. Compute the same metrics (section 7) on
+the same independent test set.
 
-**Nie zakładaj z góry**, że model dyfuzyjny wygra na **każdej** metryce —
-zweryfikuj. Jeśli jedna metryka wypada niejednoznacznie, sprawdź **drugą**,
-bardziej czułą na kształt rozkładu (np. średnia odległość do najbliższego
-sąsiada w niezależnym zbiorze referencyjnym) — wyjaśnij, czemu te dwie
-metryki mogą dawać różne wnioski.
+**Do not assume in advance** that the diffusion model will win on **every**
+metric -- verify it. If one metric comes out ambiguous, check a
+**second**, more shape-sensitive one (e.g. the mean distance to the
+nearest neighbor in an independent reference set) -- explain why these two
+metrics might give different conclusions.
 
-## 10. Zadanie diagnostyczne
+## 10. Diagnostic task
 
-Poniższy, **oddzielnie dostarczony** fragment kodu (nie Twój z sekcji 4-6)
-implementuje `NoisePredictorColleague`, trenuje go i generuje próbki — nie
-rzuca wyjątku, generuje **coś**, ale ma błąd: sieć przyjmuje `t` jako
-argument, ale **nigdy go nie używa** w `forward`.
+The following, **separately provided** code snippet (not your own from
+sections 4-6) implements `NoisePredictorColleague`, trains it, and
+generates samples -- it does not raise an exception, it generates
+**something**, but it has a bug: the network accepts `t` as an argument,
+but **never uses** it in `forward`.
 
-**Zadanie:**
-1. Wytrenuj `NoisePredictorColleague` tak samo, jak swój model (sekcja 5).
-2. Wygeneruj próbki tą samą procedurą odwrotną (sekcja 6).
-3. Porównaj metryki (sekcja 7) z Twoim poprawnym modelem — **nie** oceniaj
-   tylko "na oko", policz liczby.
-4. Zdiagnozuj: dlaczego model bez informacji o $t$ radzi sobie **wyraźnie
-   gorzej**, mimo że wciąż coś generuje (nie crashuje)? Odwołaj się do tego,
-   co napisałeś/aś w zadaniu z sekcji 4.
-5. Napraw (dodaj warunkowanie czasem z powrotem) i zweryfikuj poprawę
-   kwantytatywnie.
+**Task:**
+1. Train `NoisePredictorColleague` the same way as your own model
+   (section 5).
+2. Generate samples with the same reverse procedure (section 6).
+3. Compare the metrics (section 7) with your correct model -- **do not**
+   evaluate "by eye" only, compute the numbers.
+4. Diagnose: why does the model without information about $t$ do
+   **clearly worse**, despite still generating something (not crashing)?
+   Refer back to what you wrote in the section-4 task.
+5. Fix it (add time conditioning back) and verify the improvement
+   quantitatively.
 
-❌ "Jeśli kod nie rzuca wyjątku i coś generuje, implementacja jest
-prawdopodobnie poprawna."
+❌ "If the code doesn't raise an exception and generates something, the
+implementation is probably correct."
 
-✅ Brak błędu wykonania **nie** jest dowodem poprawności modelu
-generatywnego — trzeba **zmierzyć** jakość, nie tylko sprawdzić, że kod
-"działa" w sensie "nie crashuje".
+✅ The absence of a runtime error is **not** proof that a generative model
+is correct -- you have to **measure** quality, not just check that the code
+"works" in the sense of "doesn't crash."
 
-## 11. Wnioski — Twoje zadanie
+## 11. Conclusions -- your task
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami/przykładami z sekcji 2-10:
+Answer, justifying with actual numbers/examples from sections 2-10:
 
-1. Czy $\bar\alpha_T$ dla Twojego harmonogramu było wystarczająco bliskie
-   $0$? Co by się stało, gdyby nie było?
-2. Jak dobrze (konkretne metryki) Twój model dyfuzyjny odtwarza rozkład
-   two-moons na niezależnym zbiorze testowym?
-3. Jak wypada w porównaniu z baseline'em (sekcja 9)? Czy obie metryki dały
-   tę samą odpowiedź "który model lepszy"?
-4. Jaki efekt miała zmiana konfiguracji z sekcji 8?
-5. Jaki błąd wprowadził brak warunkowania czasem (sekcja 10), i jaka jest
-   ogólna zasada, którą z tego wyciągasz?
-6. Czy są obszary/regiony przestrzeni danych, których Twój model **nie**
-   generuje dobrze (np. sama "dziura" między półksiężycami, albo końce
-   ramion)? Jak to sprawdziłeś/aś?
+1. Was $\bar\alpha_T$ close enough to $0$ for your schedule? What would
+   have happened if it weren't?
+2. How well (specific metrics) does your diffusion model reproduce the
+   two-moons distribution on the independent test set?
+3. How does it compare with the baseline (section 9)? Did both metrics
+   give the same answer to "which model is better"?
+4. What effect did the configuration change from section 8 have?
+5. What error did the lack of time conditioning (section 10) introduce,
+   and what general rule do you draw from it?
+6. Are there regions of the data space that your model does **not**
+   generate well (e.g. the "hole" between the two moons itself, or the
+   ends of the arms)? How did you check this?
 
-## Ocena generowania — wymagania
+## Evaluating generation -- requirements
 
-Nie oceniaj modelu jedynie na podstawie tego, czy chmura punktów "wygląda
-podobnie". Wymagane:
+Do not evaluate the model solely on whether the point cloud "looks
+similar." Required:
 
-- **Poprawnie zdefiniowany rozkład referencyjny**: `X_train` do treningu,
-  **niezależny** nowy zbiór two-moons do oceny (nie te same punkty).
-- **Porównanie z baseline'em** (sekcja 9) — nie tylko "model dyfuzyjny sam
-  w sobie wygląda nieźle".
-- **Przynajmniej jedna metryka kwantytatywna** — zalecane: MMD (Maximum
-  Mean Discrepancy, kernel RBF) — **zweryfikuj ją na znanym przypadku**
-  (np. porównanie dwóch próbek z tego samego rozkładu powinno dać wynik
-  bliski $0$) **przed** użyciem na wygenerowanych danych.
-- **Analiza niewygenerowanych/słabo pokrytych obszarów** — sprawdź, czy są
-  regiony danych treningowych, które generator rzadko/nigdy nie trafia.
-- **Ograniczenia wynikające z małej liczby próbek** — nazwij je explicit
-  (np. "przy 1000 próbkach, różnica X vs Y może być częściowo szumem
-  próbkowania, nie realną różnicą modeli").
+- **A correctly defined reference distribution**: `X_train` for training,
+  an **independent** fresh two-moons set for evaluation (not the same
+  points).
+- **A comparison with the baseline** (section 9) -- not just "the
+  diffusion model looks decent on its own."
+- **At least one quantitative metric** -- recommended: MMD (Maximum Mean
+  Discrepancy, RBF kernel) -- **verify it on a known case** (e.g. comparing
+  two samples from the same distribution should give a result close to
+  $0$) **before** using it on generated data.
+- **An analysis of ungenerated/poorly-covered regions** -- check whether
+  there are regions of the training data that the generator rarely/never
+  hits.
+- **Limitations stemming from a small number of samples** -- name them
+  explicitly (e.g. "with 1000 samples, a difference between X and Y may be
+  partly sampling noise, not a real difference between the models").
 
-❌ "Większy rozrzut wygenerowanych punktów oznacza, że model lepiej odwzorował
-rozkład."
+❌ "A larger spread of generated points means the model reproduced the
+distribution better."
 
-✅ Rozrzut (np. wariancja) jest **jedną** własnością rozkładu, nie dowodem
-poprawnego odwzorowania **kształtu** — model mógłby mieć podobną wariancję
-co dane, a wciąż kompletnie nie odtwarzać ich geometrii (np. wypełniać
-"dziurę" między półksiężycami, której w rzeczywistych danych nie ma).
+✅ Spread (e.g. variance) is **one** property of a distribution, not proof
+of correctly reproducing its **shape** -- a model could have a similar
+variance to the data while completely failing to reproduce its geometry
+(e.g. filling the "hole" between the two moons, which doesn't exist in the
+real data).
 
-## Podział czasu (realistyczny, zweryfikowany względem rzeczywistego kosztu CPU)
+## Time budget (realistic, verified against actual CPU cost)
 
-| Blok | Czas |
+| Block | Time |
 |---|---|
-| Sekcja 0 (konfiguracja, dane) | 5 min |
-| Sekcja 1 (wizualizacja danych) | 5 min |
-| Sekcja 2 (harmonogram, ᾱ_t) | 8 min |
-| Sekcja 3 (zamknięta postać + weryfikacja) | 10 min |
-| Sekcja 4 (sieć + warunkowanie czasem) | 8 min |
-| Sekcja 5 (funkcja celu + trening) | 13 min |
-| Sekcja 6 (odwrotne próbkowanie) | 13 min |
-| Sekcja 7 (generowanie + porównanie) | 8 min |
-| Sekcja 8 (zmiana konfiguracji) | 6 min |
-| Sekcja 9 (baseline) | 5 min |
-| Sekcja 10 (zadanie diagnostyczne) | 10 min |
-| Sekcja 11 (wnioski) | 7 min |
+| Section 0 (setup, data) | 5 min |
+| Section 1 (data visualization) | 5 min |
+| Section 2 (schedule, ᾱ_t) | 8 min |
+| Section 3 (closed form + verification) | 10 min |
+| Section 4 (network + time conditioning) | 8 min |
+| Section 5 (objective + training) | 13 min |
+| Section 6 (reverse sampling) | 13 min |
+| Section 7 (generation + comparison) | 8 min |
+| Section 8 (configuration change) | 6 min |
+| Section 9 (baseline) | 5 min |
+| Section 10 (diagnostic task) | 10 min |
+| Section 11 (conclusions) | 7 min |
 
-Suma: **98 min**, z **22-minutowym** buforem (razem 120 min) — więcej niż
-wymagane minimum 15 minut. Trening (300 epok na 2000 próbkach, mały MLP)
-trwa **ułamek sekundy do ~1,5s** na CPU; generowanie $1000$ próbek, $T=500$
-kroków, trwa **ułamek sekundy**. Budżet czasowy idzie wyłącznie w
-implementację, debugging i analizę — nie w czekanie na model.
+Total: **98 min**, with a **22-minute** buffer (120 min total) -- more
+than the required 15-minute minimum. Training (300 epochs on 2000 samples,
+a small MLP) takes **a fraction of a second to ~1.5s** on CPU; generating
+$1000$ samples, $T=500$ steps, takes **a fraction of a second**. The time
+budget goes entirely into implementation, debugging, and analysis -- not
+into waiting for the model.
 
-## Kryteria oceny
+## Grading criteria
 
-- Harmonogram i $\bar\alpha_t$ poprawne, $\bar\alpha_T$ sprawdzone jako
-  wystarczająco bliskie $0$.
-- `q_sample` zweryfikowane statystycznie względem symulacji krok-po-kroku.
-- Sieć wykorzystuje $t$ (nie tylko przyjmuje je jako argument) — zadanie z
-  sekcji 4 odpowiedziane konkretnie, nie ogólnikiem.
-- Odwrotne próbkowanie poprawnie obsługuje ostatni krok (brak dodanego
-  szumu), zweryfikowane programowo.
-- Generowanie porównane z **niezależnym** zbiorem testowym i z baseline'em,
-  **przynajmniej jedną** zweryfikowaną metryką kwantytatywną.
-- Zadanie diagnostyczne poprawnie identyfikuje brak warunkowania czasem
-  jako przyczynę, z konkretnymi liczbami przed/po poprawce.
-- Wnioski odwołują się do konkretnych liczb/przykładów z Twojego przebiegu.
+- The schedule and $\bar\alpha_t$ are correct, $\bar\alpha_T$ is verified
+  to be close enough to $0$.
+- `q_sample` is verified statistically against the step-by-step
+  simulation.
+- The network uses $t$ (not just accepts it as an argument) -- the
+  section-4 task is answered concretely, not with a generic statement.
+- Reverse sampling correctly handles the last step (no added noise),
+  verified programmatically.
+- Generation is compared with an **independent** test set and with the
+  baseline, with **at least one** verified quantitative metric.
+- The diagnostic task correctly identifies the lack of time conditioning
+  as the cause, with concrete numbers before/after the fix.
+- Conclusions refer to specific numbers/examples from your own run.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/13_diffusion/`) i nie jest częścią tego repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/13_diffusion/`) and is not part of this repository.
