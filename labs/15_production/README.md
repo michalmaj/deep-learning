@@ -84,6 +84,9 @@ weights + metadata). Your task:
 
 `/health`, `/ready`, `/model-info` are provided. Your task: `/predict`:
 
+The provided application uses FastAPI's lifespan context to load the model
+once at startup and release the in-process reference during shutdown.
+
 1. Read the file, check its size (reject ones too large, too small/empty).
 2. Call `model.predict()` from `app/model.py`.
 3. Handle errors **without** revealing the raw exception/traceback to the

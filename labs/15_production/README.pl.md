@@ -73,6 +73,9 @@ metadane). Twoje zadanie:
 
 `/health`, `/ready`, `/model-info` są gotowe. Twoje zadanie: `/predict`:
 
+Gotowa aplikacja używa kontekstu lifespan FastAPI, aby wczytać model raz
+przy starcie i zwolnić referencję w procesie podczas zamykania.
+
 1. Odczytaj plik, sprawdź rozmiar (odrzuć zbyt duże, zbyt małe/puste).
 2. Wywołaj `model.predict()` z `app/model.py`.
 3. Obsłuż błędy **bez** ujawniania surowego wyjątku/tracebacka klientowi
