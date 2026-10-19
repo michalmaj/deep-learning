@@ -13,7 +13,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def test_pyproject_is_valid_and_pinned():
     data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
     assert data["project"]["name"] == "deep-learning"
+    assert data["project"]["version"] == "1.0.0"
     assert data["project"]["requires-python"].startswith(">=3.12")
+
+
+def test_project_version_matches_lockfile():
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())["project"]
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text())
+    locked_project = next(
+        package for package in lock["package"] if package["name"] == project["name"]
+    )
+    assert locked_project["version"] == project["version"]
 
 
 def test_data_registry_is_valid_yaml_with_expected_schema():
