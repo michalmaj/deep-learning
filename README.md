@@ -1,129 +1,135 @@
-Language: **English (default)** | [Polski](README.pl.md)
+**English** | [Polski](README.pl.md)
 
 # Deep Learning
 
-Course repository for **Deep Learning**, part of the *Artificial
-Intelligence Engineering and Management* program.
+*A practical, code-first guide to understanding deep learning with PyTorch.*
 
-The course covers 30 hours of lectures and 30 hours of labs (15 × 2h
-lecture + 15 × 2h lab). This repository is meant to be a **versioned
-textbook and an executable course repository**, not just a slide deck.
+Learn how neural networks actually work by exploring the math behind
+them, running the experiments that demonstrate it, and then building the
+models yourself. Every lecture moves from intuition to formal mathematics
+to runnable code, and every lab hands you a real, partially-built
+notebook to finish on your own.
 
-The teaching sequence used throughout the materials:
+[![CI](https://github.com/michalmaj/deep-learning/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/michalmaj/deep-learning/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/michalmaj/deep-learning)](https://github.com/michalmaj/deep-learning/releases/latest)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![PyTorch](https://img.shields.io/badge/framework-PyTorch-EE4C2C?logo=pytorch&logoColor=white)](pyproject.toml)
+[![Languages: EN | PL](https://img.shields.io/badge/languages-EN%20%7C%20PL-555555)](README.pl.md)
 
-> intuition → theory → mathematics → executable experiment → independent
-> student work → engineering implications
+## Start here
 
-The course assumes basic Python, NumPy, pandas, elementary machine
-learning, linear algebra, and differential calculus. It builds up from a
-single neuron to MLPs, backpropagation, optimization, CNNs, transfer
-learning, embeddings, sequence models, attention and Transformers, a
-small LLM pipeline, autoencoders/VAEs, diffusion models, evaluation and
-interpretability, and ends with production engineering (serving,
-monitoring, drift). All core experiments run on **CPU**; GPU is an
-optional speed-up, never a requirement.
+1. **Read the introduction** — [`lectures/01_intro/lecture.en.md`](lectures/01_intro/lecture.en.md). Fifteen minutes gets you from "what is deep learning, really" to deriving a gradient by hand.
+2. **Run your first experiment** — [`lectures/01_intro/examples.en.ipynb`](lectures/01_intro/examples.en.ipynb). The same ideas from the lecture, but executed, plotted, and yours to tweak.
+3. **Try the first lab** — [`labs/01_intro/README.md`](labs/01_intro/README.md) sets up the task, [`labs/01_intro/lab.en.ipynb`](labs/01_intro/lab.en.ipynb) is where you do it.
 
-## Status
+Lab notebooks ship with the scaffolding done and the actual exercises
+left as `TODO`s for you to fill in — that's the format, not something
+broken. A private reference solution exists for every lab, just not in
+this repository (more on that below).
 
-All 15 modules are complete in Polish, the course's original language,
-and **all 15 modules now also have a full English translation** (lecture,
-lecture notebook, lab instructions, and lab notebook) -- the entire
-course, from PyTorch basics through evaluation/interpretability and
-production engineering, can be followed start to finish in English. This
-localization pass has been through a final bilingual audit: all 30
-PL/EN notebook pairs pass the automated structural/numeric equivalence
-check, navigation between the two languages was verified across every
-module, and the known translation backlog was resolved -- see
-`CONTRIBUTING.md` for exactly what that audit did and did not verify (it
-checked structural and numeric parity, not prose quality via a native
-English speaker, and it has not been classroom-tested). See
-[the Polish version of this page](README.pl.md) for the course described
-in its original language.
+## Setup
 
-## Course structure
+```bash
+git clone https://github.com/michalmaj/deep-learning.git
+cd deep-learning
+uv sync
+uv run jupyter lab
+```
 
-| # | Lecture | Lab direction |
+You'll need [uv](https://docs.astral.sh/uv/getting-started/installation/)
+and Python 3.12 (uv will fetch the right interpreter for you).
+
+A CPU is enough for everything here — GPU support is automatic if you
+have one, but never required. A handful of lectures and labs (mostly the
+later ones, e.g. transfer learning, embeddings, LLM inference) download a
+dataset or a pretrained model the first time you run them; after that
+they're cached locally. Training times vary by machine — none of the
+material depends on a specific speed, but a few experiments are
+noticeably slower on an older CPU.
+
+## Explore the material
+
+- **Fundamentals** — tensors, MLPs, backpropagation, optimization, generalization
+  [`01`](lectures/01_intro/lecture.en.md) ·
+  [`02`](lectures/02_mlp/lecture.en.md) ·
+  [`03`](lectures/03_backprop/lecture.en.md) ·
+  [`04`](lectures/04_optimization/lecture.en.md) ·
+  [`05`](lectures/05_generalization/lecture.en.md)
+- **Computer vision and representations** — CNNs, transfer learning, embeddings
+  [`06`](lectures/06_cnn/lecture.en.md) ·
+  [`07`](lectures/07_transfer_learning/lecture.en.md) ·
+  [`08`](lectures/08_embeddings/lecture.en.md)
+- **Sequences and language** — RNNs, attention, Transformers, LLM engineering
+  [`09`](lectures/09_rnn/lecture.en.md) ·
+  [`10`](lectures/10_attention/lecture.en.md) ·
+  [`11`](lectures/11_llm_engineering/lecture.en.md)
+- **Generative modeling** — autoencoders, VAEs, diffusion
+  [`12`](lectures/12_autoencoders/lecture.en.md) ·
+  [`13`](lectures/13_diffusion/lecture.en.md)
+- **Evaluation and deployment** — interpretability, calibration, serving, monitoring
+  [`14`](lectures/14_evaluation_interpretability/lecture.en.md) ·
+  [`15`](lectures/15_production/lecture.en.md)
+
+Each number links to that module's lecture; every module also has a
+matching lecture notebook and lab under `lectures/` and `labs/`.
+
+<details>
+<summary>Browse all modules (lecture + lab links)</summary>
+
+| # | Lecture | Lab |
 |---|---|---|
-| 1 | [Deep Learning, ML vs DL, tensors, training pipeline](lectures/01_intro/lecture.en.md) | [PyTorch, tensors, device handling, first model](labs/01_intro/README.md) |
-| 2 | [Perceptron, MLP, activation functions](lectures/02_mlp/lecture.en.md) | [Tabular classification with MLP](labs/02_mlp/README.md) |
-| 3 | [Backpropagation and computational graphs](lectures/03_backprop/lecture.en.md) | [Backprop from scratch + autograd](labs/03_backprop/README.md) |
-| 4 | [Optimization: SGD, momentum, Adam](lectures/04_optimization/lecture.en.md) | [Optimizer comparison](labs/04_optimization/README.md) |
-| 5 | [Generalization, overfitting, regularization](lectures/05_generalization/lecture.en.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.md) |
-| 6 | [CNNs and image representation](lectures/06_cnn/lecture.en.md) | [Image classification with a CNN](labs/06_cnn/README.md) |
-| 7 | [Transfer learning and fine-tuning](lectures/07_transfer_learning/lecture.en.md) | [A pretrained vision model](labs/07_transfer_learning/README.md) |
-| 8 | [Embeddings and learned representations](lectures/08_embeddings/lecture.en.md) | [Embedding and similarity experiments](labs/08_embeddings/README.md) |
-| 9 | [RNNs, LSTM, GRU, and sequential data](lectures/09_rnn/lecture.en.md) | [Sequence/text classification](labs/09_rnn/README.md) |
+| 01 | [Deep Learning, ML vs DL, tensors, training loop](lectures/01_intro/lecture.en.md) | [PyTorch basics](labs/01_intro/README.md) |
+| 02 | [Perceptron, MLP, activation functions](lectures/02_mlp/lecture.en.md) | [Tabular classification with an MLP](labs/02_mlp/README.md) |
+| 03 | [Backpropagation and computational graphs](lectures/03_backprop/lecture.en.md) | [Backprop from scratch + autograd](labs/03_backprop/README.md) |
+| 04 | [Optimization: SGD, momentum, Adam](lectures/04_optimization/lecture.en.md) | [Optimizer comparison](labs/04_optimization/README.md) |
+| 05 | [Generalization, overfitting, regularization](lectures/05_generalization/lecture.en.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.md) |
+| 06 | [CNNs and image representation](lectures/06_cnn/lecture.en.md) | [Image classification with a CNN](labs/06_cnn/README.md) |
+| 07 | [Transfer learning and fine-tuning](lectures/07_transfer_learning/lecture.en.md) | [A pretrained vision model](labs/07_transfer_learning/README.md) |
+| 08 | [Embeddings and learned representations](lectures/08_embeddings/lecture.en.md) | [Embedding and similarity experiments](labs/08_embeddings/README.md) |
+| 09 | [RNNs, LSTM, GRU, and sequential data](lectures/09_rnn/lecture.en.md) | [Sequence/text classification](labs/09_rnn/README.md) |
 | 10 | [Attention and the Transformer](lectures/10_attention/lecture.en.md) | [Attention from scratch + a small Transformer](labs/10_attention/README.md) |
 | 11 | [LLM engineering fundamentals](lectures/11_llm_engineering/lecture.en.md) | [Tokenization, inference, Hugging Face](labs/11_llm_engineering/README.md) |
-| 12 | [Autoencoders and VAE](lectures/12_autoencoders/lecture.en.md) | [Latent space / anomaly detection](labs/12_autoencoders/README.md) |
-| 13 | [Generative AI and diffusion](lectures/13_diffusion/lecture.en.md) | [A small generative experiment / diffusion analysis](labs/13_diffusion/README.md) |
+| 12 | [Autoencoders and VAEs](lectures/12_autoencoders/lecture.en.md) | [Latent space / anomaly detection](labs/12_autoencoders/README.md) |
+| 13 | [Generative modeling with diffusion](lectures/13_diffusion/lecture.en.md) | [A small generative experiment / diffusion analysis](labs/13_diffusion/README.md) |
 | 14 | [Evaluation, interpretability, error analysis](lectures/14_evaluation_interpretability/lecture.en.md) | [Error analysis, Grad-CAM/interpretability](labs/14_evaluation_interpretability/README.md) |
-| 15 | [Production DL: inference, cost, monitoring, drift](lectures/15_production/lecture.en.md) | [Deployment/API, final engineering experiment](labs/15_production/README.md) |
+| 15 | [Production DL: inference, cost, monitoring, drift](lectures/15_production/lecture.en.md) | [Deployment/API, a final engineering experiment](labs/15_production/README.md) |
 
-## Environment
+</details>
 
-The project uses [uv](https://docs.astral.sh/uv/) to manage dependencies
-and the Python environment.
+## How to use this repository
 
-```bash
-uv sync                 # installs dependencies (uv.lock)
-uv run jupyter lab      # starts Jupyter Lab inside the project's environment
-```
+These materials grew out of a university course (**Deep Learning**, for
+the *Artificial Intelligence Engineering and Management* programme) —
+but you don't need to be enrolled anywhere to use them. The suggested
+rhythm, per topic:
 
-Available `make` targets:
+1. Read the lecture notes to get the concept and the math.
+2. Run the lecture notebook and see the experiment that backs it up.
+3. Change a parameter, break something on purpose, see what happens.
+4. Do the lab's exercises yourself — that's where the material actually sinks in.
+5. Read your own results critically: what do they show, and what are their limits?
 
-```bash
-make setup         # uv sync
-make test           # tests (pytest)
-make lint           # ruff check
-make verify-data    # checksum validation against data/registry.yml
-```
+## For contributors
 
-The code runs on CPU as the baseline platform; GPU (CUDA) is an optional
-speed-up, never a requirement.
+If you want to fix something, add a module, or just understand how the
+English/Polish structure is kept in sync, see
+[`CONTRIBUTING.md`](CONTRIBUTING.md) — it covers the bilingual file
+convention and how notebooks are validated.
 
-## Data, weights, and required downloads
+## Data and licensing
 
-- Datasets are documented in [`data/registry.yml`](data/registry.yml)
-  (source, license, redistribution status, checksums) -- see
-  [`data/README.md`](data/README.md).
-- Pretrained weights used by later modules (e.g. ResNet18, a small LLM)
-  follow the same provenance/licensing discipline and are listed in the
-  same registry -- never committed to the repository, always downloaded
-  on demand by the notebooks that need them.
-- External figures are documented in
-  [`third_party/SOURCES.yml`](third_party/SOURCES.yml) -- see
-  [`third_party/README.md`](third_party/README.md).
-- Central bibliography: [`references/references.bib`](references/references.bib).
+- Datasets: documented with source, license, and redistribution status in [`data/registry.yml`](data/registry.yml).
+- External figures and assets: [`third_party/SOURCES.yml`](third_party/SOURCES.yml).
+- Bibliography: [`references/references.bib`](references/references.bib).
+- Code: **MIT** — see [`LICENSE`](LICENSE).
+- Original lecture/lab content: **CC BY-SA 4.0** — see [`LICENSE-CONTENT.md`](LICENSE-CONTENT.md).
+- Third-party material keeps its own original license.
 
-No external material is added to the repository without first checking
-its license and redistribution status.
+**Reference solutions to the labs aren't published here** — only the
+task descriptions, starter code, and tests are public, so the exercises
+stay exercises.
 
-## Tests and reproducibility
+---
 
-Every lecture/lab notebook is expected to run from a clean kernel
-("Restart Kernel -> Run All"). `tests/` pairs a full-notebook-execution
-test for each module with always-on, network-free synthetic tests that
-check the underlying mechanics by hand-computed example -- the synthetic
-tests run in CI without internet access or large downloads; the full
-notebook-execution tests are skipped in CI (`CI=true`) when they need a
-real dataset/model download, and are expected to be run locally before
-opening a PR. Run `make test` (or `uv run pytest`) for the full local
-suite, or `CI=true uv run pytest` for the fast, network-free subset.
-
-Maintaining the bilingual (Polish/English) structure itself -- the file
-convention, the PL/EN equivalence checker, and the validation checklist
-for a content PR -- is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-## License
-
-- Original source code: **MIT** -- see [`LICENSE`](LICENSE).
-- Original teaching content (lecture text, lab materials, original
-  diagrams): **CC BY-SA 4.0** -- see
-  [`LICENSE-CONTENT.md`](LICENSE-CONTENT.md).
-- Third-party materials keep their own, original licenses -- see
-  [`third_party/SOURCES.yml`](third_party/SOURCES.yml).
-
-**Full lab solutions are never published in this repository**, in either
-language -- only task descriptions, starter code, scaffolding, and tests
-are public.
+Polish version: [`README.pl.md`](README.pl.md). Latest release notes:
+[GitHub Releases](https://github.com/michalmaj/deep-learning/releases/latest).
