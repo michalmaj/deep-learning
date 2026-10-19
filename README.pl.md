@@ -21,9 +21,15 @@ Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku, a
 (wykład, notebook wykładowy, instrukcja laboratorium, notebook
 studencki) — cały kurs, od podstaw PyTorcha po ewaluację/
 interpretowalność i inżynierię produkcyjną, można przejść od początku do
-końca po angielsku. Ta partia lokalizacji nie przeszła jeszcze przez
-dedykowany końcowy audyt dwujęzyczny (zaplanowany jako osobny, kolejny
-etap) — zobacz [angielską wersję tej strony](README.md).
+końca po angielsku. Ta partia lokalizacji przeszła przez końcowy audyt
+dwujęzyczny: wszystkie 30 par notebooków PL/EN przechodzą automatyczną
+kontrolę równoważności strukturalnej/liczbowej, nawigacja między
+językami została zweryfikowana dla każdego modułu, a znany backlog
+tłumaczeniowy został rozstrzygnięty — zobacz `CONTRIBUTING.md` (po
+angielsku) po dokładny zakres tego, co ten audyt zweryfikował, a czego
+nie (sprawdzał parytet strukturalny/liczbowy, nie jakość prozy przez
+native speakera, i nie był testowany na żywych zajęciach) — zobacz
+[angielską wersję tej strony](README.md).
 
 ## Struktura kursu
 
@@ -96,6 +102,11 @@ dużych pobrań; testy wykonujące cały notebook są pomijane w CI
 powinny być uruchamiane lokalnie przed otwarciem PR-a. Użyj `make test`
 (albo `uv run pytest`) dla pełnego lokalnego zestawu testów, albo
 `CI=true uv run pytest` dla szybkiego podzbioru bez sieci.
+
+Utrzymanie samej struktury dwujęzycznej (konwencja plików, mechanizm
+kontroli równoważności PL/EN, lista walidacji przed PR-em) jest
+opisane w [`CONTRIBUTING.md`](CONTRIBUTING.md) (dokument tylko po
+angielsku, analogicznie do `data/README.md`/`third_party/README.md`).
 
 ## Licencja
 

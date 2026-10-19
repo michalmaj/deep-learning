@@ -30,8 +30,13 @@ and **all 15 modules now also have a full English translation** (lecture,
 lecture notebook, lab instructions, and lab notebook) -- the entire
 course, from PyTorch basics through evaluation/interpretability and
 production engineering, can be followed start to finish in English. This
-localization pass has not yet been through a dedicated final bilingual
-audit (planned as a separate, subsequent step) -- see
+localization pass has been through a final bilingual audit: all 30
+PL/EN notebook pairs pass the automated structural/numeric equivalence
+check, navigation between the two languages was verified across every
+module, and the known translation backlog was resolved -- see
+`CONTRIBUTING.md` for exactly what that audit did and did not verify (it
+checked structural and numeric parity, not prose quality via a native
+English speaker, and it has not been classroom-tested). See
 [the Polish version of this page](README.pl.md) for the course described
 in its original language.
 
@@ -105,6 +110,10 @@ notebook-execution tests are skipped in CI (`CI=true`) when they need a
 real dataset/model download, and are expected to be run locally before
 opening a PR. Run `make test` (or `uv run pytest`) for the full local
 suite, or `CI=true uv run pytest` for the fast, network-free subset.
+
+Maintaining the bilingual (Polish/English) structure itself -- the file
+convention, the PL/EN equivalence checker, and the validation checklist
+for a content PR -- is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
