@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 04: Optymalizacja — gradient descent, SGD, momentum i Adam
 
 ## Cele wykładu
