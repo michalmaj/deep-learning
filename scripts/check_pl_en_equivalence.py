@@ -105,7 +105,13 @@ only when it is one of:
   in enumerate(VOCAB):` resolves `tok` against `VOCAB`'s elements). In
   both cases the wrapped collection may itself be a literal or a plain
   `name = [...]` assigned earlier in the same cell (one further hop on the
-  *iterable* side only, not the call-argument side above);
+  *iterable* side only, not the call-argument side above). A third shape,
+  `name.items()` with a `for key, value in ...:` target, is handled the
+  same way: when `key` is presentational, the dict literal's own key
+  Constants are marked presentational too -- its *value* Constants are
+  not touched, so a dict mapping a display label to actual experimental
+  text (e.g. a sentence fed to a tokenizer) can have its label translated
+  while the text itself stays exact-matched;
 - an argument passed, anywhere in the notebook (not just the same cell),
   to a parameter of a locally defined helper function, when that
   parameter is used *exclusively* inside a presentational call within the
@@ -479,6 +485,19 @@ def _presentational_string_ids(
             return list_literal_assigns.get(node.id)
         return None
 
+    # Same-cell `name = {...}` dict-literal assignments, so `for key, val
+    # in name.items():` can resolve `name` back to the dict it was built
+    # from -- see the one-hop docstring bullet's `.items()` case below.
+    dict_literal_assigns: dict[str, ast.Dict] = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, ast.Dict)
+        ):
+            dict_literal_assigns[node.targets[0].id] = node.value
+
     class _OneHopVisitor(ast.NodeVisitor):
         """Second pass: a string bound to a name in presentational_names via
         a direct assignment or for-loop tuple-unpacking is presentational
@@ -518,6 +537,30 @@ def _presentational_string_ids(
                     for t_elt, it_arg in zip(target.elts, iterable.args):
                         self._process_pair(t_elt, it_arg)
                     return
+
+            if (
+                isinstance(iterable, ast.Call)
+                and isinstance(iterable.func, ast.Attribute)
+                and iterable.func.attr == "items"
+                and not iterable.args
+                and isinstance(target, ast.Tuple)
+                and len(target.elts) == 2
+            ):
+                key_target = target.elts[0]
+                if isinstance(key_target, ast.Name) and key_target.id in presentational_names:
+                    dict_literal = (
+                        iterable.func.value
+                        if isinstance(iterable.func.value, ast.Dict)
+                        else dict_literal_assigns.get(
+                            iterable.func.value.id
+                            if isinstance(iterable.func.value, ast.Name)
+                            else ""
+                        )
+                    )
+                    if dict_literal is not None:
+                        for key_node in dict_literal.keys:
+                            _mark_if_plain_string(key_node)
+                return
 
             resolved = _resolve_list_literal(iterable)
             if resolved is None:
@@ -881,6 +924,30 @@ MODULE_NOTEBOOK_PAIRS = [
     (
         Path("labs/09_rnn/lab.ipynb"),
         Path("labs/09_rnn/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/11_llm_engineering/examples.ipynb"),
+        Path("lectures/11_llm_engineering/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/11_llm_engineering/lab.ipynb"),
+        Path("labs/11_llm_engineering/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/12_autoencoders/examples.ipynb"),
+        Path("lectures/12_autoencoders/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/12_autoencoders/lab.ipynb"),
+        Path("labs/12_autoencoders/lab.en.ipynb"),
+    ),
+    (
+        Path("lectures/13_diffusion/examples.ipynb"),
+        Path("lectures/13_diffusion/examples.en.ipynb"),
+    ),
+    (
+        Path("labs/13_diffusion/lab.ipynb"),
+        Path("labs/13_diffusion/lab.en.ipynb"),
     ),
 ]
 """Every localized PL/EN notebook pair this project currently maintains.

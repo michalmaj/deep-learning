@@ -469,3 +469,49 @@ def test_dict_accumulator_rule_does_not_exempt_a_real_config_dict(tmp_path):
     )])
     problems = _check(tmp_path, pl, en)
     assert problems, "a renamed key in a dict passed to a call must still be reported"
+
+
+def test_dict_items_loop_label_translation_is_allowed(tmp_path):
+    """The one-hop rule's `.items()` extension (added for module 11): a
+    dict mapping a presentational category label to actual experimental
+    text (e.g. a sentence handed to a tokenizer) may have its label
+    translated when the key is only ever used for display."""
+    src_pl = (
+        'examples = {"angielskie zdanie": "The quick brown fox.", '
+        '"polskie zdanie": "Szybki lis."}\n'
+        'for name, text in examples.items():\n'
+        '    print(name, text)'
+    )
+    src_en = (
+        'examples = {"English sentence": "The quick brown fox.", '
+        '"Polish sentence": "Szybki lis."}\n'
+        'for name, text in examples.items():\n'
+        '    print(name, text)'
+    )
+    pl = _notebook([nbf.v4.new_code_cell(src_pl)])
+    en = _notebook([nbf.v4.new_code_cell(src_en)])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "a translated dict-items display label must not be reported"
+
+
+def test_dict_items_loop_does_not_hide_a_changed_experimental_value(tmp_path):
+    """The `.items()` extension marks only the key Constants as
+    presentational -- the dict's *values* (the actual text fed to a
+    tokenizer/model) must still be compared exactly, since translating an
+    experimental prompt would change what the experiment measures."""
+    src_pl = (
+        'examples = {"angielskie zdanie": "The quick brown fox.", '
+        '"polskie zdanie": "Szybki lis."}\n'
+        'for name, text in examples.items():\n'
+        '    print(name, text)'
+    )
+    src_en = (
+        'examples = {"English sentence": "The quick brown fox.", '
+        '"Polish sentence": "Szybki brazowy lis."}\n'
+        'for name, text in examples.items():\n'
+        '    print(name, text)'
+    )
+    pl = _notebook([nbf.v4.new_code_cell(src_pl)])
+    en = _notebook([nbf.v4.new_code_cell(src_en)])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed experimental sentence under a translated label must be reported"
