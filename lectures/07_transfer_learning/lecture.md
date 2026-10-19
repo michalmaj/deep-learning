@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 07 — Transfer learning: wykorzystanie wcześniej wyuczonych reprezentacji
 
 ## Cele wykładu
@@ -65,7 +67,11 @@ $$f(x;\theta) = f_{\text{head}}\Big(f_{\text{backbone}}(x;\theta_{\text{backbone
 (spotykane w literaturze). W tym kursie $\varphi$ jest już zarezerwowane dla **funkcji
 aktywacji** (wykłady 2–4) — żeby uniknąć kolizji, zamiast nowego greckiego symbolu
 rozszerzamy istniejącą konwencję $\theta$ = parametry modelu (wykład 1) o jawne
-indeksy: $\theta_{\text{backbone}}$, $\theta_{\text{head}}$.
+indeksy: $\theta_{\text{backbone}}$, $\theta_{\text{head}}$. Podobnie, $C$ (liczba klas
+nowego zadania) koliduje z $C$ = liczba kanałów z konwencji NCHW (wykład 6) — kontekst
+(liczba wyjść głowicy klasyfikacyjnej vs. liczba kanałów tensora obrazu) jednoznacznie
+rozstrzyga, o które $C$ chodzi w danym miejscu, więc zachowujemy oba znaczenia, zamiast
+wprowadzać nowy symbol.
 
 ## Matematyka: trzy strategie adaptacji
 
@@ -242,7 +248,10 @@ zamrożony backbone (cache) osiąga $0{,}992 \to 1{,}00 \to 1{,}00$ — niemal o
 blisko sufitu, nawet przy zaledwie $6$ obrazach na klasę. Trening od zera: $0{,}250 \to
 0{,}517 \to 0{,}575$ — rośnie z ilością danych, ale zostaje daleko w tyle nawet przy
 pełnych $36$/klasę. Przewaga transfer learningu jest **największa właśnie przy małej
-ilości danych** — to zgadza się z intuicją z sekcji *Dlaczego to jest ważne*.
+ilości danych** — to zgadza się z intuicją z sekcji *Dlaczego to jest ważne*. **Ten
+konkretny eksperyment, w przeciwieństwie do porównania strategii wyżej, wykorzystuje
+jedno ziarno losowości** — duży obserwowany efekt nie został sprawdzony pod kątem
+stabilności wielokrotnymi przebiegami, jak powyżej.
 
 ## Częste błędne przekonania
 

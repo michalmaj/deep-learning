@@ -1,177 +1,201 @@
-# Laboratorium 07: dostosowanie modelu pretrained do nowego problemu klasyfikacji obrazów
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/07_transfer_learning/lecture.md`](../../lectures/07_transfer_learning/lecture.md)
-(backbone/głowica, zamrożony backbone, częściowy fine-tuning, `requires_grad` vs
-`train()`/`eval()` vs `no_grad()`), ale na **innym zbiorze danych i innym pytaniu** niż
-wykład — EuroSAT (zdjęcia satelitarne, nie zdjęcia obiektów z poziomu ziemi jak
-Caltech101 na wykładzie) i pytanie: **czy transfer learning pomaga, gdy domena nowego
-zadania jest wizualnie odległa od ImageNet, i czy częściowy fine-tuning daje tu coś
-więcej niż sam zamrożony backbone** (na wykładzie — przy silnym pokryciu z ImageNet —
-nie dawał; zobaczysz, czy tutaj jest inaczej).
+# Lab 07: adapting a pretrained model to a new image-classification problem
 
-## 0. Konfiguracja (gotowe)
+Time: about 2 hours. Builds on [`lectures/07_transfer_learning/lecture.en.md`](../../lectures/07_transfer_learning/lecture.en.md)
+(backbone/head, frozen backbone, partial fine-tuning, `requires_grad` vs.
+`train()`/`eval()` vs. `no_grad()`), but uses **a different dataset and a
+different question** than the lecture -- EuroSAT (satellite imagery, not
+ground-level object photos like Caltech101 in the lecture) and the
+question: **does transfer learning help when the new task's domain is
+visually distant from ImageNet, and does partial fine-tuning give
+anything beyond a frozen backbone alone here** (in the lecture -- with
+strong ImageNet coverage -- it did not; you will see whether it is
+different here).
 
-Import bibliotek, urządzenie, ziarno losowości.
+## 0. Setup (provided)
 
-## 1. Dane: EuroSAT — struktura i eksploracja (gotowe + krótkie zadanie)
+Library imports, device, random seed.
 
-EuroSAT: 10 klas użycia terenu z satelitarnych zdjęć Sentinel-2 (`AnnualCrop, Forest,
-HerbaceousVegetation, Highway, Industrial, Pasture, PermanentCrop, Residential, River,
-SeaLake`), obrazy $64\times64$ RGB. Pobiera się automatycznie przez
-`torchvision.datasets.EuroSAT` (nigdy nie trafia do repozytorium — zobacz
-[`data/registry.yml`](../../data/registry.yml)).
+## 1. Data: EuroSAT -- structure and exploration (provided + short task)
 
-**Zadanie:** obejrzyj po jednym przykładowym obrazie z każdej klasy (gotowy kod do
-wyświetlenia). Czy te zdjęcia przypominają cokolwiek z ImageNet (zwierzęta, przedmioty,
-sceny "z poziomu ziemi")? Zapisz zdaniem swoją wstępną intuicję — do niej wrócisz w
-sekcji 8.
+EuroSAT: 10 land-use classes from Sentinel-2 satellite imagery
+(`AnnualCrop, Forest, HerbaceousVegetation, Highway, Industrial, Pasture,
+PermanentCrop, Residential, River, SeaLake`), $64\times64$ RGB images.
+Downloads automatically via `torchvision.datasets.EuroSAT` (never
+committed to the repository -- see [`data/registry.yml`](../../data/registry.yml)).
 
-## 2. Preprocessing zgodny z wagami pretrained — Twoje zadanie
+**Task:** look at one sample image from each class (provided display
+code). Do these images resemble anything from ImageNet (animals, objects,
+"ground-level" scenes)? Write down, in a sentence, your initial intuition
+-- you will come back to it in section 8.
 
-ResNet18 wymaga konkretnego preprocessingu (rozmiar wejścia, normalizacja) — **tego
-samego**, jakiego użyto podczas treningu na ImageNet, inaczej cechy wyuczone przez
-backbone nie będą miały sensu dla nowych danych.
+## 2. Preprocessing consistent with the pretrained weights -- your task
 
-Zaimplementuj `build_preprocess()`, która zwraca transformację zgodną z wagami
-`ResNet18_Weights.IMAGENET1K_V1` (podpowiedź: `weights.transforms()` — nie przepisuj
-tego ręcznie, użyj gotowej transformacji z obiektu wag, żeby mieć pewność zgodności z
-tym, na czym model był trenowany).
+ResNet18 requires specific preprocessing (input size, normalization) --
+**the same one** used during training on ImageNet, otherwise the features
+learned by the backbone will not make sense for the new data.
 
-Zweryfikuj: przepuść jeden obraz EuroSAT przez swoją funkcję i sprawdź, że wynikowy
-kształt to `(3, 224, 224)` (gotowa asercja).
+Implement `build_preprocess()`, which returns a transform consistent with
+the `ResNet18_Weights.IMAGENET1K_V1` weights (hint: `weights.transforms()`
+-- do not rewrite it by hand, use the ready-made transform from the
+weights object, to be sure it is consistent with what the model was
+trained on).
 
-## 3. Podział i ekstrakcja podzbioru (gotowe)
+Verify: run one EuroSAT image through your function and check that the
+resulting shape is `(3, 224, 224)` (a provided assertion checks this).
 
-500 obrazów (50/klasę, zbalansowane), podział 30/10/10 na train/val/test.
+## 3. Split and subset extraction (provided)
 
-## 4. Wczytanie modelu i wymiana głowicy — Twoje zadanie
+500 images (50/class, balanced), split 30/10/10 into train/val/test.
 
-Wczytaj `resnet18` z wagami `ResNet18_Weights.IMAGENET1K_V1` (**przypięte explicite**,
-nie `DEFAULT`) i zastąp `model.fc` nową warstwą `nn.Linear` o odpowiedniej liczbie
-wyjść (10 klas EuroSAT).
+## 4. Loading the model and replacing the head -- your task
 
-**Zadanie (kod, 2-3 linie):** zweryfikuj programowo (nie tylko czytając kod), że nowa
-głowica ma poprawną liczbę parametrów wyjściowych i że to **ten sam obiekt**, do
-którego odwołuje się `model.fc` po przypisaniu (nie osobna, niepodłączona warstwa).
+Load `resnet18` with `ResNet18_Weights.IMAGENET1K_V1` weights (**pinned
+explicitly**, not `DEFAULT`) and replace `model.fc` with a new `nn.Linear`
+layer with the correct number of outputs (10 EuroSAT classes).
 
-## 5. Zamrożenie backbone'u i trening samej głowicy — Twoje zadanie
+**Task (code, 2-3 lines):** verify programmatically (not just by reading
+the code) that the new head has the correct number of output parameters,
+and that it is **the same object** that `model.fc` refers to after the
+assignment (not a separate, disconnected layer).
 
-Zamroź wszystkie parametry backbone'u (`requires_grad=False`), zostaw trenowalną tylko
-głowicę. **Pamiętaj o kolejności**: najpierw wymiana głowicy (sekcja 4), dopiero potem
-zamrażanie i budowa optymalizatora — zobaczysz dlaczego w sekcji diagnostycznej (sekcja
-7).
+## 5. Freezing the backbone and training only the head -- your task
 
-Napisz pętlę treningową dla samej głowicy (możesz, ale nie musisz, użyć cache'owania
-cech z wykładu — to przyspiesza trening, ale nie jest wymagane). Ustaw model w
-odpowiednim trybie (`train()`/`eval()`) tak, żeby **statystyki BatchNorm backbone'u się
-nie zmieniały** — to jest dokładnie błąd omówiony na wykładzie (sekcja *Błędne
-przekonania*), tutaj masz go samodzielnie uniknąć, nie tylko przeczytać o nim.
+Freeze all backbone parameters (`requires_grad=False`), leave only the
+head trainable. **Mind the order**: first replace the head (section 4),
+only then freeze and build the optimizer -- you will see why in the
+diagnostic section (section 7).
 
-**Zweryfikuj programowo**: po treningu zamrożone parametry backbone'u są identyczne jak
-przed (gotowa asercja porównująca stan przed/po).
+Write the training loop for the head alone (you may, but do not have to,
+use the feature caching from the lecture -- it speeds up training, but is
+not required). Set the model to the correct mode (`train()`/`eval()`) so
+that **the backbone's BatchNorm statistics do not change** -- this is
+exactly the bug discussed in the lecture (*Common misconceptions*
+section); here you have to avoid it yourself, not just read about it.
 
-Zanotuj: accuracy walidacyjna i czas treningu.
+**Verify programmatically**: after training, the backbone's frozen
+parameters are identical to before (a provided assertion compares the
+before/after state).
 
-## 6. Częściowy fine-tuning — Twoje zadanie
+Record: validation accuracy and training time.
 
-Odmroź **`layer4`** (ostatni blok konwolucyjny ResNet18) razem z głowicą. Zbuduj
-optymalizator z **dwiema grupami parametrów** o różnych learning rate — mniejszy dla
-`layer4`, większy dla głowicy (uzasadnienie w `lecture.md`, sekcja *Matematyka*).
+## 6. Partial fine-tuning -- your task
 
-**Zadanie (Markdown, 2-3 zdania):** jakie wartości learning rate wybrałaś/eś dla obu
-grup i dlaczego akurat taki stosunek między nimi?
+Unfreeze **`layer4`** (ResNet18's last convolutional block) together with
+the head. Build an optimizer with **two parameter groups** at different
+learning rates -- smaller for `layer4`, larger for the head (justification
+in `lecture.en.md`, *Mathematics* section).
 
-Zweryfikuj programowo: zamrożona część backbone'u (`layer1`-`layer3`) się nie zmieniła,
-`layer4` i głowica faktycznie się zmieniły.
+**Task (Markdown, 2-3 sentences):** what learning rate values did you
+choose for the two groups, and why that specific ratio between them?
 
-## 7. Zadanie diagnostyczne — Twoje zadanie
+Verify programmatically: the frozen part of the backbone (`layer1`-`layer3`)
+did not change, `layer4` and the head actually did change.
 
-Poniższy kod (w notebooku) **nie działa poprawnie** — strata w ogóle nie maleje mimo
-wielu kroków treningu, accuracy zostaje na poziomie przypadkowego zgadywania. Kod nie
-rzuca żadnego wyjątku — wygląda na poprawny.
+## 7. Diagnostic task -- your task
 
-**Zadanie (Markdown, 4-6 zdań):** znajdź przyczynę, odwołując się do **konkretnej
-linii** kodu i do tego, co faktycznie obserwujesz (strata, `requires_grad`, zawartość
-`optimizer.param_groups`). Nie wystarczy "coś jest nie tak z optymalizatorem" — wskaż
-dokładnie, który obiekt dostaje aktualizacje, a który powinien, ale ich nie dostaje, i
-dlaczego to się nie rzuca w oczy przy samym sprawdzeniu `requires_grad`.
+The following code (in the notebook) **does not work correctly** -- the
+loss does not decrease at all despite many training steps, accuracy stays
+at the level of random guessing. The code raises no exception -- it looks
+correct.
 
-(Podpowiedź do weryfikacji, nie do razu do rozwiązania: porównaj `id()` obiektu w
-`optimizer.param_groups` z `id(model.fc.weight)` już **po** uruchomieniu komórki z
-błędem.)
+**Task (Markdown, 4-6 sentences):** find the cause, referring to a
+**specific line** of code and to what you actually observe (the loss,
+`requires_grad`, the contents of `optimizer.param_groups`). It is not
+enough to say "something is wrong with the optimizer" -- point out exactly
+which object gets updates, and which one should but does not, and why this
+is not obvious from checking `requires_grad` alone.
 
-## 8. Porównanie strategii i wpływ ustawień — Twoje zadanie
+(A hint for verifying, not for solving right away: compare the `id()` of
+the object in `optimizer.param_groups` with `id(model.fc.weight)` **after**
+running the buggy cell.)
 
-Zestaw wyniki zamrożonego backbone'u (sekcja 5) i częściowego fine-tuningu (sekcja 6):
-accuracy walidacyjna i testowa, liczba trenowalnych parametrów, czas treningu. Zbiór
-testowy wykorzystujesz tutaj **po raz pierwszy**, po wyborze lepszej konfiguracji na
-podstawie walidacji.
+## 8. Comparing strategies and the effect of settings -- your task
 
-**Zadanie:** zbadaj wpływ **jednego** ustawienia na wynik częściowego fine-tuningu — do
-wyboru: inny stosunek $\eta_{\text{backbone}}/\eta_{\text{head}}$ (np. $10\times$ vs
-$100\times$ mniejszy) **albo** inny zakres odmrażania (`layer3`+`layer4` zamiast
-samego `layer4`). Krótko uzasadnij wybór i zinterpretuj wynik.
+Compile the results of the frozen backbone (section 5) and partial
+fine-tuning (section 6): validation and test accuracy, number of
+trainable parameters, training time. You use the test set here **for the
+first time**, after choosing the better configuration based on validation.
 
-## 9. Confusion matrix i analiza błędów — Twoje zadanie
+**Task:** investigate the effect of **one** setting on the result of
+partial fine-tuning -- choose either a different
+$\eta_{\text{backbone}}/\eta_{\text{head}}$ ratio (e.g. $10\times$ vs.
+$100\times$ smaller) **or** a different unfreezing range (`layer3`+`layer4`
+instead of `layer4` alone). Briefly justify the choice and interpret the
+result.
 
-Dla lepszej (według walidacji) strategii: confusion matrix na zbiorze testowym (gotowa
-funkcja do rysowania czeka na dane) i analiza 6-8 błędnie sklasyfikowanych przykładów.
+## 9. Confusion matrix and error analysis -- your task
 
-**Zadanie (Markdown, 3-5 zdań):** które klasy użycia terenu są najczęściej mylone?
-Patrząc na same obrazy — czy pomyłki wydają się sensowne (podobny wygląd terenu z
-lotu ptaka, np. różne typy upraw) czy przypadkowe?
+For the better (by validation) strategy: a confusion matrix on the test
+set (a provided function is waiting for the data) and an analysis of 6-8
+misclassified examples.
 
-## 10. Wnioski — Twoje zadanie
+**Task (Markdown, 3-5 sentences):** which land-use classes are most often
+confused? Looking at the images themselves -- do the mistakes look
+sensible (similar bird's-eye appearance of terrain, e.g. different crop
+types) or random?
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 5-9:
+## 10. Conclusions -- your task
 
-1. Wróć do swojej intuicji z sekcji 1 — czy transfer learning z ImageNet rzeczywiście
-   pomógł na danych tak odległych wizualnie (zdjęcia satelitarne)? Jak duża jest
-   różnica względem tego, czego się spodziewałaś/eś?
-2. Czy częściowy fine-tuning dał **mierzalną** korzyść względem samego zamrożonego
-   backbone'u, czy tylko zwiększył koszt? Porównaj z wynikiem z wykładu (Caltech101) —
-   czy odpowiedź jest taka sama, czy różna? Co to mówi o tym, kiedy warto inwestować w
-   fine-tuning, a kiedy nie?
-3. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar podzbioru,
-   liczba epok, konkretny zakres odmrażania), które nie pozwala uogólnić wniosków na
-   "strategia X jest zawsze lepsza dla danych satelitarnych"?
+Answer, justified with actual numbers from sections 5-9:
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+1. Go back to your intuition from section 1 -- did transfer learning from
+   ImageNet actually help on data this visually distant (satellite
+   imagery)? How large is the difference from what you expected?
+2. Did partial fine-tuning give a **measurable** benefit over the frozen
+   backbone alone, or did it only increase the cost? Compare with the
+   lecture's result (Caltech101) -- is the answer the same, or different?
+   What does that say about when it is worth investing in fine-tuning, and
+   when it is not?
+3. What is at least one limitation of this experiment (subset size, number
+   of epochs, the specific unfreezing range) that prevents you from
+   generalizing the conclusions to "strategy X is always better for
+   satellite data"?
 
-| Blok | Czas |
+## Time budget (approximate, not verified in class)
+
+| Block | Time |
 |---|---|
-| Sekcje 0-1 (konfiguracja, eksploracja) | 10 min |
-| Sekcja 2 (preprocessing + weryfikacja) | 10 min |
-| Sekcja 3 (podział, gotowe) | 5 min |
-| Sekcja 4 (wymiana głowicy + weryfikacja) | 10 min |
-| Sekcja 5 (zamrożony backbone + trening głowicy) | 20 min |
-| Sekcja 6 (częściowy fine-tuning, 2 grupy LR) | 20 min |
-| Sekcja 7 (zadanie diagnostyczne) | 15 min |
-| Sekcja 8 (porównanie + wpływ ustawień) | 15 min |
-| Sekcja 9 (confusion matrix + błędy) | 10 min |
-| Sekcja 10 (wnioski) | 10 min |
+| Sections 0-1 (setup, exploration) | 10 min |
+| Section 2 (preprocessing + verification) | 10 min |
+| Section 3 (split, provided) | 5 min |
+| Section 4 (replacing the head + verification) | 10 min |
+| Section 5 (frozen backbone + training the head) | 20 min |
+| Section 6 (partial fine-tuning, 2 LR groups) | 20 min |
+| Section 7 (diagnostic task) | 15 min |
+| Section 8 (comparison + effect of settings) | 15 min |
+| Section 9 (confusion matrix + errors) | 10 min |
+| Section 10 (conclusions) | 10 min |
 
-Sekcje 0-9 to rdzeń obowiązkowy. Trening na zredukowanym podzbiorze (500 obrazów)
-trwa pojedyncze do kilkudziesięciu sekund na CPU — budżet czasowy ma iść w decyzje
-projektowe i analizę, nie w czekanie na trening.
+Sections 0-9 are the mandatory core. Training on the reduced subset (500
+images) takes a few to a few dozen seconds on CPU -- the time budget
+should go into design decisions and analysis, not waiting for training.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** trening od zera (bez wag
-pretrained) jako dodatkowy punkt odniesienia — ile accuracy traci się, rezygnując z
-transfer learningu całkowicie na tym zadaniu? Albo: pełny fine-tuning (wszystkie
-warstwy odmrożone) — czy daje coś więcej niż częściowy, i jakim kosztem?
+**Extension (optional, if time remains):** training from scratch (without
+pretrained weights) as an additional reference point -- how much accuracy
+is lost by giving up transfer learning entirely on this task? Or: full
+fine-tuning (all layers unfrozen) -- does it give anything beyond partial,
+and at what cost?
 
-## Kryteria oceny
+## Grading criteria
 
-- Preprocessing zgodny z wagami pretrained (`weights.transforms()`, nie ręczna
-  normalizacja "na oko"); asercja kształtu przechodzi.
-- Zamrożenie backbone'u w sekcji 5 faktycznie nie zmienia jego parametrów (asercja
-  przechodzi) i nie zmienia statystyk BatchNorm (poprawny tryb modelu).
-- Częściowy fine-tuning w sekcji 6 używa dwóch grup parametrów z różnym LR; zamrożona
-  część backbone'u faktycznie się nie zmienia.
-- Zadanie diagnostyczne (sekcja 7) wskazuje konkretną przyczynę w kodzie, nie ogólnik.
-- Zbiór testowy pojawia się dopiero w sekcji 8, po wyborze na podstawie walidacji.
-- Wnioski w sekcji 10 odwołują się do konkretnych liczb z Twojego przebiegu i
-  jawnie porównują z wynikiem z wykładu, nie do ogólników.
+- Preprocessing consistent with the pretrained weights
+  (`weights.transforms()`, not a hand-rolled "by eye" normalization); the
+  shape assertion passes.
+- Freezing the backbone in section 5 actually does not change its
+  parameters (the assertion passes) and does not change BatchNorm
+  statistics (correct model mode).
+- Partial fine-tuning in section 6 uses two parameter groups with
+  different LR; the frozen part of the backbone actually does not change.
+- The diagnostic task (section 7) points to a specific cause in the code,
+  not a generality.
+- The test set appears only in section 8, after a selection based on
+  validation.
+- The conclusions in section 10 refer to specific numbers from your own
+  run and explicitly compare with the lecture's result, not to
+  generalities.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/07_transfer_learning/`) i nie jest częścią tego repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/07_transfer_learning/`) and is not part of this
+repository.

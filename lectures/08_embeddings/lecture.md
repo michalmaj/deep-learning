@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 08 — Od reprezentacji do podobieństwa: embeddingi i geometria przestrzeni cech
 
 ## Cele wykładu

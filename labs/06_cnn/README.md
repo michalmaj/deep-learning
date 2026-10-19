@@ -1,172 +1,173 @@
-# Laboratorium 06: projektowanie, trenowanie i analiza CNN do klasyfikacji obrazów
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/06_cnn/lecture.md`](../../lectures/06_cnn/lecture.md)
-(konwolucja, `Conv2d`, pooling, liczba parametrów, pole recepcyjne), ale na
-**innym zbiorze danych** niż wykład — KMNIST (odręcznie pisane znaki
-kuzushiji: `o, ki, su, tsu, na, ha, ma, ya, re, wo`), nie Fashion-MNIST, i
-na innym pytaniu: nie "CNN kontra MLP", ale "jak decyzje architektoniczne
-wewnątrz samej CNN wpływają na jakość, liczbę parametrów i koszt?".
+# Lab 06: designing, training, and analyzing a CNN for image classification
 
-> **Dlaczego KMNIST, a nie CIFAR-10?** CIFAR-10 był pierwszym kandydatem,
-> ale w tym środowisku jego pobranie zmierzono na ok. 90 minut — zbyt
-> długo na zajęcia. KMNIST pobiera się w ok. 75 sekund i ma te same
-> wymiary co Fashion-MNIST z wykładu ($28\times28$, skala szarości), więc
-> umiejętności liczenia kształtów przenoszą się 1:1. Jeśli Twoje
-> środowisko ma szybsze łącze, możesz w ramach rozszerzenia spróbować
-> tego samego notebooka na CIFAR-10 — wymaga to zmiany kilku stałych
-> (liczba kanałów wejściowych z 1 na 3, rozmiar obrazu z 28 na 32).
+Time: about 2 hours. Builds on [`lectures/06_cnn/lecture.en.md`](../../lectures/06_cnn/lecture.en.md)
+(convolution, `Conv2d`, pooling, parameter count, receptive field), but uses
+a **different dataset** than the lecture -- KMNIST (handwritten kuzushiji
+characters: `o, ki, su, tsu, na, ha, ma, ya, re, wo`), not Fashion-MNIST, and
+asks a different question: not "CNN vs. MLP", but "how do architectural
+decisions inside a CNN itself affect quality, parameter count, and cost?".
 
-## 0. Konfiguracja (gotowe)
+> **Why KMNIST, not CIFAR-10?** CIFAR-10 was the first candidate, but in
+> this environment downloading it was measured at about 90 minutes -- too
+> long for a class. KMNIST downloads in about 75 seconds and has the same
+> dimensions as the Fashion-MNIST from the lecture ($28\times28$,
+> grayscale), so the shape-counting skills transfer 1:1. If your
+> environment has a faster connection, you can try the same notebook on
+> CIFAR-10 as an extension -- this requires changing a few constants
+> (number of input channels from 1 to 3, image size from 28 to 32).
 
-Import bibliotek, urządzenie (`cpu`/`cuda`), ziarno losowości.
+## 0. Setup (provided)
 
-## 1. Dane: struktura, rozkład klas, kształty tensorów (gotowe + krótkie zadanie)
+Library imports, device (`cpu`/`cuda`), random seed.
 
-KMNIST pobiera się automatycznie przez `torchvision.datasets.KMNIST` (nigdy
-nie trafia do repozytorium — zobacz [`data/registry.yml`](../../data/registry.yml)).
-Notebook wypisuje kształt pierwszego obrazu, liczbę przykładów w zbiorze
-treningowym/testowym i przykładowe obrazy z podpisami klas.
+## 1. Data: structure, class distribution, tensor shapes (provided + short task)
 
-**Zadanie (kod, 2-3 linie):** policz i wypisz liczbę przykładów każdej z
-10 klas w podzbiorze treningowym (`torch.bincount`). Zbiór jest w
-przybliżeniu zbalansowany czy nie? To ma znaczenie przy interpretacji
-accuracy później.
+KMNIST downloads automatically via `torchvision.datasets.KMNIST` (never
+committed to the repository -- see [`data/registry.yml`](../../data/registry.yml)).
+The notebook prints the shape of the first image, the number of examples in
+the training/test set, and sample images with their class labels.
 
-## 2. Podział na train/val/test i normalizacja bez przecieku — Twoje zadanie
+**Task (code, 2-3 lines):** count and print the number of examples of each
+of the 10 classes in the training subset (`torch.bincount`). Is the set
+roughly balanced or not? This matters when interpreting accuracy later.
 
-KMNIST ma już wydzielony zbiór testowy (osobny plik, inny niż treningowy).
-Brakuje zbioru walidacyjnego — wydziel go **z danych treningowych**
-(indeksy bez powtórzeń, gotowa funkcja `make_split` czeka na dokończenie).
+## 2. Train/val/test split and leak-free normalization -- your task
 
-Zaimplementuj `normalize_with_train_stats(X_train, X_val, X_test)`:
-średnia i odchylenie standardowe pikseli liczone **wyłącznie** na
-`X_train`, zastosowane (bez przeliczania) do `X_train`, `X_val` i
-`X_test`. To ten sam błąd przecieku z laboratorium 05, teraz na obrazach
-zamiast cech tabularnych — liczysz statystyki jednej liczby (średnia
-jasność pikseli), nie wektora, ale zasada jest identyczna.
+KMNIST already has a separate test set (a different file from the training
+one). It is missing a validation set -- carve one out **from the training
+data** (non-overlapping indices, the `make_split` function is waiting to be
+finished).
 
-Zweryfikuj: `X_train` po normalizacji ma średnią bliską 0 i odchylenie
-bliskie 1 (gotowa asercja to sprawdzi).
+Implement `normalize_with_train_stats(X_train, X_val, X_test)`: the mean and
+standard deviation of the pixels, computed **only** on `X_train`, applied
+(without recomputing) to `X_train`, `X_val`, and `X_test`. This is the same
+leakage bug from lab 05, now on images instead of tabular features -- you
+compute the statistics of a single number (mean pixel brightness), not a
+vector, but the principle is identical.
 
-## 3. Model bazowy (gotowe)
+Verify: after normalization, `X_train` has a mean close to 0 and a standard
+deviation close to 1 (a provided assertion checks this).
 
-Prosty liniowy klasyfikator (`Flatten` + jedna warstwa `Linear`) jako
-punkt odniesienia — nie jest CNN i nie wykorzystuje struktury 2D obrazu
-w żaden sposób. Jego accuracy to dolna granica, z którą porównasz swoje
-architektury.
+## 3. Baseline model (provided)
 
-## 4. Projekt Twojej CNN — Wariant 1 — Twoje zadanie
+A simple linear classifier (`Flatten` + a single `Linear` layer) as a
+reference point -- it is not a CNN and does not use the 2D structure of the
+image in any way. Its accuracy is the lower bound your architectures are
+compared against.
 
-Zaprojektuj i zaimplementuj klasę `CNNVariant1(nn.Module)` używając
-`nn.Conv2d`, funkcji aktywacji i (opcjonalnie) `nn.MaxPool2d` — wybierasz
-liczbę warstw konwolucyjnych, liczbę filtrów, rozmiar kernela, czy używać
-poolingu. Jedyny wymóg: model musi przyjąć tensor `(N, 1, 28, 28)` i
-zwrócić `(N, 10)`.
+## 4. Designing your CNN -- Variant 1 -- your task
 
-**Wymagany krok — weryfikacja kształtów:** po zdefiniowaniu klasy,
-przepuść przez model jeden przykładowy batch i wypisz kształt tensora
-**po każdej warstwie** (nie tylko na wyjściu). To jest dokładnie ten krok,
-który w praktyce zapobiega najczęstszemu błędowi przy pisaniu CNN —
-błędnie policzonemu rozmiarowi wejścia do `nn.Linear` po `flatten()`.
-Jeśli się nie zgadza — popraw, zanim przejdziesz dalej.
+Design and implement a `CNNVariant1(nn.Module)` class using `nn.Conv2d`, an
+activation function, and (optionally) `nn.MaxPool2d` -- you choose the
+number of convolutional layers, the number of filters, the kernel size,
+whether to use pooling. The only requirement: the model must accept a
+`(N, 1, 28, 28)` tensor and return `(N, 10)`.
 
-**Zadanie (Markdown, 2-3 zdania):** jakie wybory architektoniczne
-podjęłaś/podjąłeś (liczba warstw, filtry, kernel, pooling) i czym je
-uzasadniasz?
+**Required step -- shape verification:** after defining the class, run one
+sample batch through the model and print the tensor's shape **after every
+layer** (not just at the output). This is exactly the step that, in
+practice, prevents the most common bug when writing a CNN -- an incorrectly
+computed input size for `nn.Linear` after `flatten()`. If it does not match
+-- fix it before moving on.
 
-## 5. Trening i walidacja Wariantu 1 (pętla gotowa, Twoje wywołanie)
+**Task (Markdown, 2-3 sentences):** what architectural choices did you make
+(number of layers, filters, kernel, pooling), and how do you justify them?
 
-Funkcja `train_eval(model, epochs, lr, seed)` jest gotowa (ten sam wzorzec
-co w module 05/wykładzie 06) — wywołaj ją dla swojego modelu i zanotuj
-accuracy walidacyjną, liczbę parametrów i czas treningu.
+## 5. Training and validating Variant 1 (loop provided, your call)
 
-## 6. Projekt Wariantu 2 — Twoje zadanie
+The `train_eval(model, epochs, lr, seed)` function is provided (the same
+pattern as in module 05/lecture 06) -- call it for your model and record
+validation accuracy, parameter count, and training time.
 
-Zaprojektuj **drugi** wariant (`CNNVariant2`), różniący się od pierwszego
-w **co najmniej jednym konkretnym, uzasadnionym aspekcie** — np. inna
-liczba filtrów, inny rozmiar kernela, dodanie/usunięcie poolingu, inna
-głębokość. Przed napisaniem kodu zapisz (Markdown, 2-3 zdania) **jaką
-konkretną hipotezę sprawdzasz** tą zmianą (np. "więcej filtrów w pierwszej
-warstwie powinno poprawić accuracy, ale zwiększy liczbę parametrów i
-czas treningu").
+## 6. Designing Variant 2 -- your task
 
-Powtórz weryfikację kształtów z sekcji 4 dla tego wariantu.
+Design a **second** variant (`CNNVariant2`), differing from the first in
+**at least one specific, justified aspect** -- e.g. a different number of
+filters, a different kernel size, adding/removing pooling, a different
+depth. Before writing any code, write down (Markdown, 2-3 sentences) **what
+specific hypothesis you are testing** with this change (e.g. "more filters
+in the first layer should improve accuracy, but will increase parameter
+count and training time").
 
-## 7. Porównanie: baseline, Wariant 1, Wariant 2 — Twoje zadanie
+Repeat the shape verification from section 4 for this variant.
 
-Wytrenuj wszystkie trzy modele na **co najmniej 2 ziarnach losowości**
-(np. `seed=0` i `seed=1`) i zestaw wyniki w tabeli/wydruku: accuracy
-walidacyjna i testowa, liczba parametrów, zmierzony czas treningu i
-inferencji. Zbiór testowy wykorzystujesz tutaj **po raz pierwszy** w tym
-laboratorium (dopiero teraz, po wyborze na podstawie walidacji — tak jak
-w module 05).
+## 7. Comparison: baseline, Variant 1, Variant 2 -- your task
 
-## 8. Ocena jakości: confusion matrix i analiza błędów — Twoje zadanie
+Train all three models on **at least 2 random seeds** (e.g. `seed=0` and
+`seed=1`) and compile the results into a table/printout: validation and
+test accuracy, parameter count, measured training and inference time. You
+use the test set here **for the first time** in this lab (only now, after
+selecting a model based on validation -- just as in module 05).
 
-Dla swojego najlepszego (według walidacji) wariantu: narysuj confusion
-matrix na zbiorze testowym (gotowa funkcja do rysowania czeka na dane) i
-wypisz 6-8 błędnie sklasyfikowanych przykładów z prawdziwą i przewidzianą
-etykietą.
+## 8. Quality evaluation: confusion matrix and error analysis -- your task
 
-**Zadanie (Markdown, 3-5 zdań):** które klasy są najczęściej mylone ze
-sobą? Spójrz na pomylone przykłady (czy zapisane znaki wizualnie się
-przypominają?) — czy błędy modelu wydają się "sensowne" (podobne znaki) czy
-przypadkowe? Nie zgaduj z góry — opisz to, co faktycznie widzisz w swojej
-confusion matrix.
+For your best (by validation) variant: draw a confusion matrix on the test
+set (a provided function is waiting for the data) and print 6-8 misclassified
+examples with their true and predicted label.
 
-## 9. Wnioski — Twoje zadanie
+**Task (Markdown, 3-5 sentences):** which classes are most often confused
+with each other? Look at the misclassified examples (do the handwritten
+characters visually resemble each other?) -- do the model's errors look
+"sensible" (similar-looking characters) or random? Do not guess in advance --
+describe what you actually see in your confusion matrix.
 
-Odpowiedz (Markdown, uzasadnione rzeczywistymi liczbami z sekcji 7-8):
+## 9. Conclusions -- your task
 
-1. Który wariant CNN wygrał na walidacji? Czy to ten sam, który wygrał na
-   teście? Jeśli nie — co to mówi o wiarygodności pojedynczego porównania?
-2. Czy wariant z większą liczbą parametrów był też szybszy, czy wolniej
-   się trenował? Czy to, co zaobserwowałaś/eś, jest zgodne z intuicją
-   "mniej parametrów = mniej obliczeń", czy ją podważa?
-3. Czy wyższa accuracy treningowa Twojego najlepszego modelu oznacza, że
-   dobrze generalizuje? Po czym to oceniasz (odwołaj się do konkretnych
-   liczb z sekcji 7)?
-4. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar
-   podzbioru danych, liczba epok, konkretne ziarna losowości), które
-   nie pozwala Ci uogólnić wniosków na "Wariant X jest zawsze lepszy"?
+Answer (Markdown, justified with actual numbers from sections 7-8):
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+1. Which CNN variant won on validation? Is it the same one that won on the
+   test set? If not -- what does that say about the reliability of a single
+   comparison?
+2. Did the variant with more parameters also train faster, or slower? Is
+   what you observed consistent with the intuition "fewer parameters =
+   fewer computations," or does it contradict it?
+3. Does your best model's higher training accuracy mean it generalizes
+   well? What do you base that judgment on (refer to specific numbers from
+   section 7)?
+4. What is at least one limitation of this experiment (subset size, number
+   of epochs, specific random seeds) that prevents you from generalizing
+   the conclusions to "Variant X is always better"?
 
-| Blok | Czas |
+## Time budget (approximate, not verified in class)
+
+| Block | Time |
 |---|---|
-| Sekcje 0-1 (konfiguracja, eksploracja danych) | 10 min |
-| Sekcja 2 (podział + normalizacja bez przecieku) | 15 min |
-| Sekcja 3 (baseline, gotowe, orientacja) | 5 min |
-| Sekcja 4 (projekt Wariantu 1 + weryfikacja kształtów) | 30 min |
-| Sekcja 5 (trening Wariantu 1) | 5 min |
-| Sekcja 6 (projekt Wariantu 2 + hipoteza) | 20 min |
-| Sekcja 7 (porównanie, ≥2 ziarna) | 10 min |
-| Sekcja 8 (confusion matrix + analiza błędów) | 15 min |
-| Sekcja 9 (wnioski) | 10 min |
+| Sections 0-1 (setup, data exploration) | 10 min |
+| Section 2 (split + leak-free normalization) | 15 min |
+| Section 3 (baseline, provided, orientation) | 5 min |
+| Section 4 (Variant 1 design + shape verification) | 30 min |
+| Section 5 (training Variant 1) | 5 min |
+| Section 6 (Variant 2 design + hypothesis) | 20 min |
+| Section 7 (comparison, >=2 seeds) | 10 min |
+| Section 8 (confusion matrix + error analysis) | 15 min |
+| Section 9 (conclusions) | 10 min |
 
-Sekcje 0-8 to rdzeń obowiązkowy. Trening każdego wariantu na
-zredukowanym podzbiorze danych trwa pojedyncze sekundy na CPU — budżet
-czasowy ma iść w projektowanie i analizę, nie w czekanie na trening.
+Sections 0-8 are the mandatory core. Training each variant on the reduced
+data subset takes a few seconds on CPU -- the time budget should go into
+design and analysis, not waiting for training.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** trzeci wariant
-architektury; analiza precision/recall per-klasa (nie tylko ogólna
-accuracy); powtórzenie porównania na większym podzbiorze danych lub z
-większą liczbą epok, żeby sprawdzić, czy wnioski się utrzymują.
+**Extension (optional, if time remains):** a third architecture variant;
+per-class precision/recall analysis (not just overall accuracy); repeating
+the comparison on a larger data subset or with more epochs, to check
+whether the conclusions hold.
 
-## Kryteria oceny
+## Grading criteria
 
-- Normalizacja w sekcji 2 liczy statystyki tylko z `X_train` i stosuje je
-  (bez przeliczania) do `X_val`/`X_test`; asercja przechodzi.
-- Oba warianty CNN przyjmują `(N, 1, 28, 28)` i zwracają `(N, 10)`;
-  weryfikacja kształtów w sekcjach 4 i 6 jest obecna i poprawna.
-- Wariant 2 różni się od Wariantu 1 w konkretny, nazwany sposób — nie jest
-  kopią z przypadkową zmianą jednej cyfry bez uzasadnienia.
-- Porównanie w sekcji 7 obejmuje ≥2 ziarna losowości i raportuje accuracy
-  **razem z** liczbą parametrów i czasem, nie samą accuracy.
-- Zbiór testowy pojawia się dopiero w sekcji 7, po wyborze na podstawie
-  walidacji.
-- Wnioski w sekcji 9 odwołują się do konkretnych liczb z Twojego
-  przebiegu, nie do ogólników ani założeń z wykładu bez sprawdzenia.
+- The normalization in section 2 computes statistics only from `X_train`
+  and applies them (without recomputing) to `X_val`/`X_test`; the assertion
+  passes.
+- Both CNN variants accept `(N, 1, 28, 28)` and return `(N, 10)`; the shape
+  verification in sections 4 and 6 is present and correct.
+- Variant 2 differs from Variant 1 in a specific, named way -- it is not a
+  copy with a random single-digit change and no justification.
+- The comparison in section 7 covers >=2 random seeds and reports accuracy
+  **together with** parameter count and time, not accuracy alone.
+- The test set appears only in section 7, after a selection based on
+  validation.
+- The conclusions in section 9 refer to specific numbers from your own run,
+  not to generalities or unverified assumptions from the lecture.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/06_cnn/`) i nie jest częścią tego repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/06_cnn/`) and is not part of this repository.

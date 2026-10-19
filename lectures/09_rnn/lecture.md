@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 09 — Modelowanie sekwencji: od prostego RNN do LSTM i GRU
 
 ## Cele wykładu

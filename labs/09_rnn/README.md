@@ -1,190 +1,208 @@
-# Laboratorium 09: klasyfikacja wiadomości SMS (spam/ham) z RNN/LSTM/GRU
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/09_rnn/lecture.md`](../../lectures/09_rnn/lecture.md)
-(rekurencja, $h_t$, LSTM/GRU, padding), ale na **innym problemie** niż wykład —
-prawdziwa klasyfikacja tekstu (SMS Spam Collection), nie syntetyczne sekwencje.
+# Lab 09: SMS message classification (spam/ham) with RNN/LSTM/GRU
 
-## 0. Konfiguracja (gotowe)
+Time: about 2 hours. Builds on [`lectures/09_rnn/lecture.en.md`](../../lectures/09_rnn/lecture.en.md)
+(recurrence, $h_t$, LSTM/GRU, padding), but uses **a different problem**
+than the lecture -- real text classification (SMS Spam Collection), not
+synthetic sequences.
 
-Import bibliotek, urządzenie, ziarno losowości, `torch.set_num_threads(4)`.
+## 0. Setup (provided)
 
-## 1. Dane: SMS Spam Collection (gotowe + krótkie zadanie)
+Library imports, device, random seed, `torch.set_num_threads(4)`.
 
-5574 wiadomości SMS, etykieta `ham`/`spam`, pobierane bezpośrednio (plik tekstowy
-`label\ttext` na linię, zip ~200KB, SHA-256 zweryfikowany w kodzie — zobacz
-[`data/registry.yml`](../../data/registry.yml)).
+## 1. Data: SMS Spam Collection (provided + short task)
 
-**Zadanie:** policz i wypisz rozkład klas (`ham`/`spam`). Zbiór jest zbalansowany czy
-nie? Zanotuj — to ma znaczenie dla wyboru metryk w sekcji 10.
+5574 SMS messages, labeled `ham`/`spam`, downloaded directly (a text file
+with `label\ttext` per line, a ~200KB zip, SHA-256 verified in the code
+-- see [`data/registry.yml`](../../data/registry.yml)).
 
-## 2. Tokenizacja — Twoje zadanie
+**Task:** count and print the class distribution (`ham`/`spam`). Is the
+set balanced or not? Note this down -- it matters for the choice of
+metrics in section 10.
 
-Zaimplementuj `tokenize(text)`: prosty podział na tokeny (słowa + interpunkcja jako
-osobne tokeny, małe litery). Gotowy wzorzec wyrażenia regularnego czeka na
-dokończenie.
+## 2. Tokenization -- your task
 
-**Zadanie (Markdown, 2-3 zdania):** jakie są ograniczenia tak prostej tokenizacji?
-Pomyśl o odmianie słów (np. "free" vs "freee" w spamie celowo zniekształconym), o
-interpunkcji sklejonej ze słowami, i o tym, czego nauczymy się o tokenizacji
-podslownej (*subword*) dopiero w module 11.
+Implement `tokenize(text)`: a simple split into tokens (words +
+punctuation as separate tokens, lowercase). A provided regular-expression
+pattern is waiting to be finished.
 
-## 3. Podział train/val/test (gotowe)
+**Task (Markdown, 2-3 sentences):** what are the limitations of such
+simple tokenization? Think about word forms (e.g. "free" vs. "freee" in
+deliberately distorted spam), punctuation glued to words, and what you
+will only learn about subword tokenization in module 11.
 
-70/15/15, ziarno ustalone — żeby wyniki były porównywalne między Twoimi
-eksperymentami.
+## 3. Train/val/test split (provided)
 
-## 4. Słownik: tylko ze zbioru treningowego — Twoje zadanie
+70/15/15, a fixed seed -- so results are comparable across your
+experiments.
 
-Zbuduj słownik **wyłącznie** z `train_texts` (nigdy z val/test — dokładnie ta sama
-zasada co normalizacja w modułach 05-07, tylko tu dotyczy zbioru tokenów, nie
-statystyk liczbowych). Dodaj dwa specjalne tokeny:
+## 4. Vocabulary: only from the training set -- your task
 
-- `<PAD>` (id $0$) — wypełnienie do wspólnej długości w batchu, **nie** treść,
-- `<UNK>` (id $1$) — token nieznany (słowo spoza słownika treningowego, np. rzadkie
-  słowo widziane tylko w val/test).
+Build a vocabulary **exclusively** from `train_texts` (never from
+val/test -- exactly the same principle as the normalization in modules
+05-07, just applied here to a set of tokens instead of numerical
+statistics). Add two special tokens:
 
-Odrzuć tokeny występujące w treningu rzadziej niż `MIN_FREQ` razy (zmniejsza
-słownik, zmniejsza przeuczenie na rzadkich słowach).
+- `<PAD>` (id $0$) -- padding to a common length within a batch, **not**
+  content,
+- `<UNK>` (id $1$) -- the unknown token (a word outside the training
+  vocabulary, e.g. a rare word seen only in val/test).
 
-**Zadanie (kod):** zweryfikuj, że żaden token ze zbioru walidacyjnego/testowego, który
-nie wystąpił w treningu, nie powoduje błędu (powinien zostać zamieniony na `<UNK>`,
-nie rzucić wyjątkiem ani zostać pominięty po cichu).
+Drop tokens that occur in training fewer than `MIN_FREQ` times (shrinks
+the vocabulary, reduces overfitting to rare words).
 
-## 5. Tekst → sekwencja identyfikatorów i batche o zmiennej długości (gotowe)
+**Task (code):** verify that no token from the validation/test set that
+did not occur in training causes an error (it should be mapped to
+`<UNK>`, not raise an exception or be silently dropped).
 
-Funkcje `encode()` i `make_batch_tensors()` zamieniają listę tokenów na identyfikatory
-i budują padded batch **razem z tensorem rzeczywistych długości** `lengths` — ten
-tensor jest kluczowy dla poprawnej obsługi paddingu w sekcji 7.
+## 5. Text -> sequence of identifiers and variable-length batches (provided)
 
-Sprawdź: dwie wiadomości o różnej długości w tym samym batchu — jaki jest kształt
-wynikowego tensora? Co się stało z krótszą wiadomością?
+The `encode()` and `make_batch_tensors()` functions turn a list of tokens
+into identifiers and build a padded batch **together with a tensor of
+the real lengths** `lengths` -- this tensor is critical for correctly
+handling padding in section 7.
 
-Tuż za tą sekcją notebook definiuje `train_eval(model_cls, vocab_size, epochs, lr,
-seed, **model_kwargs)` (gotowe, używane przez wszystkie modele w dalszej części
-laboratorium) — monitoruje stratę treningową i walidacyjną po każdej epoce i zwraca
-wytrenowany model.
+Check: two messages of different length in the same batch -- what is the
+shape of the resulting tensor? What happened to the shorter message?
 
-## 6. Baseline bez kolejności — Twoje zadanie
+Right after this section, the notebook defines `train_eval(model_cls,
+vocab_size, epochs, lr, seed, **model_kwargs)` (provided, used by every
+model in the rest of the lab) -- it tracks the training and validation
+loss after every epoch and returns the trained model.
 
-Zbuduj klasyfikator oparty na **uśrednieniu embeddingów tokenów** (bez żadnej
-warstwy rekurencyjnej) — dokładnie jak w wykładzie, eksperyment C, ale tu uśrednienie
-musi pomijać padding (zobacz wykład: padding to nie treść). Podpowiedź: potrzebujesz
-maski `x != PAD_ID` przy liczeniu średniej, inaczej padding sztucznie "rozwadnia"
-reprezentację krótszych wiadomości. Wytrenuj go od razu (`train_eval`, gotowe
-wywołanie) — ta liczba będzie Twoim punktem odniesienia w sekcji 13.
+## 6. An order-blind baseline -- your task
 
-## 7. Klasyfikator `nn.Embedding` + `nn.GRU`/`nn.LSTM` — Twoje zadanie
+Build a classifier based on **averaging token embeddings** (with no
+recurrent layer at all) -- exactly as in the lecture, experiment C, but
+here the averaging must skip padding (see the lecture: padding is not
+content). Hint: you need a mask `x != PAD_ID` when computing the mean,
+otherwise padding artificially "dilutes" the representation of shorter
+messages. Train it right away (`train_eval`, a provided call) -- this
+number will be your reference point in section 13.
 
-Zbuduj model: `nn.Embedding` → `nn.GRU` (lub `nn.LSTM`) → warstwa klasyfikacyjna.
+## 7. An `nn.Embedding` + `nn.GRU`/`nn.LSTM` classifier -- your task
 
-**To jest najważniejsza decyzja projektowa w tym laboratorium:** reprezentacją całej
-sekwencji do klasyfikacji musi być stan **po ostatnim rzeczywistym tokenie**, nie po
-ostatniej pozycji tensora (która może być paddingiem). Użyj
-`torch.nn.utils.rnn.pack_padded_sequence` przed przekazaniem do warstwy rekurencyjnej
-— to mechanizm, który informuje PyTorch o rzeczywistych długościach, żeby warstwa nie
-przetwarzała paddingu w ogóle.
+Build a model: `nn.Embedding` -> `nn.GRU` (or `nn.LSTM`) -> a
+classification layer.
 
-Zweryfikuj swoją implementację (gotowa asercja czeka): **ten sam tekst**, zakodowany
-osobno i zbatchowany razem z dłuższą wiadomością (więc inaczej dopełniony paddingiem),
-musi dać **identyczną** reprezentację w obu przypadkach. Jeśli asercja nie przechodzi —
-masz dokładnie ten błąd, który jest tematem sekcji diagnostycznej (sekcja 11) — ale tu
-oczekujemy, że Twoja implementacja jest już poprawna.
+**This is the single most important design decision in this lab:** the
+representation of the whole sequence for classification must be the
+state **after the last real token**, not after the last position of the
+tensor (which may be padding). Use
+`torch.nn.utils.rnn.pack_padded_sequence` before passing to the recurrent
+layer -- this is the mechanism that tells PyTorch the real lengths, so
+the layer does not process the padding at all.
 
-## 8. Trening klasyfikatora z sekcji 7 (pętla z sekcji 5 — gotowe wywołanie)
+Verify your implementation (a provided assertion is waiting): **the same
+text**, encoded on its own and batched together with a longer message
+(and so padded differently), must give an **identical** representation
+in both cases. If the assertion does not pass -- you have exactly the
+bug that is the topic of the diagnostic section (section 11) -- but here
+we expect your implementation to already be correct.
 
-Wytrenuj swój klasyfikator z sekcji 7 przez `train_eval` (ta sama funkcja, co w
-sekcji 6 dla baseline'u).
+## 8. Training the classifier from section 7 (the loop from section 5 -- a provided call)
 
-## 9. Porównanie ≥2 konfiguracji — Twoje zadanie
+Train your classifier from section 7 via `train_eval` (the same function
+as in section 6 for the baseline).
 
-Porównaj **co najmniej dwie** konfiguracje — do wyboru (uzasadnij w 2-3 zdaniach,
-dlaczego akurat te): GRU vs LSTM, różny wymiar stanu ukrytego, obecność/brak
-dropoutu, różna liczba epok. Użyj **tego samego** podziału danych i tych samych
-metryk dla każdej.
+## 9. Comparing >=2 configurations -- your task
 
-## 10. Ewaluacja na zbiorze testowym — Twoje zadanie
+Compare **at least two** configurations -- choose (and justify in 2-3
+sentences why these specifically): GRU vs. LSTM, a different hidden-state
+dimension, presence/absence of dropout, a different number of epochs.
+Use **the same** data split and the same metrics for each.
 
-Wybierz lepszą (według walidacji) konfigurację z sekcji 9. Oceń ją na zbiorze
-testowym (**pierwszy raz** w tym laboratorium) przy użyciu:
+## 10. Evaluation on the test set -- your task
+
+Choose the better (by validation) configuration from section 9. Evaluate
+it on the test set (**the first time** in this lab) using:
 
 - accuracy,
-- **macro-F1** (zbiór jest niezbalansowany — sekcja 1 — accuracy sama w sobie myli:
-  model, który zawsze przewiduje `ham`, miałby wysoką accuracy i zero użyteczności),
-- macierzy pomyłek.
+- **macro-F1** (the set is imbalanced -- section 1 -- accuracy alone is
+  misleading: a model that always predicts `ham` would have high
+  accuracy and zero usefulness),
+- a confusion matrix.
 
-## 11. Zadanie diagnostyczne
+## 11. Diagnostic task
 
-Poniższy kod (w notebooku) **wygląda** na poprawny — nie rzuca wyjątku, trenuje się,
-daje jakąś accuracy — ale ma błąd związany z obsługą paddingu.
+The following code (in the notebook) **looks** correct -- it raises no
+exception, it trains, it gives some accuracy -- but it has a bug related
+to padding handling.
 
-**Zadanie:**
-1. Zdiagnozuj błąd — na czym dokładnie polega, w której linii.
-2. Wyjaśnij, dlaczego jest istotny (kiedy się ujawnia, a kiedy nie — podpowiedź:
-   sprawdź dla batch_size=1 i dla batcha z sekwencjami o różnej długości).
-3. Popraw kod.
-4. Sprawdź zachowanie na sekwencjach różnej długości (gotowa asercja z sekcji 7
-   powinna teraz przechodzić).
+**Task:**
+1. Diagnose the bug -- exactly what it is, on which line.
+2. Explain why it matters (when it shows up, and when it does not --
+   hint: check for batch_size=1 and for a batch with sequences of
+   different lengths).
+3. Fix the code.
+4. Check the behavior on sequences of different lengths (the provided
+   assertion from section 7 should now pass).
 
-## 12. Analiza błędów — Twoje zadanie
+## 12. Error analysis -- your task
 
-Dla modelu z sekcji 10: wypisz 5-8 błędnie sklasyfikowanych wiadomości (tekst +
-prawdziwa/przewidziana etykieta). Czy błędy koncentrują się po jednej stronie (więcej
-`ham`→`spam` czy `spam`→`ham`)? Czy krótkie wiadomości są mylone częściej niż długie
-(policz średnią długość błędnie i poprawnie sklasyfikowanych)?
+For the model from section 10: print 5-8 misclassified messages (text +
+true/predicted label). Do the errors concentrate on one side (more
+`ham`->`spam` or `spam`->`ham`)? Are short messages confused more often
+than long ones (compute the average length of misclassified vs. correctly
+classified messages)?
 
-## 13. Wnioski — Twoje zadanie
+## 13. Conclusions -- your task
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 6-12:
+Answer, justified with actual numbers from sections 6-12:
 
-1. O ile model sekwencyjny (GRU/LSTM) przebija baseline bez kolejności? Czy ta
-   różnica jest duża, czy skromna — i co to mówi o tym, na ile ten **konkretny**
-   problem (klasyfikacja spamu) faktycznie wymaga rozumienia kolejności słów, w
-   porównaniu z zadaniem z wykładu (eksperyment C), które było tak skonstruowane,
-   żeby kolejność była jedyną rozstrzygającą informacją?
-2. Która z dwóch porównanych konfiguracji (sekcja 9) wypadła lepiej na walidacji?
-   Czy różnica jest wystarczająco duża, żeby zaufać jej na pojedynczym przebiegu?
-3. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar danych,
-   prosta tokenizacja, pojedyncze ziarno), które nie pozwala uogólnić wniosków?
+1. By how much does the sequential model (GRU/LSTM) beat the order-blind
+   baseline? Is this difference large or modest -- and what does that say
+   about how much this **specific** problem (spam classification) actually
+   requires understanding word order, compared to the lecture's task
+   (experiment C), which was specifically constructed so that order was the
+   only decisive information?
+2. Which of the two compared configurations (section 9) did better on
+   validation? Is the difference large enough to trust on a single run?
+3. What is at least one limitation of this experiment (data size, simple
+   tokenization, a single seed) that prevents you from generalizing the
+   conclusions?
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+## Time budget (approximate, not verified in class)
 
-| Blok | Czas |
+| Block | Time |
 |---|---|
-| Sekcje 0-1 (konfiguracja, eksploracja) | 10 min |
-| Sekcja 2 (tokenizacja + ograniczenia) | 10 min |
-| Sekcje 3-5 (słownik, PAD/UNK, kodowanie — gotowe/krótkie) | 15 min |
-| Sekcja 6 (baseline bez kolejności) | 15 min |
-| Sekcja 7 (klasyfikator GRU/LSTM + poprawny padding) | 25 min |
-| Sekcja 8 (trening) | 5 min |
-| Sekcja 9 (porównanie ≥2 konfiguracji) | 10 min |
-| Sekcja 10 (ewaluacja testowa) | 10 min |
-| Sekcja 11 (zadanie diagnostyczne) | 15 min |
-| Sekcja 12 (analiza błędów) | 10 min |
-| Sekcja 13 (wnioski) | 10 min |
+| Sections 0-1 (setup, exploration) | 10 min |
+| Section 2 (tokenization + limitations) | 10 min |
+| Sections 3-5 (vocabulary, PAD/UNK, encoding -- provided/short) | 15 min |
+| Section 6 (order-blind baseline) | 15 min |
+| Section 7 (GRU/LSTM classifier + correct padding) | 25 min |
+| Section 8 (training) | 5 min |
+| Section 9 (comparing >=2 configurations) | 10 min |
+| Section 10 (test evaluation) | 10 min |
+| Section 11 (diagnostic task) | 15 min |
+| Section 12 (error analysis) | 10 min |
+| Section 13 (conclusions) | 10 min |
 
-Sekcje 0-12 to rdzeń obowiązkowy. Trening na tym zbiorze trwa pojedyncze sekundy na
-CPU — budżet czasowy ma iść w poprawną implementację obsługi sekwencji i analizę, nie
-w czekanie na trening.
+Sections 0-12 are the mandatory core. Training on this dataset takes a
+few seconds on CPU -- the time budget should go into correctly
+implementing sequence handling and analysis, not waiting for training.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** dwukierunkowy GRU/LSTM
-(`bidirectional=True`) — czy pomaga na tym zadaniu? Albo: osobna analiza accuracy dla
-krótkich (<10 tokenów) i długich (>30 tokenów) wiadomości.
+**Extension (optional, if time remains):** a bidirectional GRU/LSTM
+(`bidirectional=True`) -- does it help on this task? Or: a separate
+accuracy analysis for short (<10 tokens) and long (>30 tokens) messages.
 
-## Kryteria oceny
+## Grading criteria
 
-- Słownik zbudowany wyłącznie z `train_texts`; `<UNK>` poprawnie obsługuje tokeny
-  spoza słownika bez błędu.
-- Klasyfikator z sekcji 7 używa `pack_padded_sequence` (albo równoważnego poprawnego
-  mechanizmu) — asercja "ten sam tekst, ta sama reprezentacja niezależnie od
-  paddingu" przechodzi.
-- Baseline z sekcji 6 poprawnie pomija padding przy uśrednianiu (nie tylko przy
-  klasyfikatorze rekurencyjnym).
-- Ewaluacja testowa (sekcja 10) używa accuracy **i** macro-F1 **i** confusion matrix,
-  nie samej accuracy.
-- Zbiór testowy pojawia się dopiero w sekcji 10, po wyborze konfiguracji na
-  podstawie walidacji.
-- Zadanie diagnostyczne (sekcja 11) wskazuje konkretną przyczynę, nie ogólnik.
-- Wnioski odwołują się do konkretnych liczb z Twojego przebiegu.
+- The vocabulary is built exclusively from `train_texts`; `<UNK>`
+  correctly handles out-of-vocabulary tokens without an error.
+- The classifier from section 7 uses `pack_padded_sequence` (or an
+  equivalent correct mechanism) -- the "same text, same representation
+  regardless of padding" assertion passes.
+- The baseline from section 6 correctly skips padding when averaging (not
+  only the recurrent classifier).
+- Test evaluation (section 10) uses accuracy **and** macro-F1 **and** a
+  confusion matrix, not accuracy alone.
+- The test set appears only in section 10, after a configuration choice
+  based on validation.
+- The diagnostic task (section 11) points to a specific cause, not a
+  generality.
+- The conclusions refer to specific numbers from your own run.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/09_rnn/`) i nie jest częścią tego repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/09_rnn/`) and is not part of this repository.
