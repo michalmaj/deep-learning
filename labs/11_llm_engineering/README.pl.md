@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 11: projektowanie i ocena niewielkiego pipeline'u inferencji LLM
 
 Czas: ok. 2 godziny (**105 minut rdzenia obowiązkowego + 15 minut bufora**).
