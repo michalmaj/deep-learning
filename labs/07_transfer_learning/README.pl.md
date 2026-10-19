@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 07: dostosowanie modelu pretrained do nowego problemu klasyfikacji obrazów
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/07_transfer_learning/lecture.md`](../../lectures/07_transfer_learning/lecture.md)
