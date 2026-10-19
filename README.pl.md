@@ -19,17 +19,18 @@ Sekwencja dydaktyczna przyjęta w materiałach:
 Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku.
 Trwa lokalizacja na język angielski — zobacz
 [angielską wersję tej strony](README.md) po aktualny status tego procesu
-modułu po module. Moduły 01-10 są już w pełni dostępne w obu językach —
-pierwsze dziesięć modułów, od podstaw PyTorcha po attention i Transformer,
-można przejść od początku do końca po angielsku.
+modułu po module. Moduły 01-13 są już w pełni dostępne w obu językach —
+pierwsze trzynaście modułów, od podstaw PyTorcha po inżynierię LLM,
+autoenkodery/VAE i modele dyfuzyjne, można przejść od początku do końca
+po angielsku.
 
 ## Struktura kursu
 
 Wszystkie 15 modułów są kompletne. Link w kolumnie "Wykład" prowadzi do
 `lecture.md`, link w kolumnie "Laboratorium" do instrukcji laboratorium
-(dla modułów 1-10 — do `README.pl.md`, polskiej wersji; dla pozostałych
-modułów — do `README.md`, które dla tych modułów jest wciąż
-polskojęzyczne, do czasu ich lokalizacji).
+(dla modułów 1-13 — do `README.pl.md`, polskiej wersji; dla modułów 14-15
+— do `README.md`, które dla tych modułów jest wciąż polskojęzyczne, do
+czasu ich lokalizacji).
 
 | # | Wykład | Laboratorium |
 |---|---|---|
@@ -43,9 +44,9 @@ polskojęzyczne, do czasu ich lokalizacji).
 | 8 | [Embeddingi i reprezentacje uczone](lectures/08_embeddings/lecture.md) | [Eksperymenty z embeddingami i podobieństwem](labs/08_embeddings/README.pl.md) |
 | 9 | [RNN, LSTM, GRU i dane sekwencyjne](lectures/09_rnn/lecture.md) | [Klasyfikacja sekwencji/tekstu](labs/09_rnn/README.pl.md) |
 | 10 | [Attention i Transformer](lectures/10_attention/lecture.md) | [Attention od podstaw + mały Transformer](labs/10_attention/README.pl.md) |
-| 11 | [Podstawy inżynierii LLM](lectures/11_llm_engineering/lecture.md) | [Tokenizacja, inferencja, Hugging Face](labs/11_llm_engineering/README.md) |
-| 12 | [Autoencodery i VAE](lectures/12_autoencoders/lecture.md) | [Przestrzeń latentna / wykrywanie anomalii](labs/12_autoencoders/README.md) |
-| 13 | [Generative AI i dyfuzja](lectures/13_diffusion/lecture.md) | [Mały eksperyment generatywny / analiza dyfuzji](labs/13_diffusion/README.md) |
+| 11 | [Podstawy inżynierii LLM](lectures/11_llm_engineering/lecture.md) | [Tokenizacja, inferencja, Hugging Face](labs/11_llm_engineering/README.pl.md) |
+| 12 | [Autoencodery i VAE](lectures/12_autoencoders/lecture.md) | [Przestrzeń latentna / wykrywanie anomalii](labs/12_autoencoders/README.pl.md) |
+| 13 | [Generative AI i dyfuzja](lectures/13_diffusion/lecture.md) | [Mały eksperyment generatywny / analiza dyfuzji](labs/13_diffusion/README.pl.md) |
 | 14 | [Ewaluacja, interpretowalność, analiza błędów](lectures/14_evaluation_interpretability/lecture.md) | [Analiza błędów, Grad-CAM/interpretowalność](labs/14_evaluation_interpretability/README.md) |
 | 15 | [Produkcyjny DL: inferencja, koszt, monitoring, drift](lectures/15_production/lecture.md) | [Deployment/API/finalny eksperyment inżynierski](labs/15_production/README.md) |
 

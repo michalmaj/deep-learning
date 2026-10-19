@@ -1,295 +1,311 @@
-# Laboratorium 12: wykrywanie anomalii za pomocą autoenkodera i analiza ograniczeń rekonstrukcji
+Language: **English (default)** | [Polski](README.pl.md)
 
-Czas: ok. 120 minut. Bazuje na
-[`lectures/12_autoencoders/lecture.md`](../../lectures/12_autoencoders/lecture.md)
-(AE, VAE, przestrzeń latentna), ale to **inny problem** niż eksperyment
-wykładowy: nie generowanie nowych obrazów, a **detekcja anomalii** przez
-błąd rekonstrukcji — z naciskiem na to, **kiedy ta metoda zawodzi**, nie
-tylko na to, kiedy działa.
+# Lab 12: anomaly detection with an autoencoder, and analyzing reconstruction's limits
 
-**Dane**: Fashion-MNIST (MIT License — zobacz
-[`data/registry.yml`](../../data/registry.yml)). **Klasa normalna**:
-*Sneaker* (klasa 7) — wybrana, bo to spójna, jednoznaczna kategoria wizualna
-(konkretny typ obuwia). **Anomalie**: pozostałe 9 klas Fashion-MNIST
-(T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Bag, Ankle
-boot) — traktowane jako "wszystko, co nie jest sneakerem", pedagogicznie
-uzasadnione: w praktycznych zastosowaniach (np. kontrola jakości na linii
-produkcyjnej) "anomalia" często oznacza "coś spoza wąsko zdefiniowanej
-kategorii normalnej", nie jedną konkretną, znaną z góry klasę defektu.
+Time: about 120 minutes. Builds on
+[`lectures/12_autoencoders/lecture.en.md`](../../lectures/12_autoencoders/lecture.en.md)
+(AE, VAE, latent space), but this is **a different problem** than the
+lecture's experiment: not generating new images, but **anomaly
+detection** via reconstruction error -- with an emphasis on **when this
+method fails**, not only on when it works.
 
-❌ "To zadanie klasyfikacji na 10 klas, tylko inaczej nazwane."
+**Data**: Fashion-MNIST (MIT License -- see
+[`data/registry.yml`](../../data/registry.yml)). **Normal class**:
+*Sneaker* (class 7) -- chosen because it is a coherent, unambiguous visual
+category (a specific type of footwear). **Anomalies**: the remaining 9
+Fashion-MNIST classes (T-shirt/top, Trouser, Pullover, Dress, Coat,
+Sandal, Shirt, Bag, Ankle boot) -- treated as "anything that is not a
+sneaker," pedagogically justified: in practical applications (e.g.
+quality control on a production line), "anomaly" often means "something
+outside a narrowly defined normal category," not one specific, known-in-
+advance defect class.
 
-✅ **Nie** — model (autoenkoder) **nigdy** nie widzi etykiet klas podczas
-treningu, i **nigdy** nie widzi **żadnego** przykładu anomalii podczas
-treningu. Trenujemy wyłącznie na obrazach klasy normalnej, bez etykiet —
-sam fakt "wykrywania anomalii" musi wynikać z tego, jak dobrze model
-rekonstruuje to, czego się nauczył, vs to, czego nie widział.
+❌ "This is a 10-class classification task, just renamed."
 
-## 0. Konfiguracja (gotowe)
+✅ **No** -- the model (the autoencoder) **never** sees class labels
+during training, and **never** sees **any** anomaly example during
+training. We train exclusively on images of the normal class, with no
+labels -- the very fact of "detecting anomalies" must come from how well
+the model reconstructs what it learned vs. what it never saw.
 
-Import bibliotek, urządzenie, ziarno losowości, wczytanie Fashion-MNIST
+## 0. Setup (provided)
+
+Library imports, device, random seed, loading Fashion-MNIST
 (`torchvision.datasets.FashionMNIST`).
 
-## 1. Dane i podział — Twoje zadanie
+## 1. Data and split -- your task
 
-To jest **najważniejszy** krok metodologiczny tego laboratorium — błąd tutaj
-podważa wszystko, co następuje.
+This is the **most important** methodological step in this lab -- a
+mistake here undermines everything that follows.
 
-Zbuduj **cztery** rozłączne podzbiory, **bez** przecieku informacji między
-nimi:
+Build **four** disjoint subsets, with **no** information leakage between
+them:
 
-1. **`ae_train`** — obrazy **wyłącznie** klasy normalnej (Sneaker), z
-   oryginalnego zbioru treningowego Fashion-MNIST. Autoenkoder widzi
-   **tylko to**.
-2. **`val_normal`** — **inne** obrazy klasy normalnej, z tego samego
-   oryginalnego zbioru treningowego (rozłączne z `ae_train` — podziel zbiór
-   treningowy klasy 7 na dwie części, np. `torch.randperm` + slicing).
-3. **`val_anomaly`** — próbka obrazów **innych** klas, też z oryginalnego
-   zbioru treningowego Fashion-MNIST (np. po równej liczbie z każdej z 9
-   klas).
-4. **`test_normal`**/**`test_anomaly`** — z **oryginalnego zbioru
-   testowego** Fashion-MNIST (osobny, nigdy nie dotykany do tego momentu),
-   odpowiednio: wszystkie obrazy klasy 7, i próbka obrazów innych klas.
+1. **`ae_train`** -- images of **only** the normal class (Sneaker), from
+   the original Fashion-MNIST training set. The autoencoder sees **only
+   this**.
+2. **`val_normal`** -- **other** images of the normal class, from the
+   same original training set (disjoint from `ae_train` -- split class
+   7's training set into two parts, e.g. `torch.randperm` + slicing).
+3. **`val_anomaly`** -- a sample of images from **other** classes, also
+   from the original Fashion-MNIST training set (e.g. an equal number
+   from each of the 9 classes).
+4. **`test_normal`**/**`test_anomaly`** -- from the **original
+   Fashion-MNIST test set** (separate, never touched until this point),
+   respectively: all class-7 images, and a sample of images from other
+   classes.
 
-**Zasada, której nie można złamać w żadnym późniejszym kroku:** `test_*`
-**nie może** wpływać na żadną decyzję (architektura, hiperparametry, próg
-detekcji) — używamy go **wyłącznie** do końcowej oceny, raz.
+**A rule that must not be broken at any later step:** `test_*` **must
+not** influence any decision (architecture, hyperparameters, detection
+threshold) -- we use it **only** for the final evaluation, once.
 
-❌ "Mogę potem 'douczyć' albo dostosować próg na podstawie wyników na
-zbiorze testowym, skoro i tak już go mam."
+❌ "I can later 'fine-tune' or adjust the threshold based on the results
+on the test set, since I already have it anyway."
 
-✅ To jest **dokładnie** błąd metodologiczny, który badamy w zadaniu
-diagnostycznym (sekcja 7). Jeśli test wpłynie na jakąkolwiek decyzję, zmierzony
-wynik przestaje być wiarygodnym oszacowaniem działania na nowych danych.
+✅ This is **exactly** the methodological bug we investigate in the
+diagnostic task (section 7). If the test set influences any decision, the
+measured result stops being a trustworthy estimate of performance on new
+data.
 
-**Zadanie (kod):** wypisz rozmiary wszystkich czterech/pięciu podzbiorów i
-**sprawdź programowo** (nie "na oko"), że żadne dwa z nich się nie
-nakładają (np. przez porównanie indeksów, nie tylko rozmiarów).
+**Task (code):** print the sizes of all four/five subsets and **verify
+programmatically** (not "by eye") that no two of them overlap (e.g. by
+comparing indices, not just sizes).
 
-## 2. Autoenkoder — architektura i trening — Twoje zadanie
+## 2. Autoencoder -- architecture and training -- your task
 
-Zbuduj mały AE (MLP, wzorem wykładu): `encoder` do wymiaru latentnego $d_e$,
-`decoder` z powrotem do $28\times 28$, strata MSE.
+Build a small AE (MLP, following the lecture's pattern): an `encoder` to
+a latent dimension $d_e$, a `decoder` back to $28\times 28$, MSE loss.
 
-**Zadanie:** zaimplementuj klasę `AE(nn.Module)` i funkcję treningową.
-Wytrenuj **wyłącznie** na `ae_train` (nigdy na `val_*` czy `test_*`).
-Zacznij od $d_e=16$ — to jest Twój **główny** model dla sekcji 3-7.
+**Task:** implement the `AE(nn.Module)` class and a training function.
+Train it **only** on `ae_train` (never on `val_*` or `test_*`). Start
+with $d_e=16$ -- this is your **main** model for sections 3-7.
 
-**Uwaga o koszcie**: ten trening jest **bardzo** szybki na CPU (ułamek
-sekundy do kilku sekund, zależnie od liczby epok/rozmiaru zbioru) — budżet
-czasowy tego laboratorium idzie w **analizę**, nie w czekanie na trening.
+**A note on cost**: this training is **very** fast on CPU (a fraction of
+a second to a few seconds, depending on the number of epochs/dataset
+size) -- this lab's time budget should go into **analysis**, not into
+waiting for training.
 
-## 3. Błąd rekonstrukcji i rozkłady normalne vs anomalie — Twoje zadanie
+## 3. Reconstruction error and the normal-vs-anomaly distributions -- your task
 
-Zaimplementuj `per_image_error(model, X)` — błąd rekonstrukcji **per obraz**
-(nie zagregowany po całym zbiorze): `((x_hat - x)**2).flatten(1).mean(dim=1)`.
+Implement `per_image_error(model, X)` -- the reconstruction error **per
+image** (not aggregated over the whole set):
+`((x_hat - x)**2).flatten(1).mean(dim=1)`.
 
-Policz ten błąd dla `val_normal` i `val_anomaly`. **Zwizualizuj** oba
-rozkłady (histogram albo nakładające się wykresy gęstości) na jednym
-wykresie. Policz średnią/odchylenie standardowe/medianę dla każdego z nich.
+Compute this error for `val_normal` and `val_anomaly`. **Visualize** both
+distributions (a histogram or overlapping density plots) on one plot.
+Compute the mean/standard deviation/median for each.
 
-❌ "Jeśli oba rozkłady się w ogóle nakładają, metoda jest bezużyteczna."
+❌ "If the two distributions overlap at all, the method is useless."
 
-✅ Częściowe nakładanie się jest **normalne** i oczekiwane — pytanie nie
-jest "czy rozkłady się nakładają", ale "jak dobrze **rozdzielają** się przy
-**konkretnym** wyborze progu" (sekcja 4) i "co się dzieje w regionie
-nakładania" (sekcja 6, analiza błędów).
+✅ Partial overlap is **normal** and expected -- the question is not "do
+the distributions overlap," but "how well do they **separate** at a
+**specific** threshold choice" (section 4) and "what happens in the
+overlap region" (section 6, error analysis).
 
-## 4. Wybór progu — Twoje zadanie
+## 4. Choosing a threshold -- your task
 
-Ustaw próg detekcji **wyłącznie** na podstawie rozkładu błędu `val_normal`
-(np. średnia + $k\times$ odchylenie standardowe, dla wybranego przez Ciebie
-$k$ — uzasadnij wybór). **Nie** używaj `val_anomaly` do wyboru progu — to
-jest jawnie **walidacyjnie nadzorowana** procedura (masz etykiety w
-walidacji i decydujesz na ich podstawie o architekturze/hiperparametrach
-ogólnie), ale wybór **konkretnej wartości progu** oparty tylko na
-rozkładzie klasy normalnej jest bliższy praktycznemu scenariuszowi, w
-którym anomalii nie masz w ogóle podczas konfiguracji systemu.
+Set the detection threshold **only** based on the `val_normal` error
+distribution (e.g. mean + $k\times$ standard deviation, for a $k$ of your
+choice -- justify the choice). **Do not** use `val_anomaly` to choose the
+threshold -- this is explicitly a **validation-supervised** procedure
+(you have labels in validation and decide the architecture/
+hyperparameters in general based on them), but choosing the **specific
+threshold value** based only on the normal class's distribution is closer
+to the practical scenario where you have no anomalies at all while
+configuring the system.
 
-❌ "To jest w pełni nienadzorowana (*unsupervised*) detekcja anomalii."
+❌ "This is fully unsupervised anomaly detection."
 
-✅ **Nieprawda, nazwij to precyzyjnie.** Masz dostęp do etykiet w całym
-procesie przygotowania danych (wiesz, które obrazy są "normalne") — to
-**walidacyjnie nadzorowana** procedura, nie w pełni nienadzorowana. Prawdziwie
-nienadzorowana detekcja anomalii (bez żadnych etykiet, nawet dla "normalnych"
-danych) to inne, trudniejsze zadanie, poza zakresem tego laboratorium.
+✅ **Not true, name it precisely.** You have access to labels throughout
+the data-preparation process (you know which images are "normal") -- this
+is a **validation-supervised** procedure, not fully unsupervised. Truly
+unsupervised anomaly detection (with no labels at all, even for "normal"
+data) is a different, harder task, out of scope for this lab.
 
-## 5. Metryki na zbiorze testowym — Twoje zadanie
+## 5. Metrics on the test set -- your task
 
-**Najpierw, na małym przykładzie z znanym wynikiem** (zanim użyjesz
-prawdziwych danych): dla `scores = [0.1,0.2,0.3,0.4,0.9, 0.5,0.6,0.7,0.8,1.0]`,
-`labels = [0,0,0,0,0, 1,1,1,1,1]` (pierwsza piątka normalna, druga anomalia),
-próg $=0{,}45$ — **policz ręcznie** (na papierze albo w komentarzu) TP/FP/
-TN/FN, precision/recall/F1, **potem** zweryfikuj swoim kodem, że wynik się
-zgadza (oczekiwane: TP=5, FP=1, TN=4, FN=0, precision$\approx 0{,}833$,
-recall$=1{,}0$, F1$\approx 0{,}909$).
+**First, on a small example with a known result** (before using the real
+data): for `scores = [0.1,0.2,0.3,0.4,0.9, 0.5,0.6,0.7,0.8,1.0]`,
+`labels = [0,0,0,0,0, 1,1,1,1,1]` (the first five normal, the second five
+anomalies), threshold $=0.45$ -- **compute by hand** (on paper or in a
+comment) TP/FP/TN/FN, precision/recall/F1, **then** verify with your code
+that the result matches (expected: TP=5, FP=1, TN=4, FN=0,
+precision$\approx 0.833$, recall$=1.0$, F1$\approx 0.909$).
 
-**Uwaga**: w tym repozytorium `scikit-learn` **nie jest** zainstalowany —
-zaimplementuj ROC-AUC i PR-AUC (*average precision*) ręcznie:
+**Note**: `scikit-learn` is **not** installed in this repository --
+implement ROC-AUC and PR-AUC (*average precision*) by hand:
 
-- **ROC-AUC** przez porównanie par (ranking): $P(\text{score}_{\text{anomalia}}
-  > \text{score}_{\text{normalny}})$ po wszystkich parach (możesz użyć
-  rangowania, nie musi być $O(n^2)$ dla dużych zbiorów — ale dla
-  **weryfikacji** na małym przykładzie, $O(n^2)$ przez dwie pętle jest ok i
-  pomaga sprawdzić poprawność szybszej wersji).
-- **PR-AUC** (*average precision*): sortuj przykłady po score malejąco,
-  dla każdego **prawdziwie pozytywnego** (anomalia) policz precision w tym
-  miejscu rankingu, policz średnią tych precyzji.
+- **ROC-AUC** via pairwise comparison (ranking): $P(\text{score}_{\text{anomaly}}
+  > \text{score}_{\text{normal}})$ over all pairs (you may use ranking,
+  it need not be $O(n^2)$ for large sets -- but for **verification** on
+  the small example, $O(n^2)$ via two loops is fine and helps check the
+  correctness of the faster version).
+- **PR-AUC** (*average precision*): sort examples by score in decreasing
+  order, for each **true positive** (anomaly) compute precision at that
+  point in the ranking, average those precisions.
 
-Policz **na prawdziwych danych testowych** (sekcja 1): precision, recall,
-F1, macierz pomyłek (2×2), ROC-AUC, PR-AUC.
+Compute, **on the real test data** (section 1): precision, recall, F1, a
+2x2 confusion matrix, ROC-AUC, PR-AUC.
 
-❌ "ROC-AUC/PR-AUC to ostateczna miara jakości modelu detekcji anomalii —
-nie potrzebuję nic więcej."
+❌ "ROC-AUC/PR-AUC is the ultimate quality measure for an anomaly-
+detection model -- I don't need anything else."
 
-✅ ROC-AUC/PR-AUC oceniają **ranking** (czy anomalie generalnie mają wyższy
-błąd niż normalne przykłady, niezależnie od konkretnego progu) — ale
-**decyzja** "czy TEN konkretny obraz jest anomalią" wymaga **konkretnego
-progu** (sekcja 4). Wysoki AUC nie mówi, jak dobrze wypadniesz przy
-**wybranym** progu — stąd potrzebujesz **obu** rodzajów metryk, nie
-jednego.
+✅ ROC-AUC/PR-AUC evaluate the **ranking** (do anomalies generally have a
+higher error than normal examples, regardless of a specific threshold) --
+but the **decision** "is THIS specific image an anomaly" requires a
+**specific threshold** (section 4). A high AUC does not tell you how well
+you will do at the **chosen** threshold -- hence you need **both** kinds
+of metrics, not one.
 
-## 6. Analiza błędów i prosty baseline — Twoje zadanie
+## 6. Error analysis and a simple baseline -- your task
 
-**Baseline bez uczenia**: policz błąd jako odległość do **średniego obrazu
-klasy normalnej** (`ae_train.mean(dim=0)`), bez żadnego treningu —
-`((x - mean_normal_image)**2).mean()`. Policz dla tego baseline te same
-metryki (sekcja 5) na zbiorze testowym.
+**A baseline with no learning**: compute the error as the distance to the
+**mean image of the normal class** (`ae_train.mean(dim=0)`), with no
+training at all -- `((x - mean_normal_image)**2).mean()`. Compute the
+same metrics (section 5) for this baseline on the test set.
 
-**Porównaj** AE vs ten trywialny baseline.
+**Compare** AE against this trivial baseline.
 
-❌ "Wytrenowany autoenkoder musi radykalnie pobić trywialny baseline, bo
-jest 'mądrzejszy'."
+❌ "A trained autoencoder must radically beat a trivial baseline, because
+it is 'smarter.'"
 
-✅ **Niekoniecznie** — sprawdź to **empirycznie na swoich danych**, zamiast
-zakładać. Jeśli autoenkoder nie bije wyraźnie trywialnego baseline'u, to
-**ważny, wartościowy wniosek**, nie porażka eksperymentu: oznacza, że
-separacja normalne/anomalie w tym konkretnym zadaniu w dużej mierze wynika
-z prostych różnic pikselowych między klasami (kształt sneakera vs inne
-ubrania), nie z czegoś subtelnego, czego nauczył się dopiero autoenkoder.
-Krytyczna ocena metody wymaga takiego porównania **zawsze**, nie tylko gdy
-oczekujemy, że "sprawdzi się".
+✅ **Not necessarily** -- check this **empirically on your data**, rather
+than assuming it. If the autoencoder does not clearly beat the trivial
+baseline, that is an **important, valuable conclusion**, not a failed
+experiment: it means the normal/anomaly separation in this specific task
+largely comes from simple pixel differences between classes (a sneaker's
+shape vs. other clothing), not from something subtle the autoencoder
+alone learned. A critical evaluation of the method **always** requires
+this comparison, not only when we expect it to "work out."
 
-**Analiza błędów (wymagane):** znajdź **przynajmniej jeden konkretny**
-przypadek:
-1. Anomalia (obraz spoza klasy normalnej) z **niskim** błędem rekonstrukcji
-   (false negative) — sprawdź, z jakiej klasy pochodzi, i czy ma sens
-   wizualny (np. czy przypomina sneakera).
-2. Przykład normalny (sneaker) z **wysokim** błędem rekonstrukcji (false
-   positive) — sprawdź wizualnie, czy jest nietypowy w ramach swojej klasy.
+**Error analysis (required):** find **at least one specific** case of:
+1. An anomaly (an image outside the normal class) with a **low**
+   reconstruction error (a false negative) -- check which class it comes
+   from, and whether it makes visual sense (e.g. does it resemble a
+   sneaker).
+2. A normal example (a sneaker) with a **high** reconstruction error (a
+   false positive) -- check visually whether it is unusual within its own
+   class.
 
-❌ "Autoenkoder, który generalnie dobrze rozdziela normalne/anomalie, musi
-rekonstruować **każdy** przykład anomalii źle."
+❌ "An autoencoder that generally separates normal/anomaly well must
+reconstruct **every** anomaly example poorly."
 
-✅ **Nie jest to prawda w ogólności** — anomalia wizualnie/strukturalnie
-podobna do klasy normalnej (np. inny typ obuwia, jeśli normalna klasa to
-konkretny typ obuwia) może zostać zrekonstruowana **całkiem dobrze**, mimo
-że formalnie jest anomalią. To **nie** jest błąd implementacji — to
-rzeczywiste ograniczenie metody, które musisz **zademonstrować konkretnym
-przykładem**, nie tylko zacytować z wykładu.
+✅ **Not true in general** -- an anomaly visually/structurally similar to
+the normal class (e.g. a different type of footwear, if the normal class
+is a specific type of footwear) can be reconstructed **quite well**,
+despite formally being an anomaly. This is **not** an implementation bug
+-- it is a real limitation of the method, which you must **demonstrate
+with a specific example**, not just cite from the lecture.
 
-## 7. Zadanie diagnostyczne: przeciek danych w wyborze progu
+## 7. Diagnostic task: data leakage in threshold selection
 
-Poniższy kod (w notebooku) **wygląda** rozsądnie — przeszukuje wiele
-wartości progu i wybiera tę, która daje **najlepsze F1** — ale ma błąd:
-przeszukiwanie i wybór odbywają się **na etykietach ze zbioru testowego**.
+The following code (in the notebook) **looks** reasonable -- it searches
+many threshold values and picks the one giving the **best F1** -- but it
+has a bug: the search and selection happen **using the test set's
+labels**.
 
-**Zadanie:**
-1. Uruchom dostarczony kod: przeszukaj siatkę progów, dla każdego policz F1
-   **na `test_normal`/`test_anomaly`** (z ich prawdziwymi etykietami), wybierz
-   próg o najwyższym F1.
-2. Porównaj wybrany w ten sposób próg z **Twoim** progiem z sekcji 4
-   (wybranym tylko na podstawie `val_normal`). Czy są identyczne?
-3. Porównaj zgłoszone F1: "przeciekowe" (wybrane i oceniane na tym samym
-   zbiorze testowym) vs Twoje honest (próg z sekcji 4, F1 zmierzone na
-   teście). **Nawet jeśli różnica jest niewielka** — wyjaśnij, **dlaczego
-   sama wielkość różnicy nie jest tym, co czyni tę procedurę błędną**.
-4. Napisz, dlaczego ta procedura jest metodologicznie błędna, **niezależnie**
-   od tego, czy w Twoim konkretnym przebiegu różnica wyszła duża czy mała.
-5. Zaproponuj poprawkę (dokładnie to, co zrobiłeś/aś w sekcji 4) i zweryfikuj,
-   że jest zgodna z zasadą z sekcji 1 (próg nigdy nie widzi etykiet testowych).
+**Task:**
+1. Run the provided code: search a grid of thresholds, for each compute F1
+   **on `test_normal`/`test_anomaly`** (with their true labels), choose
+   the threshold with the highest F1.
+2. Compare the threshold chosen this way with **your** threshold from
+   section 4 (chosen only from `val_normal`). Are they identical?
+3. Compare the reported F1: the "leaky" one (chosen and evaluated on the
+   same test set) vs. your honest one (the threshold from section 4, F1
+   measured on the test set). **Even if the difference is small** --
+   explain **why the size of the difference alone is not what makes this
+   procedure wrong**.
+4. Write down why this procedure is methodologically wrong,
+   **regardless** of whether the difference turned out large or small in
+   your specific run.
+5. Propose a fix (exactly what you did in section 4) and verify it is
+   consistent with the rule from section 1 (the threshold never sees test
+   labels).
 
-❌ "Jeśli przeciek danych nie zmienił wyniku istotnie, to nie był prawdziwym
-błędem."
+❌ "If the data leakage did not change the result significantly, it was
+not a real bug."
 
-✅ **To nieprawda.** Błąd metodologiczny (użycie etykiet testowych do podjęcia
-decyzji modelowania) jest błędem **niezależnie** od tego, jak duży efekt
-wywołał w konkretnym przebiegu — przy innym zbiorze danych, innym modelu,
-czy mniejszym/mniej rozdzielonym zbiorze testowym, ten sam błąd mógłby dać
-dramatycznie zawyżony wynik. Nie możesz tego wiedzieć z góry, patrząc tylko
-na jeden przebieg — stąd zasada "nigdy nie dotykaj testu przy wyborze progu"
-musi być **bezwzględna**, nie zależna od tego, czy "tym razem akurat nie
-zaszkodziło".
+✅ **This is not true.** A methodological bug (using test labels to make a
+modeling decision) is a bug **regardless** of how large an effect it had
+in a specific run -- with a different dataset, a different model, or a
+smaller/less separated test set, the same bug could give a dramatically
+inflated result. You cannot know this in advance by looking at just one
+run -- hence the rule "never touch the test set when choosing a
+threshold" must be **absolute**, not dependent on whether "this time it
+happened not to hurt."
 
-## 8. Wnioski — Twoje zadanie
+## 8. Conclusions -- your task
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami/przykładami z sekcji 3-7:
+Answer, justified with actual numbers/examples from sections 3-7:
 
-1. Jak dobrze (konkretne liczby: precision/recall/F1/ROC-AUC) Twój
-   autoenkoder rozdziela klasę normalną od anomalii na zbiorze testowym?
-2. Jak wypada w porównaniu z trywialnym baseline'em (sekcja 6)? Co to mówi o
-   tym, **skąd** bierze się zdolność rozróżniania w tym zadaniu?
-3. Jaki jest Twój najbardziej przekonujący **konkretny przykład** ograniczenia
-   metody (false negative albo false positive z sekcji 6)? Czy ma sens
-   wizualny?
-4. Jaki błąd wprowadził przeciek danych w sekcji 7, i jaka jest **ogólna**
-   (nie tylko dla tego zbioru danych) zasada, którą z tego wyciągasz?
-5. Czy uznałbyś/uznałabyś ten system za gotowy do praktycznego zastosowania?
-   Czego by jeszcze potrzebował (np. jaki koszt błędu FP/FN jest akceptowalny
-   w jakim zastosowaniu)?
+1. How well (specific numbers: precision/recall/F1/ROC-AUC) does your
+   autoencoder separate the normal class from anomalies on the test set?
+2. How does it compare to the trivial baseline (section 6)? What does
+   that say about **where** the discriminative ability in this task comes
+   from?
+3. What is your most convincing **specific example** of the method's
+   limitation (a false negative or false positive from section 6)? Does
+   it make visual sense?
+4. What bug did the data leakage in section 7 introduce, and what is the
+   **general** rule (not just for this dataset) you draw from it?
+5. Would you consider this system ready for practical use? What would it
+   still need (e.g. what FP/FN error cost is acceptable for what
+   application)?
 
-## Rozszerzenie (opcjonalne, jeśli zostanie czas)
+## Extension (optional, if time remains)
 
-Wybierz **jedno** z poniższych:
+Choose **one** of the following:
 
-- **Wpływ wymiaru latentnego**: powtórz sekcje 2-5 dla $d_e \in \{4, 32\}$
-  (oprócz głównego $d_e=16$) i porównaj metryki. Czy większy/mniejszy
-  bottleneck zmienia separację normalne/anomalie — i czy ten efekt jest
-  taki, jakiego intuicyjnie oczekujesz?
-- **VAE jako alternatywa**: zaimplementuj analogiczny VAE (wzorem wykładu),
-  użyj błędu rekonstrukcji (albo $-$ELBO) jako sygnału anomalii. Porównaj z
-  AE **bez** zakładania z góry, który "musi" wypaść lepiej (zobacz wykład:
-  VAE nie jest automatycznie lepszym detektorem anomalii).
+- **Effect of latent dimension**: repeat sections 2-5 for $d_e \in
+  \{4, 32\}$ (besides the main $d_e=16$) and compare the metrics. Does a
+  larger/smaller bottleneck change the normal/anomaly separation -- and is
+  this effect what you intuitively expect?
+- **VAE as an alternative**: implement an analogous VAE (following the
+  lecture's pattern), use the reconstruction error (or $-$ELBO) as the
+  anomaly signal. Compare with AE **without** assuming in advance which
+  one "must" do better (see the lecture: VAE is not automatically a
+  better anomaly detector).
 
-## Podział czasu (realistyczny, zweryfikowany względem rzeczywistego kosztu treningu)
+## Time budget (realistic, verified against actual training cost)
 
-| Blok | Czas |
+| Block | Time |
 |---|---|
-| Sekcja 0 (konfiguracja) | 5 min |
-| Sekcja 1 (dane i podział, bez przecieku) | 15 min |
-| Sekcja 2 (AE: architektura i trening) | 15 min |
-| Sekcja 3 (błąd rekonstrukcji, rozkłady) | 10 min |
-| Sekcja 4 (wybór progu walidacyjnego) | 10 min |
-| Sekcja 5 (metryki: znany przykład + test) | 15 min |
-| Sekcja 6 (analiza błędów + baseline) | 15 min |
-| Sekcja 7 (zadanie diagnostyczne: przeciek) | 20 min |
-| Sekcja 8 (wnioski) | 10 min |
+| Section 0 (setup) | 5 min |
+| Section 1 (data and split, no leakage) | 15 min |
+| Section 2 (AE: architecture and training) | 15 min |
+| Section 3 (reconstruction error, distributions) | 10 min |
+| Section 4 (choosing a validation threshold) | 10 min |
+| Section 5 (metrics: known example + test) | 15 min |
+| Section 6 (error analysis + baseline) | 15 min |
+| Section 7 (diagnostic task: leakage) | 20 min |
+| Section 8 (conclusions) | 10 min |
 
-Suma: **115 min**, z 5-minutowym buforem. Trening AE na tym zbiorze trwa
-ułamek sekundy do kilku sekund na CPU — budżet czasowy idzie w projektowanie
-podziału danych, analizę błędów i zadanie diagnostyczne, nie w czekanie na
-model. Rozszerzenie (wyżej) jest **opcjonalne** i **nie** wliczone w te
-115 minut.
+Total: **115 min**, with a 5-minute buffer. Training the AE on this
+dataset takes a fraction of a second to a few seconds on CPU -- the time
+budget should go into designing the data split, error analysis, and the
+diagnostic task, not into waiting for the model. The extension (above) is
+**optional** and is **not** counted in these 115 minutes.
 
-## Kryteria oceny
+## Grading criteria
 
-- Podział danych (sekcja 1) jest programowo zweryfikowany jako rozłączny;
-  autoenkoder trenowany **wyłącznie** na danych normalnych.
-- Próg detekcji (sekcja 4) wybrany **wyłącznie** na podstawie `val_normal`,
-  nigdy na podstawie `val_anomaly` czy jakiegokolwiek `test_*`.
-- Metryki (sekcja 5) zweryfikowane na podanym przykładzie z znanym wynikiem,
-  **przed** użyciem na prawdziwych danych.
-- Porównanie z trywialnym baseline'em (sekcja 6) jest **rzeczywiście
-  wykonane i opisane** — niezależnie od tego, czy AE wypadł lepiej, podobnie,
-  czy gorzej.
-- Analiza błędów (sekcja 6) wskazuje **konkretny** przypadek (nie ogólnik)
-  false negative lub false positive, z sensownym wizualnym komentarzem.
-- Zadanie diagnostyczne (sekcja 7) prawidłowo identyfikuje przeciek danych i
-  wyjaśnia, dlaczego błąd jest realny niezależnie od wielkości zaobserwowanej
-  różnicy.
-- Wnioski odwołują się do konkretnych liczb/przykładów z Twojego przebiegu,
-  nie do ogólników z wykładu.
+- The data split (section 1) is verified programmatically to be
+  disjoint; the autoencoder is trained **only** on normal data.
+- The detection threshold (section 4) is chosen **only** based on
+  `val_normal`, never based on `val_anomaly` or any `test_*`.
+- The metrics (section 5) are verified on the given known-result
+  example **before** being used on the real data.
+- The comparison with the trivial baseline (section 6) is **actually
+  carried out and described** -- regardless of whether AE did better,
+  similarly, or worse.
+- The error analysis (section 6) points to a **specific** case (not a
+  generality) of a false negative or false positive, with a sensible
+  visual comment.
+- The diagnostic task (section 7) correctly identifies the data leakage
+  and explains why the bug is real regardless of the size of the
+  observed difference.
+- The conclusions refer to specific numbers/examples from your own run,
+  not to generalities from the lecture.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/12_autoencoders/`) i nie jest częścią tego
-repozytorium.
+A full reference solution exists locally with the instructor
+(`decisions/solutions/12_autoencoders/`) and is not part of this
+repository.

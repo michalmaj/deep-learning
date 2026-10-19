@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 13 — Modele dyfuzyjne: uczenie generowania przez odszumianie
 
 ## Cele wykładu
@@ -74,7 +76,8 @@ modułu.
 ## Forward diffusion: matematyka
 
 **Notacja.** $x_0$ — czysta próbka danych (podkreślenie: "czysta", przed
-jakimkolwiek zaszumieniem). $x_t$ — próbka po $t$ krokach zaszumiania.
+jakimkolwiek zaszumieniem). $x_t$ — próbka po $t$ krokach zaszumiania. $T$
+— całkowita, ustalona z góry liczba kroków dyfuzji.
 
 **Uwaga o notacji ($x_t$, trzecie znaczenie w tym kursie).** Moduł 9: $x_t$ =
 ciągły wektor wejścia RNN w chwili $t$ (indeks = **pozycja w sekwencji**).
@@ -83,6 +86,14 @@ disambiguowane od modułu 9). Tu: $x_t$ = ciągły punkt/obraz po $t$ krokach
 zaszumienia — indeks $t$ oznacza **poziom szumu dla JEDNEJ próbki**, nie
 pozycję w sekwencji wielu elementów. Oś indeksowania jest inna, mimo tej
 samej litery.
+
+**Uwaga o notacji ($T$).** Moduły 9-11: $T$ = długość sekwencji (liczba
+kroków czasowych/tokenów przetwarzanych przez RNN/attention/LLM). Tu: $T$
+= liczba kroków **dyfuzji** dla jednej, pojedynczej próbki — inna oś
+zliczania (poziom zaszumienia jednego punktu, nie liczba elementów w
+sekwencji wielu obiektów), analogicznie do rozróżnienia $x_t$ powyżej. Zbyt
+standardowe w literaturze DDPM, żeby wymyślać nowy symbol — kontekst
+(dyfuzja vs. sekwencja) jednoznacznie rozstrzyga, o które $T$ chodzi.
 
 $\beta_t$ — wariancja szumu dodawanego w kroku $t$ ($0<\beta_t<1$).
 

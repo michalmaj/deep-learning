@@ -1,3 +1,5 @@
+Język: [English](lecture.en.md) | **Polski**
+
 # Wykład 12 — Autoenkodery (AE), wariacyjne autoenkodery (VAE) i przestrzeń latentna
 
 ## Cele wykładu
