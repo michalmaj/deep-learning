@@ -19,13 +19,15 @@ Sekwencja dydaktyczna przyjęta w materiałach:
 Wszystkie 15 modułów (wykłady + laboratoria) są kompletne po polsku.
 Trwa lokalizacja na język angielski — zobacz
 [angielską wersję tej strony](README.md) po aktualny status tego procesu
-modułu po module. Moduły 01-05 i 10 są już w pełni dostępne w obu językach.
+modułu po module. Moduły 01-10 są już w pełni dostępne w obu językach —
+pierwsze dziesięć modułów, od podstaw PyTorcha po attention i Transformer,
+można przejść od początku do końca po angielsku.
 
 ## Struktura kursu
 
 Wszystkie 15 modułów są kompletne. Link w kolumnie "Wykład" prowadzi do
 `lecture.md`, link w kolumnie "Laboratorium" do instrukcji laboratorium
-(dla modułów 1-5 i 10 — do `README.pl.md`, polskiej wersji; dla pozostałych
+(dla modułów 1-10 — do `README.pl.md`, polskiej wersji; dla pozostałych
 modułów — do `README.md`, które dla tych modułów jest wciąż
 polskojęzyczne, do czasu ich lokalizacji).
 
@@ -36,10 +38,10 @@ polskojęzyczne, do czasu ich lokalizacji).
 | 3 | [Backpropagation i grafy obliczeniowe](lectures/03_backprop/lecture.md) | [Backprop od zera + autograd](labs/03_backprop/README.pl.md) |
 | 4 | [Optymalizacja: SGD, momentum, Adam](lectures/04_optimization/lecture.md) | [Porównanie optymalizatorów](labs/04_optimization/README.pl.md) |
 | 5 | [Generalizacja, overfitting, regularyzacja](lectures/05_generalization/lecture.md) | [Dropout, weight decay, early stopping](labs/05_generalization/README.pl.md) |
-| 6 | [CNN i reprezentacja obrazu](lectures/06_cnn/lecture.md) | [Klasyfikacja obrazów z CNN](labs/06_cnn/README.md) |
-| 7 | [Transfer learning i fine-tuning](lectures/07_transfer_learning/lecture.md) | [Pretrenowany model wizyjny](labs/07_transfer_learning/README.md) |
-| 8 | [Embeddingi i reprezentacje uczone](lectures/08_embeddings/lecture.md) | [Eksperymenty z embeddingami i podobieństwem](labs/08_embeddings/README.md) |
-| 9 | [RNN, LSTM, GRU i dane sekwencyjne](lectures/09_rnn/lecture.md) | [Klasyfikacja sekwencji/tekstu](labs/09_rnn/README.md) |
+| 6 | [CNN i reprezentacja obrazu](lectures/06_cnn/lecture.md) | [Klasyfikacja obrazów z CNN](labs/06_cnn/README.pl.md) |
+| 7 | [Transfer learning i fine-tuning](lectures/07_transfer_learning/lecture.md) | [Pretrenowany model wizyjny](labs/07_transfer_learning/README.pl.md) |
+| 8 | [Embeddingi i reprezentacje uczone](lectures/08_embeddings/lecture.md) | [Eksperymenty z embeddingami i podobieństwem](labs/08_embeddings/README.pl.md) |
+| 9 | [RNN, LSTM, GRU i dane sekwencyjne](lectures/09_rnn/lecture.md) | [Klasyfikacja sekwencji/tekstu](labs/09_rnn/README.pl.md) |
 | 10 | [Attention i Transformer](lectures/10_attention/lecture.md) | [Attention od podstaw + mały Transformer](labs/10_attention/README.pl.md) |
 | 11 | [Podstawy inżynierii LLM](lectures/11_llm_engineering/lecture.md) | [Tokenizacja, inferencja, Hugging Face](labs/11_llm_engineering/README.md) |
 | 12 | [Autoencodery i VAE](lectures/12_autoencoders/lecture.md) | [Przestrzeń latentna / wykrywanie anomalii](labs/12_autoencoders/README.md) |
