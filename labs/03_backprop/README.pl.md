@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 03: backpropagation od podstaw w NumPy
 
 Czas: ok. 2 godziny. Bazuje na wyprowadzeniu z [`lectures/03_backprop/lecture.md`](../../lectures/03_backprop/lecture.md),
@@ -14,7 +16,7 @@ PyTorch.
 
 ## 1. Problem i dane (gotowe)
 
-Regresja jednej zmiennej: $x\\in[-3,3]$, $y = \\sin(2x) + 0{,}3x^2 + \\varepsilon$
+Regresja jednej zmiennej: $x\in[-3,3]$, $y = \sin(2x) + 0{,}3x^2 + \varepsilon$
 — funkcja wyraźnie nieliniowa (model liniowy nie ma szans), generowana
 lokalnie z ustalonym ziarnem. Kod generujący dane i wizualizujący je jest
 gotowy.
@@ -35,12 +37,12 @@ która zwraca `(dW1, db1, dW2, db2)`:
 1. Wyprowadź (na kartce, zanim zaczniesz pisać kod) pochodną straty MSE
    względem $Z^{(2)}$ dla batcha — to jest dokładnie wzór z wykładu
    (sekcja *Wersja wsadowa*), tylko podstaw swoje oznaczenia.
-2. Wyprowadź pochodną $\\tanh'(z) = 1 - \\tanh^2(z)$ (podaną w wykładzie 2) i
-   użyj jej zamiast $\\sigma(z)(1-\\sigma(z))$ z wykładu 3 — to jest miejsce,
+2. Wyprowadź pochodną $\tanh'(z) = 1 - \tanh^2(z)$ (podaną w wykładzie 2) i
+   użyj jej zamiast $\sigma(z)(1-\sigma(z))$ z wykładu 3 — to jest miejsce,
    w którym Twoja implementacja musi się różnić od wzoru z wykładu, nie
    kopiować go jeden do jednego.
 3. Zaimplementuj propagację wsteczną przez obie warstwy, używając wzorów
-   macierzowych z wykładu (transpozycje, $\\odot$, sumowanie po batchu dla
+   macierzowych z wykładu (transpozycje, $\odot$, sumowanie po batchu dla
    biasów).
 
 Nie przechodź do sekcji 4, dopóki kształty `dW1, db1, dW2, db2` nie
