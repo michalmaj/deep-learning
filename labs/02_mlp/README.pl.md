@@ -1,3 +1,5 @@
+Język: [English](README.md) | **Polski**
+
 # Laboratorium 02: klasyfikacja tabularna z MLP
 
 Czas: ok. 2 godziny. Bazuje na [`lectures/02_mlp/lecture.md`](../../lectures/02_mlp/lecture.md)
