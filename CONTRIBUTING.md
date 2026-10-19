@@ -62,7 +62,9 @@ Follow the same four-pair convention above from the start. Add both
 notebook pairs to `MODULE_NOTEBOOK_PAIRS` in
 `scripts/check_pl_en_equivalence.py` (one tuple each for the lecture pair
 and the lab pair) -- this is the only change the checker itself needs for
-a new module; its checking logic is module-agnostic.
+a new module; its checking logic is module-agnostic. Every public notebook
+must also declare the `python3` kernelspec and Python `language_info` in its
+metadata so it opens with the expected kernel outside the test suite.
 
 ## Three kinds of strings
 
