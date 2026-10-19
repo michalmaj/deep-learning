@@ -515,3 +515,127 @@ def test_dict_items_loop_does_not_hide_a_changed_experimental_value(tmp_path):
     en = _notebook([nbf.v4.new_code_cell(src_en)])
     problems = _check(tmp_path, pl, en)
     assert problems, "a changed experimental sentence under a translated label must be reported"
+
+
+# --- Modules 14-15: risk categories specific to evaluation/interpretability
+# and production (Grad-CAM, calibration/ECE, API contracts, drift). These
+# are all caught by the SAME existing string/number/AST comparison -- no
+# new checker mechanism was needed for this batch, so these tests only
+# confirm the existing mechanism still covers the new risk surface.
+
+
+def test_gradcam_target_layer_change_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell("gradcam = GradCAM(model, model.relu2)")])
+    en = _notebook([nbf.v4.new_code_cell("gradcam = GradCAM(model, model.relu1)")])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed Grad-CAM target layer must be reported"
+
+
+def test_ece_bin_count_change_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell("ece, _ = compute_ece(confidences, correct, n_bins=10)")])
+    en = _notebook([nbf.v4.new_code_cell("ece, _ = compute_ece(confidences, correct, n_bins=20)")])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed ECE bin count must be reported"
+
+
+def test_json_response_field_name_change_is_detected(tmp_path):
+    """An API response's JSON field names are a computational contract --
+    translating 'confidence' would break any client parsing the response."""
+    pl = _notebook([nbf.v4.new_code_cell(
+        'return {"predicted_class": label, "confidence": conf, "model_version": v}'
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        'return {"predicted_class": label, "zaufanie": conf, "model_version": v}'
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a renamed JSON response field must be reported"
+
+
+def test_api_endpoint_path_change_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell('r = client.post("/predict", files=files)')])
+    en = _notebook([nbf.v4.new_code_cell('r = client.post("/infer", files=files)')])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed API endpoint path must be reported"
+
+
+def test_drift_threshold_change_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell('alarm = "drift" if psi_value > 0.25 else "ok"')])
+    en = _notebook([nbf.v4.new_code_cell('alarm = "drift" if psi_value > 0.5 else "ok"')])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed PSI/drift threshold must be reported"
+
+
+def test_class_mapping_order_change_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell(
+        'CLASS_NAMES = ["AnnualCrop", "Forest", "HerbaceousVegetation"]'
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        'CLASS_NAMES = ["Forest", "AnnualCrop", "HerbaceousVegetation"]'
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a reordered class-name mapping must be reported"
+
+
+def test_math_operator_change_in_psi_formula_is_detected(tmp_path):
+    pl = _notebook([nbf.v4.new_code_cell(
+        "psi_val = ((cur - ref) * torch.log(cur / ref)).sum().item()"
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        "psi_val = ((cur + ref) * torch.log(cur / ref)).sum().item()"
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed operator in the PSI formula must be reported"
+
+
+def test_todo_message_translation_is_allowed(tmp_path):
+    """The TODO message itself (the NotImplementedError's argument) is
+    presentational, student-facing text -- it may be translated/reworded
+    freely, same as every other TODO cell in modules 01-13."""
+    pl = _notebook([nbf.v4.new_code_cell(
+        'raise NotImplementedError("TODO: oblicz statystyki")'
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        'raise NotImplementedError("TODO: compute stats")'
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "a translated TODO message must not be reported"
+
+
+def test_todo_contract_exception_type_change_is_detected(tmp_path):
+    """The TODO *contract* that the scaffold tests actually rely on is the
+    exception TYPE raised by an unfinished cell (see
+    tests/test_lab_15_scaffold*.py asserting `ename == "NotImplementedError"`)
+    -- changing that type, unlike changing the message text, is a real
+    structural regression and must be reported."""
+    pl = _notebook([nbf.v4.new_code_cell(
+        'raise NotImplementedError("TODO: compute_stats")'
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        'raise ValueError("TODO: compute_stats")'
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems, "a changed exception type for a TODO cell must be reported"
+
+
+def test_chart_and_metric_label_translation_is_allowed(tmp_path):
+    """Presentational plot/print text (axis labels, a metric's descriptive
+    name) may be translated -- this must NOT be reported, unlike the
+    contract/computational strings above."""
+    pl = _notebook([nbf.v4.new_code_cell(
+        'plt.title("Macierz pomylek")\nplt.xlabel("przewidziana")\nprint("ECE nisko")'
+    )])
+    en = _notebook([nbf.v4.new_code_cell(
+        'plt.title("Confusion matrix")\nplt.xlabel("predicted")\nprint("ECE low")'
+    )])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "translated chart/print labels must not be reported"
+
+
+def test_decimal_comma_localization_in_psi_value_is_allowed(tmp_path):
+    """A PSI value written in lecture.md-style LaTeX with a Polish decimal
+    comma must be allowed to localize to an English decimal point --
+    reusing the same mechanism verified above for other worked examples."""
+    pl = _notebook([nbf.v4.new_markdown_cell(r"PSI dla umiarkowanego przesuniecia: $0{,}1317$.")])
+    en = _notebook([nbf.v4.new_markdown_cell(r"PSI for the moderate shift: $0.1317$.")])
+    problems = _check(tmp_path, pl, en)
+    assert problems == [], "a localized decimal comma in a PSI value must not be reported"
