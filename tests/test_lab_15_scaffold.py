@@ -2,8 +2,8 @@
 
 Unlike other labs, module 15's "notebook" is really a small application
 (`app/`, `benchmark.py`, `monitoring.py`) exercised from `lab.ipynb`. The
-full lab.ipynb scaffold-to-first-TODO execution needs a real EuroSAT +
-ResNet18 artifact, so it is skipped under CI=true, matching modules
+full lab.ipynb scaffold-to-first-TODO execution downloads EuroSAT, so it is
+marked `network` and runs in scheduled network CI, matching modules
 07/12/14. The always-on tests below import the REAL application modules
 (never an independent copy) and exercise them two ways:
 
@@ -20,7 +20,6 @@ ResNet18 artifact, so it is skipped under CI=true, matching modules
 import asyncio
 import io
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -53,10 +52,7 @@ def _artifact_metadata():
     }
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="needs a real EuroSAT + ResNet18 artifact; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_15_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

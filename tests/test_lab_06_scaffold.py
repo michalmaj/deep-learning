@@ -9,10 +9,10 @@ ran with no error, and that the first error is exactly the expected
 section 1).
 
 Like tests/test_lecture_06_notebook.py, the full execution needs to
-download KMNIST, so it is skipped under CI=true.
+download KMNIST, so it carries the `network` marker and runs in scheduled
+network CI.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -30,10 +30,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads KMNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_06_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

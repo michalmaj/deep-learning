@@ -8,15 +8,15 @@ ran with no error, and that the first error is exactly the expected
 `NotImplementedError` from the first TODO (the class-distribution check).
 
 The full execution needs to download the SMS Spam Collection (small, but
-still a network dependency), so it is skipped under CI=true. Always-on
-synthetic tests below cover the sequence-handling mechanics this lab is
-actually about: padding must not change a prediction, a naive
+still a network dependency), so it carries the `network` marker and runs
+in scheduled network CI. Always-on synthetic tests below cover the
+sequence-handling mechanics this lab is actually about: padding must not
+change a prediction, a naive
 out[:, -1, :] on a padded batch must (demonstrably) get it wrong, and
 macro-F1 must match a hand-computed value on a tiny, exactly-known
 example.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -37,10 +37,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads SMS Spam Collection; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_09_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

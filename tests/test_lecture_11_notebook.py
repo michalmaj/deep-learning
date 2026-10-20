@@ -2,7 +2,8 @@
 
 Unlike modules 09/10, this notebook downloads real model weights
 (HuggingFaceTB/SmolLM2-135M-Instruct, ~257MB) -- the full `nbclient`
-execution is skipped under CI=true, the same pattern as modules 06-08.
+execution is marked `network` and runs in scheduled network CI, the same
+pattern as modules 06-08.
 
 The fast, always-on tests below cover the actual decoding/generation
 mechanics using only synthetic logits or a tiny `LlamaForCausalLM` built
@@ -12,7 +13,6 @@ numbers verified by hand in `lecture.md`'s worked example, so a future
 change to the formulas would have to update both places consistently.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -26,10 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "11_llm_engineering" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads SmolLM2-135M-Instruct weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_11_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

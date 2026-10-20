@@ -2,7 +2,7 @@
 
 This notebook downloads Fashion-MNIST (via torchvision, already registered
 in data/registry.yml for module 06) -- the full nbclient execution is
-skipped under CI=true, matching modules 06/12.
+marked `network` and runs in scheduled network CI, matching modules 06/12.
 
 The fast, always-on tests below cover the actual metrics/calibration/
 Grad-CAM mechanics the lecture is built around, using tiny synthetic
@@ -12,7 +12,6 @@ future change to the formulas would have to update both places
 consistently.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -26,10 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "14_evaluation_interpretability" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_14_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

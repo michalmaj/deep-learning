@@ -1,9 +1,8 @@
 """The English lab 09 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_09_scaffold.py`). Downloads the SMS Spam
-Collection, so it is skipped under CI=true.
+Collection, so it is marked `network` and runs in scheduled network CI.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -21,10 +20,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads SMS Spam Collection; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_09_scaffold_en_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

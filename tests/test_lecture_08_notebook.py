@@ -2,15 +2,14 @@
 
 Split like modules 06-07: a full `nbclient` execution of the real
 notebook is kept (downloads Caltech101 + ResNet18 pretrained weights)
-but is skipped under CI=true. The formula/mechanics checks below need no
-network and no real images, so they run unconditionally in CI as fast
-smoke tests -- they specifically cover the non-obvious mechanics this
+with the `network` marker and runs in scheduled network CI. The
+formula/mechanics checks below need no network and no real images, so they
+run in the fast PR suite as smoke tests -- they specifically cover the
 lecture is about: Euclidean vs cosine disagreement, the unit-vector
 identity, L2 normalization's zero-vector edge case, k-NN ranking, and
 nn.Embedding updating only the rows that appear in training data.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -23,10 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "08_embeddings" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Caltech101 + ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_08_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

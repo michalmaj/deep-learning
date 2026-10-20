@@ -3,13 +3,12 @@
 Split in two, unlike modules 01-05, because this lecture downloads
 Fashion-MNIST: a full `nbclient` execution of the real notebook is kept
 (same rigor as before, same "Restart Kernel -> Run All" guarantee), but
-it is skipped automatically in CI (`CI=true`, the variable GitHub Actions
-sets) so that pushes never trigger a dataset download. Run it locally
-before opening a PR. The formula/shape checks below need no network and
-no real images, so they run unconditionally in CI as fast smoke tests.
+it carries the `network` marker so the fast PR suite never triggers a
+dataset download. Scheduled network CI and local full runs execute it. The
+formula/shape checks below need no network and no real images, so they run
+in the fast PR suite as smoke tests.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -22,10 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "06_cnn" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_06_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

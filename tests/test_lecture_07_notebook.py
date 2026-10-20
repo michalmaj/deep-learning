@@ -2,14 +2,13 @@
 
 Split like module 06: a full `nbclient` execution of the real notebook is
 kept (downloads Caltech101 + ResNet18 pretrained weights, several minutes
-of CPU training) but is skipped under CI=true. The formula/mechanics
-checks below need no network and no real images, so they run
-unconditionally in CI as fast smoke tests -- they specifically cover the
+of CPU training), carries the `network` marker, and runs in scheduled
+network CI. The formula/mechanics checks below need no network and no real
+images, so they run in the fast PR suite as smoke tests -- they cover the
 non-obvious mechanics this lecture is about: freezing, partial
 fine-tuning, and the BatchNorm train()/eval() distinction.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -22,10 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "07_transfer_learning" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Caltech101 + ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_07_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

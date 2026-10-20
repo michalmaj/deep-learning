@@ -3,7 +3,8 @@
 Same pattern as tests/test_lab_08_scaffold.py and tests/test_lab_11_scaffold.py:
 the notebook's very first code cell downloads Fashion-MNIST, so there is no
 way to reach even the first student TODO offline -- the full
-scaffold-to-first-TODO execution is skipped under CI=true.
+scaffold-to-first-TODO execution is marked `network` and runs in scheduled
+network CI.
 
 The always-on tests below cover the anomaly-detection metric mechanics
 (confusion counts, precision/recall/F1, ROC-AUC, PR-AUC, threshold logic)
@@ -13,7 +14,6 @@ solution's exact implementations (reimplemented independently here, the
 same way test_lab_11_scaffold.py never imports generate_response).
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -32,10 +32,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_12_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

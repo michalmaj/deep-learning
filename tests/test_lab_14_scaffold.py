@@ -3,7 +3,8 @@
 Same pattern as tests/test_lab_07_scaffold.py and tests/test_lab_12_scaffold.py:
 the notebook's very first code cell downloads EuroSAT and ResNet18 weights,
 so there is no way to reach even the first student TODO offline -- the full
-scaffold-to-first-TODO execution is skipped under CI=true.
+scaffold-to-first-TODO execution is marked `network` and runs in scheduled
+network CI.
 
 The always-on tests below cover the metrics, Grad-CAM, and diagnostic-task
 mechanics the lab's own deliverables are built around, using tiny synthetic
@@ -13,7 +14,6 @@ solution's exact implementations (reimplemented independently here, the
 same way test_lab_12_scaffold.py never imports its solution's functions).
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -34,10 +34,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads EuroSAT and ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_14_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

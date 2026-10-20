@@ -50,6 +50,8 @@ def validate_registry(registry: Any) -> list[str]:
     datasets = registry.get("datasets")
     if not isinstance(datasets, list):
         return ["registry must contain a 'datasets' list"]
+    if not datasets:
+        return ["registry must contain at least one dataset"]
 
     errors: list[str] = []
     seen_ids: set[str] = set()

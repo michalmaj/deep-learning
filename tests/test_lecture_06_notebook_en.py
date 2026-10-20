@@ -1,10 +1,9 @@
 """Lecture 06's English notebook (`examples.en.ipynb`) must run end-to-end
 from a clean kernel, exactly like its Polish counterpart
-(`test_lecture_06_notebook.py`). Downloads Fashion-MNIST, so it is skipped
-under CI=true (same pattern as the Polish test).
+(`test_lecture_06_notebook.py`). Downloads Fashion-MNIST, so it is marked
+`network` (same pattern as the Polish test) and runs in scheduled network CI.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -15,10 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "06_cnn" / "examples.en.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_06_notebook_en_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

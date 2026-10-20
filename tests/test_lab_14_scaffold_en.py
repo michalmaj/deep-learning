@@ -1,10 +1,9 @@
 """The English lab 14 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_14_scaffold.py`). The notebook's very first
-code cell downloads EuroSAT and ResNet18 weights, so it is skipped under
-CI=true.
+code cell downloads EuroSAT and ResNet18 weights, so it is marked `network`
+and runs in scheduled network CI.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -22,10 +21,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads EuroSAT and ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_14_scaffold_en_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(
