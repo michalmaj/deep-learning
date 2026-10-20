@@ -141,7 +141,10 @@ request).
 `histogram_counts()` and `brightness_feature()` are provided. Your task:
 `psi(ref_counts, cur_counts, eps)` -- the PSI formula from the lecture,
 **with smoothing** of zero frequencies (check in the notebook what
-happens without `eps`).
+happens without `eps`). The provided histogram keeps values below/above
+the fixed reference range in its first/last bin instead of discarding
+drifted observations. `psi()` already validates shapes, finite
+non-negative counts, positive totals, and `eps` before your formula runs.
 
 ## 7. Monitoring scenarios -- your task
 

@@ -361,6 +361,13 @@ just necessary for the number to be computable at all; measured: with
 $\varepsilon=10^{-4}$, the same case gives a large, but **finite** PSI
 ($4.60$), not a "fixed" result that pretends there was no problem.
 
+**Values outside the reference range.** Bin boundaries must stay fixed
+after they are fitted on the reference data. Underflow belongs to the
+first bin and overflow to the last one. Silently dropping those values
+would hide the strongest drift and could produce an all-zero histogram,
+followed by `NaN`. Smoothing handles zero-frequency **bins**; it must not
+mask an empty distribution or invalid, negative, or non-finite counts.
+
 **Conventional thresholds** (an industry heuristic, **not** a statistical
 guarantee): PSI$<0.1$ no significant change; $0.1$–$0.25$ moderate;
 $>0.25$ significant.
@@ -387,7 +394,7 @@ or: the strength of the PSI signal is proportional to the accuracy drop."
 different brightness-shift magnitudes, not one chosen to fit a thesis.**
 **Moderate** shift ($+0.03$): PSI$=0.1317$ (drift detected, "moderate"
 level), accuracy **exactly unchanged** ($0.8700\to0.8700$). **Stronger**
-shift ($+0.15$): PSI$=2.1316$ (drift strongly detected), accuracy
+shift ($+0.15$): PSI$=2.1455$ (drift strongly detected), accuracy
 **noticeably dropped** ($0.8700\to0.7800$). Both results from the **same**
 experiment, **not** selectively chosen — they show that the relationship
 between drift strength and quality drop **is not fixed in advance**:
@@ -428,7 +435,7 @@ machine) — Fashion-MNIST, `SmallCNN`.
 - **Experiment D.** PSI(ref, control) $=0.0225$ (correctly low, no false
   alarm); PSI(ref, a moderate brightness shift $+0.03$) $=0.1317$ (drift
   detected, "moderate" level), accuracy **exactly unchanged**
-  ($0.8700\to0.8700$); PSI(ref, a stronger shift $+0.15$) $=2.1316$
+  ($0.8700\to0.8700$); PSI(ref, a stronger shift $+0.15$) $=2.1455$
   (drift strongly detected), accuracy **noticeably dropped**
   ($0.8700\to0.7800$) — **both** results from the same experiment, not
   selectively chosen to fit a thesis.

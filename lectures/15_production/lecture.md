@@ -350,6 +350,14 @@ była w ogóle obliczalna; zmierzone: z $\varepsilon=10^{-4}$, ten sam
 przypadek daje duże, ale **skończone** PSI ($4{,}60$), nie "naprawiony"
 wynik udający, że problemu nie było.
 
+**Wartości poza zakresem referencyjnym.** Granice binów po wyznaczeniu na
+danych referencyjnych muszą pozostać stałe. Underflow trafia do pierwszego
+binu, a overflow do ostatniego. Ciche odrzucenie takich wartości ukryłoby
+najsilniejszy drift i mogłoby utworzyć całkowicie zerowy histogram, a potem
+`NaN`. Wygładzanie obsługuje zerową częstość **pojedynczego binu**; nie może
+maskować pustego rozkładu ani niepoprawnych, ujemnych lub niefinitywnych
+liczników.
+
 **Konwencjonalne progi** (heurystyka branżowa, **nie** gwarancja
 statystyczna): PSI$<0{,}1$ brak istotnej zmiany; $0{,}1$–$0{,}25$
 umiarkowana; $>0{,}25$ istotna.
@@ -377,7 +385,7 @@ dwóch różnych siłach przesunięcia jasności, nie jednej wybranej pod
 tezę.** **Umiarkowane** przesunięcie ($+0{,}03$): PSI$=0{,}1317$ (drift
 wykryty, poziom "umiarkowany"), accuracy **dokładnie niezmieniona**
 ($0{,}8700\to0{,}8700$). **Silniejsze** przesunięcie ($+0{,}15$):
-PSI$=2{,}1316$ (drift silnie wykryty), accuracy **zauważalnie spadła**
+PSI$=2{,}1455$ (drift silnie wykryty), accuracy **zauważalnie spadła**
 ($0{,}8700\to0{,}7800$). Oba wyniki z **tego samego** eksperymentu, **nie**
 wybrane selektywnie — pokazują, że zależność między siłą driftu i spadkiem
 jakości **nie jest ustalona z góry**: czasem drift nie szkodzi, czasem
@@ -419,7 +427,7 @@ ten komputer) — Fashion-MNIST, `SmallCNN`.
   false alarm); PSI(ref, umiarkowane przesunięcie jasności $+0{,}03$)
   $=0{,}1317$ (drift wykryty, poziom "umiarkowany"), accuracy **dokładnie
   niezmieniona** ($0{,}8700\to0{,}8700$); PSI(ref, silniejsze przesunięcie
-  $+0{,}15$) $=2{,}1316$ (drift silnie wykryty), accuracy **zauważalnie
+  $+0{,}15$) $=2{,}1455$ (drift silnie wykryty), accuracy **zauważalnie
   spadła** ($0{,}8700\to0{,}7800$) — **oba** wyniki z tego samego
   eksperymentu, nie wybrane selektywnie pod tezę.
 - **Eksperyment E.** Decyzja operacyjna na podstawie D: siła driftu i
