@@ -17,6 +17,8 @@ ResNet18 artifact, so it is skipped under CI=true, matching modules
    publishing the private solution's actual implementations.
 """
 
+import asyncio
+import io
 import json
 import os
 import sys
@@ -26,6 +28,7 @@ import nbformat
 import pytest
 import torch
 import torch.nn as nn
+from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from nbclient import NotebookClient
 from torchvision.models import resnet18
@@ -165,6 +168,40 @@ def test_server_lifespan_loads_once_and_clears_state(fake_artifact_dir, monkeypa
     assert server_module.app.state.loaded is None
 
 
+def test_model_info_returns_503_when_model_is_not_ready():
+    from app import server as server_module
+
+    server_module.app.state.loaded = None
+    client = TestClient(server_module.app, raise_server_exceptions=False)
+    response = client.get("/model-info")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "model not ready"}
+
+
+def test_read_upload_limited_accepts_a_bounded_payload():
+    from app import server as server_module
+
+    upload = UploadFile(io.BytesIO(b"four"), filename="x.png")
+    data = asyncio.run(server_module.read_upload_limited(upload, max_bytes=4))
+
+    assert data == b"four"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status"),
+    [(b"", 400), (b"five!", 413)],
+)
+def test_read_upload_limited_rejects_empty_and_oversized_payloads(payload, expected_status):
+    from app import server as server_module
+
+    upload = UploadFile(io.BytesIO(payload), filename="x.png")
+    with pytest.raises(server_module.HTTPException) as exc_info:
+        asyncio.run(server_module.read_upload_limited(upload, max_bytes=4))
+
+    assert exc_info.value.status_code == expected_status
+
+
 def test_predict_endpoint_is_not_yet_implemented(fake_artifact_dir, monkeypatch):
     monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
     import importlib
@@ -203,6 +240,28 @@ def test_send_requests_given_scaffold_propagates_until_predict_is_implemented(
     with TestClient(server_module.app) as client:
         with pytest.raises(NotImplementedError):
             send_requests(client, b"irrelevant", 3)
+
+
+def test_send_requests_rejects_failed_http_responses():
+    from benchmark import send_requests
+
+    class FailingResponse:
+        def raise_for_status(self):
+            raise RuntimeError("HTTP 500")
+
+    class FailingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def post(self, *args, **kwargs):
+            self.calls += 1
+            return FailingResponse()
+
+    client = FailingClient()
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        send_requests(client, b"irrelevant", 3)
+
+    assert client.calls == 1
 
 
 def test_psi_is_not_yet_implemented():
