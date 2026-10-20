@@ -52,6 +52,16 @@ ResNet18 (`IMAGENET1K_V1`) i zapisuje `state_dict` + `metadata.json`
 — nie Twoje zadanie (trening głowicy to przegląd modułów 07/14, nie nowy
 temat).
 
+Podczas ekstrakcji cech obrazy są odczytywane strumieniowo przez
+`DataLoader` w małych partiach. Skrypt przechowuje wyekstrahowane tensory
+cech, a nie wszystkie zdekodowane obrazy 224x224, dzięki czemu szczytowe
+zużycie pamięci przez obrazy jest ograniczone rozmiarem partii.
+
+Generator i loader współdzielą jeden kontrakt artefaktu. Przed wczytaniem
+wag `load_artifact()` odrzuca metadane z niezgodną architekturą, mapowaniem
+klas, kształtem wejścia lub deklaracją preprocessingu. Zapobiega to
+serwowaniu poprawnego `state_dict` z nieaktualnymi albo mylącymi metadanymi.
+
 **Twoje zadanie:** uruchom skrypt, **zweryfikuj programowo** w notebooku,
 że model wczytany z artefaktu daje **identyczne** (`torch.equal`) logity co
 model bezpośrednio po treningu (ten sam obraz testowy).

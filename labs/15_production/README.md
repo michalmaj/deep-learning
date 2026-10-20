@@ -62,6 +62,17 @@ generated **locally** by `prepare_artifact.py` and **ignored by Git**
 code -- not your task (training the head is a review of modules 07/14,
 not a new topic).
 
+Image samples are streamed through a `DataLoader` in small batches during
+feature extraction. The script retains the extracted feature tensors, not
+all decoded 224x224 images, which bounds the image-memory portion by the
+batch size.
+
+The generator and loader share one artifact contract. Before loading the
+weights, `load_artifact()` rejects metadata with an incompatible
+architecture, class mapping, input shape, or preprocessing declaration.
+This prevents a valid state dict from being served with stale or misleading
+metadata.
+
 **Your task:** run the script, **verify programmatically** in the
 notebook that the model loaded from the artifact gives **identical**
 (`torch.equal`) logits to the model right after training (the same test
