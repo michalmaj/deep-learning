@@ -31,6 +31,7 @@ import torch.nn as nn
 from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from nbclient import NotebookClient
+from torch.utils.data import TensorDataset
 from torchvision.models import resnet18
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +39,18 @@ LAB_DIR = REPO_ROOT / "labs" / "15_production"
 NOTEBOOK_PATH = LAB_DIR / "lab.ipynb"
 
 sys.path.insert(0, str(LAB_DIR))
+
+
+def _artifact_metadata():
+    return {
+        "model_version": "test-0.0.1",
+        "architecture": "resnet18",
+        "num_classes": 3,
+        "class_names": ["A", "B", "C"],
+        "input_size": [224, 224],
+        "input_channels": 3,
+        "preprocessing": "ResNet18_Weights.IMAGENET1K_V1.transforms()",
+    }
 
 
 @pytest.mark.skipif(
@@ -83,14 +96,7 @@ def fake_artifact_dir(tmp_path):
     model = resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 3)
     torch.save(model.state_dict(), tmp_path / "weights.pt")
-    metadata = {
-        "model_version": "test-0.0.1",
-        "architecture": "resnet18",
-        "num_classes": 3,
-        "class_names": ["A", "B", "C"],
-        "input_size": [224, 224],
-        "input_channels": 3,
-    }
+    metadata = _artifact_metadata()
     with open(tmp_path / "metadata.json", "w") as f:
         json.dump(metadata, f)
     return str(tmp_path)
@@ -103,6 +109,70 @@ def test_load_artifact_works_with_no_network_access(fake_artifact_dir):
     assert loaded.class_names == ["A", "B", "C"]
     assert loaded.model_version == "test-0.0.1"
     assert loaded.input_size == [224, 224]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_fragment"),
+    [
+        ("model_version", "", "model_version"),
+        ("architecture", "mobilenet_v3_small", "architecture"),
+        ("num_classes", 0, "num_classes"),
+        ("class_names", ["A", "A", "C"], "class_names must be unique"),
+        ("class_names", ["A", "B"], "length must match num_classes"),
+        ("input_size", [32, 32], "input_size"),
+        ("input_channels", 1, "input_channels"),
+        ("preprocessing", "manual resize", "preprocessing"),
+    ],
+)
+def test_artifact_metadata_contract_rejects_inconsistent_fields(
+    field, value, expected_fragment
+):
+    from app.artifact_contract import validate_artifact_metadata
+
+    metadata = _artifact_metadata()
+    metadata[field] = value
+
+    with pytest.raises(ValueError, match=expected_fragment):
+        validate_artifact_metadata(metadata)
+
+
+def test_load_artifact_validates_metadata_before_loading_weights(fake_artifact_dir):
+    from app import model as model_module
+
+    metadata_path = Path(fake_artifact_dir) / "metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    metadata["input_size"] = [32, 32]
+    metadata_path.write_text(json.dumps(metadata))
+
+    with pytest.raises(ValueError, match="input_size"):
+        model_module.load_artifact(fake_artifact_dir)
+
+
+def test_extract_features_streams_selected_samples_in_batches():
+    from prepare_artifact import extract_features
+
+    class TrackingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.batch_sizes = []
+
+        def forward(self, inputs):
+            self.batch_sizes.append(len(inputs))
+            return inputs.flatten(1)
+
+    images = torch.arange(20, dtype=torch.float32).reshape(5, 1, 2, 2)
+    labels = torch.tensor([10, 11, 12, 13, 14])
+    indices = [4, 1, 3]
+    model = TrackingModel()
+
+    features, selected_labels = extract_features(
+        model, TensorDataset(images, labels), indices, batch_size=2
+    )
+
+    assert model.batch_sizes == [2, 1]
+    assert torch.equal(features, images[indices].flatten(1))
+    assert torch.equal(selected_labels, labels[indices])
+    assert not features.requires_grad
 
 
 def test_preprocess_image_bytes_is_not_yet_implemented():

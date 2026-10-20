@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 from torchvision.models import ResNet18_Weights, resnet18
 
+from .artifact_contract import validate_artifact_metadata
+
 _PREPROCESS = ResNet18_Weights.IMAGENET1K_V1.transforms()
 
 
@@ -35,7 +37,7 @@ def load_artifact(artifact_dir: str) -> LoadedModel:
     """Build the architecture fresh and load weights + metadata -- never
     `torch.save(model)` the whole object (see lecture.md)."""
     with open(f"{artifact_dir}/metadata.json") as f:
-        metadata = json.load(f)
+        metadata = validate_artifact_metadata(json.load(f))
 
     model = resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, metadata["num_classes"])

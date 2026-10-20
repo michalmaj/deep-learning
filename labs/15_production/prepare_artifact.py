@@ -13,6 +13,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torchvision.datasets as tvd
+from app.artifact_contract import ARCHITECTURE, INPUT_CHANNELS, INPUT_SIZE, PREPROCESSING
+from torch.utils.data import DataLoader, Subset
 from torchvision.models import ResNet18_Weights, resnet18
 
 ARTIFACT_DIR = os.environ.get("MODULE15_ARTIFACT_DIR", "artifacts")
@@ -25,21 +27,15 @@ DATA_ROOT = Path(
 ).expanduser().resolve()
 
 
-def load_subset(full_ds, indices):
-    X = torch.stack([full_ds[i][0] for i in indices])
-    y = torch.tensor([full_ds[i][1] for i in indices])
-    return X, y
-
-
-def extract_features(model, X, batch_size=64):
+def extract_features(model, dataset, indices, batch_size=64):
+    loader = DataLoader(Subset(dataset, indices), batch_size=batch_size, shuffle=False)
     feats = []
-    orig_fc = model.fc
-    model.fc = nn.Identity()
-    with torch.no_grad():
-        for i in range(0, X.shape[0], batch_size):
-            feats.append(model(X[i : i + batch_size]))
-    model.fc = orig_fc
-    return torch.cat(feats, dim=0)
+    labels = []
+    with torch.inference_mode():
+        for images, batch_labels in loader:
+            feats.append(model(images))
+            labels.append(batch_labels)
+    return torch.cat(feats, dim=0), torch.cat(labels, dim=0)
 
 
 def main():
@@ -57,27 +53,22 @@ def main():
     perm = torch.randperm(len(full_ds))
     train_idx, val_idx, test_idx = perm[:1800], perm[1800:2200], perm[2200:2600]
 
-    t0 = time.time()
-    X_train, y_train = load_subset(full_ds, train_idx.tolist())
-    X_val, y_val = load_subset(full_ds, val_idx.tolist())
-    X_test, y_test = load_subset(full_ds, test_idx.tolist())
-    print(f"prep time: {time.time() - t0:.2f}s")
-
     backbone = resnet18(weights=weights)
     for p in backbone.parameters():
         p.requires_grad = False
     n_classes = len(class_names)
-    backbone.fc = nn.Linear(backbone.fc.in_features, n_classes)
+    n_features = backbone.fc.in_features
+    backbone.fc = nn.Identity()
     backbone.eval()
 
     t0 = time.time()
-    feat_train = extract_features(backbone, X_train)
-    feat_val = extract_features(backbone, X_val)
-    feat_test = extract_features(backbone, X_test)
+    feat_train, y_train = extract_features(backbone, full_ds, train_idx.tolist())
+    feat_val, y_val = extract_features(backbone, full_ds, val_idx.tolist())
+    feat_test, y_test = extract_features(backbone, full_ds, test_idx.tolist())
     print(f"feature extraction time: {time.time() - t0:.2f}s")
 
     torch.manual_seed(0)
-    head = nn.Linear(feat_train.shape[1], n_classes)
+    head = nn.Linear(n_features, n_classes)
     opt = torch.optim.Adam(head.parameters(), lr=1e-3)
     loss_fn = nn.CrossEntropyLoss()
     t0 = time.time()
@@ -103,12 +94,12 @@ def main():
     torch.save(backbone.state_dict(), f"{ARTIFACT_DIR}/weights.pt")
     metadata = {
         "model_version": "0.1.0",
-        "architecture": "resnet18",
+        "architecture": ARCHITECTURE,
         "num_classes": n_classes,
         "class_names": class_names,
-        "input_size": [224, 224],
-        "input_channels": 3,
-        "preprocessing": "ResNet18_Weights.IMAGENET1K_V1.transforms()",
+        "input_size": INPUT_SIZE,
+        "input_channels": INPUT_CHANNELS,
+        "preprocessing": PREPROCESSING,
         "torch_version": torch.__version__,
         "trained_on": "EuroSAT subset (1800 train / 400 val / 400 test)",
         "val_accuracy": val_acc,
