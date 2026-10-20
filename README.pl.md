@@ -43,10 +43,12 @@ CPU wystarcza do wszystkiego, co jest tutaj — wsparcie GPU włącza się
 automatycznie, jeśli je masz, ale nigdy nie jest wymagane. Część
 wykładów i laboratoriów (głównie późniejszych, np. transfer learning,
 embeddingi, inferencja LLM) pobiera zbiór danych albo wytrenowany model
-przy pierwszym uruchomieniu; potem jest to zapisane lokalnie w cache.
-Czas treningu różni się w zależności od komputera — żaden materiał nie
-zależy od konkretnej szybkości, ale kilka eksperymentów jest zauważalnie
-wolniejszych na starszym CPU.
+przy pierwszym uruchomieniu; potem korzysta ze wspólnego katalogu
+`data_cache/` w głównym katalogu repozytorium, współdzielonego przez moduły
+i języki. Ustaw `DEEP_LEARNING_DATA_CACHE` na ścieżkę bezwzględną, jeśli
+wolisz cache poza repozytorium. Czas treningu różni się w zależności od
+komputera — żaden materiał nie zależy od konkretnej szybkości, ale kilka
+eksperymentów jest zauważalnie wolniejszych na starszym CPU.
 
 ## Poznaj materiały
 

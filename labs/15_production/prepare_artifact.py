@@ -8,6 +8,7 @@ ResNet18 IMAGENET1K_V1 weights on first run (see data/registry.yml).
 import json
 import os
 import time
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -15,7 +16,13 @@ import torchvision.datasets as tvd
 from torchvision.models import ResNet18_Weights, resnet18
 
 ARTIFACT_DIR = os.environ.get("MODULE15_ARTIFACT_DIR", "artifacts")
-DATA_ROOT = os.environ.get("MODULE15_DATA_ROOT", "data_cache")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_ROOT = Path(
+    os.environ.get(
+        "MODULE15_DATA_ROOT",
+        os.environ.get("DEEP_LEARNING_DATA_CACHE", REPO_ROOT / "data_cache"),
+    )
+).expanduser().resolve()
 
 
 def load_subset(full_ds, indices):
