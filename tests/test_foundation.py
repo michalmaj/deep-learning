@@ -1,5 +1,6 @@
 """Foundation-level checks: project metadata, registries, repo hygiene."""
 
+import json
 import subprocess
 import sys
 import tomllib
@@ -52,3 +53,18 @@ def test_decisions_directory_is_not_tracked_by_git():
 def test_gitignore_excludes_decisions():
     gitignore = (REPO_ROOT / ".gitignore").read_text()
     assert "decisions/" in gitignore
+
+
+def test_public_lab_scaffolds_have_no_saved_execution_state():
+    """Student starter notebooks should open without stale output or tracebacks."""
+    dirty_cells = []
+
+    for notebook_path in sorted((REPO_ROOT / "labs").glob("*/lab*.ipynb")):
+        notebook = json.loads(notebook_path.read_text())
+        for cell_index, cell in enumerate(notebook["cells"]):
+            if cell["cell_type"] != "code":
+                continue
+            if cell.get("outputs") or cell.get("execution_count") is not None:
+                dirty_cells.append(f"{notebook_path.relative_to(REPO_ROOT)}: cell {cell_index}")
+
+    assert dirty_cells == [], "saved execution state found in:\n" + "\n".join(dirty_cells)
