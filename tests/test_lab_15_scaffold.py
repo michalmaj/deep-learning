@@ -31,6 +31,7 @@ import torch.nn as nn
 from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from nbclient import NotebookClient
+from torch.utils.data import TensorDataset
 from torchvision.models import resnet18
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -145,6 +146,33 @@ def test_load_artifact_validates_metadata_before_loading_weights(fake_artifact_d
 
     with pytest.raises(ValueError, match="input_size"):
         model_module.load_artifact(fake_artifact_dir)
+
+
+def test_extract_features_streams_selected_samples_in_batches():
+    from prepare_artifact import extract_features
+
+    class TrackingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.batch_sizes = []
+
+        def forward(self, inputs):
+            self.batch_sizes.append(len(inputs))
+            return inputs.flatten(1)
+
+    images = torch.arange(20, dtype=torch.float32).reshape(5, 1, 2, 2)
+    labels = torch.tensor([10, 11, 12, 13, 14])
+    indices = [4, 1, 3]
+    model = TrackingModel()
+
+    features, selected_labels = extract_features(
+        model, TensorDataset(images, labels), indices, batch_size=2
+    )
+
+    assert model.batch_sizes == [2, 1]
+    assert torch.equal(features, images[indices].flatten(1))
+    assert torch.equal(selected_labels, labels[indices])
+    assert not features.requires_grad
 
 
 def test_preprocess_image_bytes_is_not_yet_implemented():
