@@ -33,7 +33,35 @@ def histogram_counts(values: torch.Tensor, bin_edges: torch.Tensor) -> torch.Ten
     return torch.bincount(bin_ids, minlength=bin_edges.numel() - 1).to(torch.float32)
 
 
+def _validate_psi_inputs(
+    ref_counts: torch.Tensor, cur_counts: torch.Tensor, eps: float
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if not (0.0 < eps < 1.0):
+        raise ValueError("expected 0 < eps < 1")
+    if ref_counts.ndim != 1 or cur_counts.ndim != 1:
+        raise ValueError("PSI counts must be one-dimensional")
+    if ref_counts.numel() == 0 or cur_counts.numel() == 0:
+        raise ValueError("PSI counts must be non-empty")
+    if ref_counts.shape != cur_counts.shape:
+        raise ValueError("PSI counts must have the same shape")
+    if ref_counts.device != cur_counts.device:
+        raise ValueError("PSI counts must be on the same device")
+
+    ref_counts = ref_counts.to(torch.float64)
+    cur_counts = cur_counts.to(torch.float64)
+    for name, counts in (("ref_counts", ref_counts), ("cur_counts", cur_counts)):
+        if not torch.isfinite(counts).all():
+            raise ValueError(f"{name} must be finite")
+        if torch.any(counts < 0):
+            raise ValueError(f"{name} must be non-negative")
+        if counts.sum() <= 0:
+            raise ValueError(f"{name} must have a positive total")
+
+    return ref_counts, cur_counts
+
+
 def psi(ref_counts: torch.Tensor, cur_counts: torch.Tensor, eps: float = 1e-4) -> float:
+    ref_counts, cur_counts = _validate_psi_inputs(ref_counts, cur_counts, eps)
     # TODO:
     # 1. ref_props = ref_counts / ref_counts.sum(); same for cur_props
     # 2. clamp BOTH to a minimum of `eps` (avoids log(0) for empty bins --
