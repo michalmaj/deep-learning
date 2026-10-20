@@ -168,6 +168,17 @@ def test_server_lifespan_loads_once_and_clears_state(fake_artifact_dir, monkeypa
     assert server_module.app.state.loaded is None
 
 
+def test_model_info_returns_503_when_model_is_not_ready():
+    from app import server as server_module
+
+    server_module.app.state.loaded = None
+    client = TestClient(server_module.app, raise_server_exceptions=False)
+    response = client.get("/model-info")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "model not ready"}
+
+
 def test_read_upload_limited_accepts_a_bounded_payload():
     from app import server as server_module
 
