@@ -205,6 +205,28 @@ def test_send_requests_given_scaffold_propagates_until_predict_is_implemented(
             send_requests(client, b"irrelevant", 3)
 
 
+def test_send_requests_rejects_failed_http_responses():
+    from benchmark import send_requests
+
+    class FailingResponse:
+        def raise_for_status(self):
+            raise RuntimeError("HTTP 500")
+
+    class FailingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def post(self, *args, **kwargs):
+            self.calls += 1
+            return FailingResponse()
+
+    client = FailingClient()
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        send_requests(client, b"irrelevant", 3)
+
+    assert client.calls == 1
+
+
 def test_psi_is_not_yet_implemented():
     from monitoring import psi
 
