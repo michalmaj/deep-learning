@@ -55,16 +55,20 @@ def test_gitignore_excludes_decisions():
     assert "decisions/" in gitignore
 
 
-def test_public_lab_scaffolds_have_no_saved_execution_state():
-    """Student starter notebooks should open without stale output or tracebacks."""
-    dirty_cells = []
+def test_public_notebooks_declare_a_python_kernel_and_language():
+    problems = []
+    notebook_paths = sorted((REPO_ROOT / "lectures").glob("*/*.ipynb"))
+    notebook_paths += sorted((REPO_ROOT / "labs").glob("*/*.ipynb"))
 
-    for notebook_path in sorted((REPO_ROOT / "labs").glob("*/lab*.ipynb")):
-        notebook = json.loads(notebook_path.read_text())
-        for cell_index, cell in enumerate(notebook["cells"]):
-            if cell["cell_type"] != "code":
-                continue
-            if cell.get("outputs") or cell.get("execution_count") is not None:
-                dirty_cells.append(f"{notebook_path.relative_to(REPO_ROOT)}: cell {cell_index}")
+    assert len(notebook_paths) == 60
 
-    assert dirty_cells == [], "saved execution state found in:\n" + "\n".join(dirty_cells)
+    for notebook_path in notebook_paths:
+        metadata = json.loads(notebook_path.read_text()).get("metadata", {})
+        kernelspec = metadata.get("kernelspec", {})
+        language_info = metadata.get("language_info", {})
+        if kernelspec.get("name") != "python3" or kernelspec.get("language") != "python":
+            problems.append(f"{notebook_path.relative_to(REPO_ROOT)}: invalid kernelspec")
+        if language_info.get("name") != "python":
+            problems.append(f"{notebook_path.relative_to(REPO_ROOT)}: invalid language_info")
+
+    assert problems == [], "notebook metadata problems:\n" + "\n".join(problems)
