@@ -127,7 +127,11 @@ batchingu w jednym żądaniu).
 
 `histogram_counts()` i `brightness_feature()` są gotowe. Twoje zadanie:
 `psi(ref_counts, cur_counts, eps)` — wzór PSI z wykładu, **z wygładzaniem**
-zerowych częstości (sprawdź w notebooku, co się stanie bez `eps`).
+zerowych częstości (sprawdź w notebooku, co się stanie bez `eps`). Gotowy
+histogram zachowuje wartości poniżej/powyżej stałego zakresu referencyjnego
+w pierwszym/ostatnim binie, zamiast odrzucać obserwacje z driftem. `psi()`
+waliduje kształty, skończone nieujemne liczniki, dodatnie sumy i `eps`,
+zanim zostanie wykonany Twój wzór.
 
 ## 7. Scenariusze monitoringu — Twoje zadanie
 
