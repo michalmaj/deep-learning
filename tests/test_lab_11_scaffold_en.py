@@ -1,6 +1,7 @@
 """The English lab 11 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_11_scaffold.py`). Downloads
-SmolLM2-135M-Instruct weights, so it is skipped under CI=true.
+SmolLM2-135M-Instruct weights, so it is marked `network` and runs in
+scheduled network CI.
 """
 
 from pathlib import Path

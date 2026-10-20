@@ -1,11 +1,12 @@
 """Independent, always-on tests for lab 08 (CI-safe: no download, no model).
 
 `tests/test_lab_08_scaffold.py` executes the real student notebook and is
-skipped under CI=true because its very first code cell (section 1,
+marked `network` because its very first code cell (section 1,
 `tvd.EuroSAT(..., download=True)`) runs *before* the first student TODO --
 unlike modules 09/10, there is no way to reach even the earliest TODO
-without a network call. This file protects what it can without that call,
-and without reimplementing the lab's own deliverables.
+without a network call. Scheduled network CI runs that notebook test; this
+file protects the fast PR suite without reimplementing the lab's own
+deliverables.
 
 Two tests below (`test_toy_retrieval_fixture_*` and
 `test_gallery_query_split_logic_*`) read the *actual, current* source of

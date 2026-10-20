@@ -1,7 +1,7 @@
 """Lecture 12's English notebook (`examples.en.ipynb`) must run end-to-end
 from a clean kernel, exactly like its Polish counterpart
-(`test_lecture_12_notebook.py`). Downloads KMNIST, so it is skipped under
-CI=true.
+(`test_lecture_12_notebook.py`). Downloads KMNIST, so it is marked `network`
+and runs in scheduled network CI.
 """
 
 from pathlib import Path

@@ -3,7 +3,8 @@
 Same pattern as tests/test_lab_07_scaffold.py and tests/test_lab_12_scaffold.py:
 the notebook's very first code cell downloads EuroSAT and ResNet18 weights,
 so there is no way to reach even the first student TODO offline -- the full
-scaffold-to-first-TODO execution is skipped under CI=true.
+scaffold-to-first-TODO execution is marked `network` and runs in scheduled
+network CI.
 
 The always-on tests below cover the metrics, Grad-CAM, and diagnostic-task
 mechanics the lab's own deliverables are built around, using tiny synthetic

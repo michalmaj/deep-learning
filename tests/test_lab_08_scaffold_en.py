@@ -1,6 +1,7 @@
 """The English lab 08 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_08_scaffold.py`). Downloads EuroSAT and
-ResNet18 pretrained weights, so it is skipped under CI=true.
+ResNet18 pretrained weights, so it is marked `network` and runs in
+scheduled network CI.
 """
 
 from pathlib import Path

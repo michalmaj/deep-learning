@@ -1,7 +1,7 @@
 """Lecture 15's English notebook (`examples.en.ipynb`) must run end-to-end
 from a clean kernel, exactly like its Polish counterpart
 (`test_lecture_15_notebook.py`). Downloads Fashion-MNIST, so it is
-skipped under CI=true.
+marked `network` and runs in scheduled network CI.
 """
 
 from pathlib import Path

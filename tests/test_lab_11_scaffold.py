@@ -3,7 +3,8 @@
 Same pattern as tests/test_lab_08_scaffold.py: the notebook's very first
 code cell (section 1, loading the real model) needs a network download, so
 there is no way to reach even the first student TODO offline -- the full
-scaffold-to-first-TODO execution is skipped under CI=true.
+scaffold-to-first-TODO execution is marked `network` and runs in scheduled
+network CI.
 
 The always-on tests below cover the pipeline mechanics the lab's own
 deliverables (`format_prompt`, `generate_response`) are built around, and

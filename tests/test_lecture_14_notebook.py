@@ -2,7 +2,7 @@
 
 This notebook downloads Fashion-MNIST (via torchvision, already registered
 in data/registry.yml for module 06) -- the full nbclient execution is
-skipped under CI=true, matching modules 06/12.
+marked `network` and runs in scheduled network CI, matching modules 06/12.
 
 The fast, always-on tests below cover the actual metrics/calibration/
 Grad-CAM mechanics the lecture is built around, using tiny synthetic

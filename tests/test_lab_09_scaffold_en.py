@@ -1,6 +1,6 @@
 """The English lab 09 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_09_scaffold.py`). Downloads the SMS Spam
-Collection, so it is skipped under CI=true.
+Collection, so it is marked `network` and runs in scheduled network CI.
 """
 
 from pathlib import Path

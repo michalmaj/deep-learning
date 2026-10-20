@@ -1,7 +1,7 @@
 """Lecture 11's English notebook (`examples.en.ipynb`) must run end-to-end
 from a clean kernel, exactly like its Polish counterpart
 (`test_lecture_11_notebook.py`). Downloads SmolLM2-135M-Instruct weights,
-so it is skipped under CI=true.
+so it is marked `network` and runs in scheduled network CI.
 """
 
 from pathlib import Path

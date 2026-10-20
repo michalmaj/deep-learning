@@ -9,7 +9,8 @@ ran with no error, and that the first error is exactly the expected
 section 1).
 
 Like tests/test_lecture_06_notebook.py, the full execution needs to
-download KMNIST, so it is skipped under CI=true.
+download KMNIST, so it carries the `network` marker and runs in scheduled
+network CI.
 """
 
 from pathlib import Path

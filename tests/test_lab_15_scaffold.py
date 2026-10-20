@@ -2,8 +2,8 @@
 
 Unlike other labs, module 15's "notebook" is really a small application
 (`app/`, `benchmark.py`, `monitoring.py`) exercised from `lab.ipynb`. The
-full lab.ipynb scaffold-to-first-TODO execution needs a real EuroSAT +
-ResNet18 artifact, so it is skipped under CI=true, matching modules
+full lab.ipynb scaffold-to-first-TODO execution downloads EuroSAT, so it is
+marked `network` and runs in scheduled network CI, matching modules
 07/12/14. The always-on tests below import the REAL application modules
 (never an independent copy) and exercise them two ways:
 

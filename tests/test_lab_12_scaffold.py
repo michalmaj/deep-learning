@@ -3,7 +3,8 @@
 Same pattern as tests/test_lab_08_scaffold.py and tests/test_lab_11_scaffold.py:
 the notebook's very first code cell downloads Fashion-MNIST, so there is no
 way to reach even the first student TODO offline -- the full
-scaffold-to-first-TODO execution is skipped under CI=true.
+scaffold-to-first-TODO execution is marked `network` and runs in scheduled
+network CI.
 
 The always-on tests below cover the anomaly-detection metric mechanics
 (confusion counts, precision/recall/F1, ROC-AUC, PR-AUC, threshold logic)

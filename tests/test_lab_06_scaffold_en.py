@@ -1,6 +1,7 @@
 """The English lab 06 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_06_scaffold.py`). Downloads KMNIST, so it is
-skipped under CI=true (same pattern as the Polish test).
+marked `network` (same pattern as the Polish test) and runs in scheduled
+network CI.
 """
 
 from pathlib import Path

@@ -1,6 +1,6 @@
 """The English lab 12 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_12_scaffold.py`). Downloads Fashion-MNIST,
-so it is skipped under CI=true.
+so it is marked `network` and runs in scheduled network CI.
 """
 
 from pathlib import Path

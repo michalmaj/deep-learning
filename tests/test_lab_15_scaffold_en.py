@@ -1,6 +1,6 @@
 """The English lab 15 scaffold (`lab.en.ipynb`) must run, exactly like its
-Polish counterpart (`test_lab_15_scaffold.py`). Needs a real EuroSAT +
-ResNet18 artifact, so it is skipped under CI=true.
+Polish counterpart (`test_lab_15_scaffold.py`). It downloads EuroSAT, so
+it is marked `network` and runs in scheduled network CI.
 
 `lab.en.ipynb` imports the SAME `app/`, `benchmark.py`, `monitoring.py`
 modules as `lab.ipynb` -- those files are shared, English-only code (not

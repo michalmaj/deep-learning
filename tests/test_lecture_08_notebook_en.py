@@ -1,7 +1,7 @@
 """Lecture 08's English notebook (`examples.en.ipynb`) must run end-to-end
 from a clean kernel, exactly like its Polish counterpart
 (`test_lecture_08_notebook.py`). Reuses the Caltech101/ResNet18 cache from
-module 07, so it is skipped under CI=true.
+module 07, so it is marked `network` and runs in scheduled network CI.
 """
 
 from pathlib import Path

@@ -1,8 +1,8 @@
 """Lecture 15 notebook tests.
 
 This notebook downloads Fashion-MNIST (already registered in
-data/registry.yml for module 06) -- the full nbclient execution is skipped
-under CI=true, matching modules 06/12/14.
+data/registry.yml for module 06) -- the full nbclient execution is marked
+`network` and runs in scheduled network CI, matching modules 06/12/14.
 
 The fast, always-on tests below cover the artifact save/load mechanics,
 the eval()/train() distinction, percentile math, and PSI -- using tiny

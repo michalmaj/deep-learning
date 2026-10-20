@@ -2,7 +2,8 @@
 
 Unlike modules 09/10, this notebook downloads real model weights
 (HuggingFaceTB/SmolLM2-135M-Instruct, ~257MB) -- the full `nbclient`
-execution is skipped under CI=true, the same pattern as modules 06-08.
+execution is marked `network` and runs in scheduled network CI, the same
+pattern as modules 06-08.
 
 The fast, always-on tests below cover the actual decoding/generation
 mechanics using only synthetic logits or a tiny `LlamaForCausalLM` built

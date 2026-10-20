@@ -1,7 +1,7 @@
 """The English lab 14 scaffold (`lab.en.ipynb`) must run, exactly like its
 Polish counterpart (`test_lab_14_scaffold.py`). The notebook's very first
-code cell downloads EuroSAT and ResNet18 weights, so it is skipped under
-CI=true.
+code cell downloads EuroSAT and ResNet18 weights, so it is marked `network`
+and runs in scheduled network CI.
 """
 
 from pathlib import Path

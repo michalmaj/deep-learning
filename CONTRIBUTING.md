@@ -148,13 +148,19 @@ duplicated pair.
 
 ```bash
 uv run ruff check .
-CI=true uv run pytest          # fast, network-free subset
-uv run pytest                  # full suite, needs downloads
+uv run pytest -m "not network" # fast, network-free PR suite
+uv run pytest -m network       # download-dependent notebook tests only
+uv run pytest                  # full local suite, including downloads
 uv run python scripts/verify_data.py
 uv run python scripts/check_pl_en_equivalence.py
 git ls-files decisions/        # must print nothing
 git log <base>..HEAD --format=%B | grep -i "claude\|anthropic"   # must print nothing
 ```
+
+Tests that download datasets or model weights carry the registered
+`network` marker. Pull-request CI runs the network-free selector; the
+separate `Network tests` workflow runs the marked group every Monday and
+can also be started manually from GitHub Actions.
 
 Also check, by hand or with a short script: every relative Markdown/
 notebook link in changed files resolves to a file that exists, and

@@ -2,9 +2,9 @@
 
 Split like module 06: a full `nbclient` execution of the real notebook is
 kept (downloads Caltech101 + ResNet18 pretrained weights, several minutes
-of CPU training) but is skipped under CI=true. The formula/mechanics
-checks below need no network and no real images, so they run
-unconditionally in CI as fast smoke tests -- they specifically cover the
+of CPU training), carries the `network` marker, and runs in scheduled
+network CI. The formula/mechanics checks below need no network and no real
+images, so they run in the fast PR suite as smoke tests -- they cover the
 non-obvious mechanics this lecture is about: freezing, partial
 fine-tuning, and the BatchNorm train()/eval() distinction.
 """

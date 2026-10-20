@@ -9,7 +9,8 @@ ran with no error, and that the first error is exactly the expected
 transform).
 
 Like tests/test_lecture_07_notebook.py, the full execution needs to
-download EuroSAT + ResNet18 weights, so it is skipped under CI=true.
+download EuroSAT + ResNet18 weights, so it carries the `network` marker
+and runs in scheduled network CI.
 """
 
 from pathlib import Path
