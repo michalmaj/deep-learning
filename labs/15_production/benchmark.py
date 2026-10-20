@@ -11,12 +11,14 @@ import torch  # noqa: F401 - used in the TODO below
 
 def send_requests(client, image_bytes: bytes, n: int) -> list[float]:
     """Send `n` single-image /predict requests through the given TestClient
-    and return the raw wall-clock time (seconds) of each request."""
+    and return the raw elapsed time (seconds) of each successful request."""
     times = []
     for _ in range(n):
-        t0 = time.time()
-        client.post("/predict", files={"file": ("x.png", image_bytes, "image/png")})
-        times.append(time.time() - t0)
+        t0 = time.perf_counter()
+        response = client.post("/predict", files={"file": ("x.png", image_bytes, "image/png")})
+        elapsed = time.perf_counter() - t0
+        response.raise_for_status()
+        times.append(elapsed)
     return times
 
 
