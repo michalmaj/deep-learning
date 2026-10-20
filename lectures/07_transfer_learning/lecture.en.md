@@ -56,10 +56,12 @@ $$\min_{\theta_{\text{backbone}},\ \theta_{\text{head}}} L(\theta), \qquad \thet
 **Different learning rates for different parameter groups** — `torch.optim` supports this natively via *parameter groups*:
 
 ```python
-optimizer = torch.optim.Adam([
-    {"params": model.layer4.parameters(), "lr": eta_backbone},
-    {"params": model.fc.parameters(), "lr": eta_head},
-])
+optimizer = torch.optim.Adam(
+    [
+        {"params": model.layer4.parameters(), "lr": eta_backbone},
+        {"params": model.fc.parameters(), "lr": eta_head},
+    ]
+)
 ```
 
 where typically $\eta_{\text{backbone}} \ll \eta_{\text{head}}$ (e.g. $10$–$100\times$ smaller).

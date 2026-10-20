@@ -90,9 +90,7 @@ def test_mask_semantics_differ_between_sdpa_and_multiheadattention():
 
     allow_mask = torch.tensor([[True, True, False]]).expand(3, -1)
     out_allowed = F.scaled_dot_product_attention(Q, K, V, attn_mask=allow_mask, dropout_p=0.0)
-    out_blocked_last = F.scaled_dot_product_attention(
-        Q, K, V, attn_mask=~allow_mask, dropout_p=0.0
-    )
+    out_blocked_last = F.scaled_dot_product_attention(Q, K, V, attn_mask=~allow_mask, dropout_p=0.0)
     assert not torch.allclose(out_allowed, out_blocked_last), (
         "flipping the boolean mask must change the output -- otherwise the mask is "
         "not actually being applied"
@@ -103,9 +101,9 @@ def test_mask_semantics_differ_between_sdpa_and_multiheadattention():
     _, weights_true_is_pad = mha(
         Q, K, V, key_padding_mask=key_padding_mask, need_weights=True, average_attn_weights=True
     )
-    assert torch.allclose(
-        weights_true_is_pad.squeeze(0)[:, 2], torch.zeros(3), atol=1e-6
-    ), "nn.MultiheadAttention must zero out attention to the True (padding) column"
+    assert torch.allclose(weights_true_is_pad.squeeze(0)[:, 2], torch.zeros(3), atol=1e-6), (
+        "nn.MultiheadAttention must zero out attention to the True (padding) column"
+    )
 
 
 def test_all_masked_row_naive_softmax_is_nan_but_sdpa_is_zero():
@@ -217,9 +215,7 @@ def test_transformer_beats_gru_at_long_range_across_several_seeds():
             super().__init__()
             self.mha = nn.MultiheadAttention(d_model, n_heads, batch_first=True, dropout=0.0)
             self.ln1 = nn.LayerNorm(d_model)
-            self.ff = nn.Sequential(
-                nn.Linear(d_model, d_ff), nn.ReLU(), nn.Linear(d_ff, d_model)
-            )
+            self.ff = nn.Sequential(nn.Linear(d_model, d_ff), nn.ReLU(), nn.Linear(d_ff, d_model))
             self.ln2 = nn.LayerNorm(d_model)
 
         def forward(self, x):

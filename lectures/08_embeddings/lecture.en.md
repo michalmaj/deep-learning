@@ -110,9 +110,9 @@ Everything above concerned embeddings **computed** from continuous data (image -
 import torch.nn as nn
 
 V, d = 6, 4  # V = vocabulary size (number of possible tokens), d = embedding dimension
-embedding = nn.Embedding(V, d)   # a V x d table, randomly initialized, trainable
+embedding = nn.Embedding(V, d)  # a V x d table, randomly initialized, trainable
 token_ids = torch.tensor([0, 3, 1])
-vectors = embedding(token_ids)   # (3, 4) -- simply reading the corresponding rows
+vectors = embedding(token_ids)  # (3, 4) -- simply reading the corresponding rows
 ```
 
 `nn.Embedding(V, d)` is a $V\times d$ matrix stored as an ordinary, trainable parameter (`embedding.weight`) -- `forward` is **indexing** (reading rows), not matrix multiplication. The gradient flowing backward updates **only the rows** that occurred in a given batch (verified in the notebook: rows not used at all get no gradient whatsoever, so they do not change -- exactly like the frozen layers in module 7, except here the "freezing" comes from absence in the data, not from `requires_grad`).
