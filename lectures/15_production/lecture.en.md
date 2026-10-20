@@ -178,6 +178,13 @@ number of channels, **the same** preprocessing as during evaluation.
 Response: the predicted class (a name, not just an index), confidence,
 the model version.
 
+"Maximum size" needs more than one guard. Limit the HTTP request before
+multipart parsing, enforce the exact compressed-file limit, and bound the
+decoded pixel count. A small compressed image can otherwise expand into a
+large allocation. The notebook demo bounds both the file read and decoded
+pixels; the lab additionally provides an ASGI middleware that rejects an
+oversized request before multipart spooling.
+
 ❌ "An invalid input (a corrupted file, wrong dimensions) should return
 the raw Python exception message, so the client knows what happened."
 
@@ -185,6 +192,11 @@ the raw Python exception message, so the client knows what happened."
 can reveal local file paths, code structure, library versions — an API
 client should get a **clear, but limited** error message (e.g. HTTP code
 400 "invalid image format"), not the full call stack.
+
+Only expected input and decoding failures are client errors. A catch-all
+HTTP 400 handler hides model and infrastructure failures that should remain
+HTTP 500. Also, synchronous CPU-bound inference should run in a worker
+thread so that an `async` endpoint does not block the event loop.
 
 ### The model's lifecycle in the process
 

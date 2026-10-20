@@ -169,6 +169,14 @@ rozmiar, liczba kanałów, **ten sam** preprocessing co podczas ewaluacji.
 Odpowiedź: predykowana klasa (nazwa, nie tylko indeks), confidence, wersja
 modelu.
 
+„Maksymalny rozmiar” wymaga kilku zabezpieczeń. Trzeba ograniczyć żądanie
+HTTP przed parsowaniem multipart, wyegzekwować dokładny limit
+skompresowanego pliku i ograniczyć liczbę pikseli po dekodowaniu. Mały
+skompresowany obraz może w przeciwnym razie rozwinąć się do dużej alokacji.
+Demo w notebooku ogranicza odczyt pliku i liczbę zdekodowanych pikseli,
+a laboratorium dodaje middleware ASGI odrzucający zbyt duże żądanie przed
+zapisaniem multipart na dysku.
+
 ❌ "Błędne wejście (uszkodzony plik, złe wymiary) powinno zwrócić surowy
 komunikat wyjątku Pythona, żeby klient wiedział, co się stało."
 
@@ -176,6 +184,12 @@ komunikat wyjątku Pythona, żeby klient wiedział, co się stało."
 ujawnić lokalne ścieżki plików, strukturę kodu, wersje bibliotek — klient
 API powinien dostać **jasny, ale ograniczony** komunikat błędu (np. kod
 HTTP 400 "nieprawidłowy format obrazu"), nie pełny stos wywołań.
+
+Tylko oczekiwane błędy wejścia i dekodowania są błędami klienta. Ogólny
+handler zwracający HTTP 400 ukrywa awarie modelu i infrastruktury, które
+powinny pozostać błędami HTTP 500. Synchroniczną inferencję obciążającą CPU
+należy też uruchomić w wątku roboczym, aby endpoint `async` nie blokował
+pętli zdarzeń.
 
 ### Cykl życia modelu w procesie
 
