@@ -62,7 +62,9 @@ def test_network_workflow_runs_every_shard_with_an_isolated_cache():
     assert job["strategy"]["fail-fast"] is False
     assert set(job["strategy"]["matrix"]["shard"]) == set(NETWORK_TEST_SHARDS)
 
-    cache_step = next(step for step in job["steps"] if step.get("uses") == "actions/cache@v4")
+    cache_step = next(
+        step for step in job["steps"] if step.get("uses", "").startswith("actions/cache@")
+    )
     assert "${{ matrix.shard }}" in cache_step["with"]["key"]
 
     run_step = next(
