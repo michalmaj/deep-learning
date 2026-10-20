@@ -90,6 +90,7 @@ def fake_artifact_dir(tmp_path):
         "class_names": ["A", "B", "C"],
         "input_size": [224, 224],
         "input_channels": 3,
+        "preprocessing": "ResNet18_Weights.IMAGENET1K_V1.transforms()",
     }
     with open(tmp_path / "metadata.json", "w") as f:
         json.dump(metadata, f)
