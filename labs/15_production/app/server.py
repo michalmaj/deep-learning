@@ -8,6 +8,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -148,14 +149,24 @@ async def read_upload_limited(file: UploadFile, max_bytes: int = MAX_UPLOAD_BYTE
     return data
 
 
+async def run_prediction(loaded, data: bytes) -> dict:
+    """Run CPU inference off the event loop and map only input errors to 4xx."""
+    try:
+        return await run_in_threadpool(model_module.predict, loaded, data)
+    except model_module.ImageTooLargeError:
+        raise HTTPException(status_code=413, detail="decoded image too large") from None
+    except model_module.InvalidImageError:
+        raise HTTPException(status_code=400, detail="could not decode image") from None
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_endpoint(file: UploadFile = File(...)):
     # TODO:
     # 1. if app.state.loaded is None: raise HTTPException(503, "model not ready")
     # 2. data = await read_upload_limited(file) -- this helper rejects empty files
     #    (400) and files over MAX_UPLOAD_BYTES (413) without reading an unbounded body
-    # 3. call model_module.predict(app.state.loaded, data) inside a try/except;
-    #    on ANY exception, raise HTTPException(400, "could not decode or process
-    #    image") -- NEVER let the raw exception/traceback reach the client
-    # 4. return the result dict
+    # 3. return await run_prediction(app.state.loaded, data). The helper runs
+    #    synchronous CPU inference outside the event loop, maps known input
+    #    errors to safe 400/413 responses, and deliberately leaves unexpected
+    #    server/model failures as HTTP 500 instead of mislabeling them as 400.
     raise NotImplementedError("TODO: /predict endpoint")

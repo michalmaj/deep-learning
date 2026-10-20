@@ -1,11 +1,13 @@
 """Shared request-boundary tests for the module 15 inference service."""
 
+import asyncio
 import io
 import sys
+import threading
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -17,7 +19,7 @@ from app.model import (  # noqa: E402
     InvalidImageError,
     decode_image_bytes,
 )
-from app.server import RequestBodyLimitMiddleware  # noqa: E402
+from app.server import RequestBodyLimitMiddleware, run_prediction  # noqa: E402
 
 
 def _body_echo_app(*, limit: int) -> tuple[FastAPI, dict[str, bool]]:
@@ -101,3 +103,53 @@ def test_decode_image_bytes_rejects_invalid_image_data():
 def test_decode_image_bytes_rejects_excessive_decoded_pixel_count():
     with pytest.raises(ImageTooLargeError, match="5-pixel limit"):
         decode_image_bytes(_png_bytes((3, 2)), max_pixels=5)
+
+
+def test_run_prediction_offloads_synchronous_inference(monkeypatch):
+    event_loop_thread = threading.get_ident()
+    inference_thread = None
+
+    def fake_predict(loaded, data):
+        nonlocal inference_thread
+        inference_thread = threading.get_ident()
+        return {"loaded": loaded, "size": len(data)}
+
+    monkeypatch.setattr("app.server.model_module.predict", fake_predict)
+
+    result = asyncio.run(run_prediction("model", b"123"))
+
+    assert result == {"loaded": "model", "size": 3}
+    assert inference_thread is not None
+    assert inference_thread != event_loop_thread
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_detail"),
+    [
+        (InvalidImageError("bad input"), 400, "could not decode image"),
+        (ImageTooLargeError("too many pixels"), 413, "decoded image too large"),
+    ],
+)
+def test_run_prediction_maps_only_known_input_errors(
+    monkeypatch, error, expected_status, expected_detail
+):
+    def fail(loaded, data):
+        raise error
+
+    monkeypatch.setattr("app.server.model_module.predict", fail)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(run_prediction("model", b"data"))
+
+    assert exc_info.value.status_code == expected_status
+    assert exc_info.value.detail == expected_detail
+
+
+def test_run_prediction_does_not_mask_internal_model_failures(monkeypatch):
+    def fail(loaded, data):
+        raise RuntimeError("internal inference failure")
+
+    monkeypatch.setattr("app.server.model_module.predict", fail)
+
+    with pytest.raises(RuntimeError, match="internal inference failure"):
+        asyncio.run(run_prediction("model", b"data"))
