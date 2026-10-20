@@ -12,9 +12,13 @@ Import bibliotek, urządzenie, ziarno losowości, `torch.set_num_threads(4)`.
 
 ## 1. Dane: SMS Spam Collection (gotowe + krótkie zadanie)
 
-5574 wiadomości SMS, etykieta `ham`/`spam`, pobierane bezpośrednio (plik tekstowy
-`label\ttext` na linię, zip ~200KB, SHA-256 zweryfikowany w kodzie — zobacz
-[`data/registry.yml`](../../data/registry.yml)).
+5574 wiadomości SMS, etykieta `ham`/`spam`, pobierane bezpośrednio (plik
+tekstowy `label\ttext` na linię, zip ~200KB — zobacz
+[`data/registry.yml`](../../data/registry.yml)). Gotowy helper cache zapisuje
+pobierane i rozpakowywane dane do plików tymczasowych, weryfikuje SHA-256
+archiwum oraz wypakowany element i dopiero wtedy atomowo podmienia pliki
+docelowe. Nieudana lub przerwana operacja nie może więc zamienić poprawnego
+cache w częściowy plik.
 
 **Zadanie:** policz i wypisz rozkład klas (`ham`/`spam`). Zbiór jest zbalansowany czy
 nie? Zanotuj — to ma znaczenie dla wyboru metryk w sekcji 10.
