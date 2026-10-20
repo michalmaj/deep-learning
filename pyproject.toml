@@ -30,3 +30,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that download external datasets or model weights",
+]

@@ -14,7 +14,6 @@ a complete, reusable version of `generate_response` here would itself be
 most of the solution to section 4).
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -34,10 +33,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads SmolLM2-135M-Instruct weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_11_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

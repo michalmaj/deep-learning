@@ -13,7 +13,6 @@ solution's exact implementations (reimplemented independently here, the
 same way test_lab_11_scaffold.py never imports generate_response).
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -32,10 +31,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_12_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

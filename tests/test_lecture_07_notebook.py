@@ -9,7 +9,6 @@ non-obvious mechanics this lecture is about: freezing, partial
 fine-tuning, and the BatchNorm train()/eval() distinction.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -22,10 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "07_transfer_learning" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Caltech101 + ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_07_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

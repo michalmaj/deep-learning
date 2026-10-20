@@ -12,7 +12,6 @@ hand in `lecture.md`'s worked examples, so a future change to the formulas
 would have to update both places consistently.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -26,10 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "12_autoencoders" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads KMNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_12_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

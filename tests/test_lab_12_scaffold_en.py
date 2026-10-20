@@ -3,7 +3,6 @@ Polish counterpart (`test_lab_12_scaffold.py`). Downloads Fashion-MNIST,
 so it is skipped under CI=true.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -21,10 +20,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_12_scaffold_en_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

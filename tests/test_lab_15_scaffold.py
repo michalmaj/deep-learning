@@ -20,7 +20,6 @@ ResNet18 artifact, so it is skipped under CI=true, matching modules
 import asyncio
 import io
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -53,10 +52,7 @@ def _artifact_metadata():
     }
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="needs a real EuroSAT + ResNet18 artifact; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_15_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

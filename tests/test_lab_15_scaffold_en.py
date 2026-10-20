@@ -9,7 +9,6 @@ given/TODO mechanics tests. This file only verifies the English notebook
 itself runs to the same first TODO.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -28,10 +27,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="needs a real EuroSAT + ResNet18 artifact; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_15_scaffold_en_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

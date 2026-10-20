@@ -9,7 +9,6 @@ before opening a PR. The formula/shape checks below need no network and
 no real images, so they run unconditionally in CI as fast smoke tests.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -22,10 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_PATH = REPO_ROOT / "lectures" / "06_cnn" / "examples.ipynb"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads Fashion-MNIST; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lecture_06_notebook_executes_cleanly():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(

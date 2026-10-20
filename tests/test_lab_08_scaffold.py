@@ -12,7 +12,6 @@ Like tests/test_lecture_08_notebook.py, the full execution needs to
 download EuroSAT + ResNet18 weights, so it is skipped under CI=true.
 """
 
-import os
 from pathlib import Path
 
 import nbformat
@@ -30,10 +29,7 @@ def _cell_error(cell):
     return None
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="downloads EuroSAT + ResNet18 weights; run locally before opening a PR",
-)
+@pytest.mark.network
 def test_lab_08_scaffold_runs_until_first_todo():
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     client = NotebookClient(
