@@ -438,8 +438,11 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
 model = AutoModelForCausalLM.from_pretrained(MODEL_ID, revision=REVISION)
 
 inputs = tokenizer.apply_chat_template(
-    messages, tokenize=True, add_generation_prompt=True,
-    return_tensors="pt", return_dict=True,
+    messages,
+    tokenize=True,
+    add_generation_prompt=True,
+    return_tensors="pt",
+    return_dict=True,
 )
 output = model.generate(**inputs, max_new_tokens=64, do_sample=False)
 ```

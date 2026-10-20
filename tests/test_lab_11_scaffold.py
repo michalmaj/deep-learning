@@ -89,8 +89,12 @@ def test_new_tokens_are_correctly_sliced_from_full_generate_output():
     prompt_len = input_ids.shape[1]
     with torch.no_grad():
         out = model.generate(
-            input_ids, max_new_tokens=6, min_new_tokens=6, do_sample=False,
-            eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_new_tokens=6,
+            min_new_tokens=6,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
     new_tokens = out[:, prompt_len:]
     assert new_tokens.shape[1] == 6
@@ -119,8 +123,12 @@ def test_sampling_with_fixed_seed_is_reproducible_across_calls():
         with torch.no_grad():
             outs.append(
                 model.generate(
-                    input_ids, max_new_tokens=8, do_sample=True,
-                    temperature=0.8, top_k=10, pad_token_id=1,
+                    input_ids,
+                    max_new_tokens=8,
+                    do_sample=True,
+                    temperature=0.8,
+                    top_k=10,
+                    pad_token_id=1,
                 )
             )
     assert torch.equal(outs[0], outs[1])
@@ -138,8 +146,11 @@ def test_max_length_vs_max_new_tokens_diagnostic_bug_is_reproducible():
 
     with torch.no_grad():
         buggy_out = model.generate(
-            input_ids, max_length=desired_new_tokens, do_sample=False,
-            eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_length=desired_new_tokens,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
     actual_new_buggy = buggy_out.shape[1] - prompt_len
     assert actual_new_buggy == desired_new_tokens - prompt_len
@@ -147,8 +158,12 @@ def test_max_length_vs_max_new_tokens_diagnostic_bug_is_reproducible():
 
     with torch.no_grad():
         fixed_out = model.generate(
-            input_ids, max_new_tokens=desired_new_tokens, min_new_tokens=desired_new_tokens,
-            do_sample=False, eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_new_tokens=desired_new_tokens,
+            min_new_tokens=desired_new_tokens,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
     actual_new_fixed = fixed_out.shape[1] - prompt_len
     assert actual_new_fixed == desired_new_tokens
@@ -162,7 +177,11 @@ def test_max_length_raises_when_prompt_already_at_or_past_limit():
     input_ids = torch.randint(2, 50, (1, 20))
     with torch.no_grad(), pytest.raises(ValueError):
         model.generate(
-            input_ids, max_length=20, do_sample=False, eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_length=20,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
 
 

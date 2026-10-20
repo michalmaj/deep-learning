@@ -77,11 +77,7 @@ def test_confusion_matrix_and_macro_f1_on_known_example():
         fn = confusion[c, :].sum().item() - tp
         precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
         recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall) > 0
-            else 0.0
-        )
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
         f1s.append(f1)
 
     accuracy = (y_true == y_pred).float().mean().item()

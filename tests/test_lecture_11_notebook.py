@@ -80,9 +80,7 @@ def test_temperature_matches_lecture_worked_example():
     )
 
     p_flat = F.softmax(logits / 2.0, dim=-1)
-    assert torch.allclose(
-        p_flat, torch.tensor([0.3495, 0.2722, 0.1651, 0.1352, 0.0780]), atol=1e-3
-    )
+    assert torch.allclose(p_flat, torch.tensor([0.3495, 0.2722, 0.1651, 0.1352, 0.0780]), atol=1e-3)
 
     # lower temperature -> sharper (higher max probability); higher -> flatter
     assert p_sharp.max() > p_neutral.max() > p_flat.max()
@@ -160,8 +158,11 @@ def test_eos_stops_generation_before_max_new_tokens():
     with torch.no_grad():
         natural_next = model(input_ids).logits[0, -1, :].argmax().item()
         out = model.generate(
-            input_ids, max_new_tokens=20, do_sample=False,
-            eos_token_id=natural_next, pad_token_id=natural_next,
+            input_ids,
+            max_new_tokens=20,
+            do_sample=False,
+            eos_token_id=natural_next,
+            pad_token_id=natural_next,
         )
     assert out.shape[1] == input_ids.shape[1] + 1
     assert out[0, -1].item() == natural_next
@@ -172,8 +173,12 @@ def test_max_new_tokens_limits_length_without_eos():
     input_ids = torch.randint(2, 50, (1, 5))
     with torch.no_grad():
         out = model.generate(
-            input_ids, max_new_tokens=12, min_new_tokens=12, do_sample=False,
-            eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_new_tokens=12,
+            min_new_tokens=12,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
     assert out.shape[1] == input_ids.shape[1] + 12
 
@@ -184,8 +189,12 @@ def test_new_tokens_are_correctly_sliced_and_prompt_is_not_leaked_as_response():
     prompt_len = input_ids.shape[1]
     with torch.no_grad():
         out = model.generate(
-            input_ids, max_new_tokens=5, min_new_tokens=5, do_sample=False,
-            eos_token_id=None, pad_token_id=0,
+            input_ids,
+            max_new_tokens=5,
+            min_new_tokens=5,
+            do_sample=False,
+            eos_token_id=None,
+            pad_token_id=0,
         )
     # the prompt must still be the prefix, unchanged
     assert torch.equal(out[:, :prompt_len], input_ids)

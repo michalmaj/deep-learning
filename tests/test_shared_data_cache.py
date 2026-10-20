@@ -13,9 +13,7 @@ LAB_15_DIR = REPO_ROOT / "labs" / "15_production"
 def _code_source(notebook_path):
     notebook = json.loads(notebook_path.read_text())
     return "\n".join(
-        "".join(cell["source"])
-        for cell in notebook["cells"]
-        if cell["cell_type"] == "code"
+        "".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code"
     )
 
 

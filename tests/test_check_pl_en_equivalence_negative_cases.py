@@ -112,10 +112,7 @@ def test_legend_label_translation_alone_is_allowed(tmp_path):
 def test_print_only_loop_label_translation_is_allowed(tmp_path):
     """The one-hop back-reference case: a string bound via for-loop
     tuple-unpacking, used only inside a later print(f"...") call."""
-    src_pl = (
-        'for name, flag in [("z PE", True), ("bez PE", False)]:\n'
-        '    print(f"{name}: {flag}")'
-    )
+    src_pl = 'for name, flag in [("z PE", True), ("bez PE", False)]:\n    print(f"{name}: {flag}")'
     src_en = (
         'for name, flag in [("with PE", True), ("without PE", False)]:\n'
         '    print(f"{name}: {flag}")'
@@ -129,10 +126,7 @@ def test_print_only_loop_label_translation_is_allowed(tmp_path):
 def test_print_only_loop_label_does_not_hide_a_real_flag_change(tmp_path):
     """The one-hop rule must only exempt the *label* string, never the
     paired boolean/flag value in the same tuple position."""
-    src_pl = (
-        'for name, flag in [("z PE", True), ("bez PE", False)]:\n'
-        '    print(f"{name}: {flag}")'
-    )
+    src_pl = 'for name, flag in [("z PE", True), ("bez PE", False)]:\n    print(f"{name}: {flag}")'
     src_en = (
         'for name, flag in [("with PE", False), ("without PE", False)]:\n'
         '    print(f"{name}: {flag}")'
@@ -146,12 +140,8 @@ def test_print_only_loop_label_does_not_hide_a_real_flag_change(tmp_path):
 def test_variable_assigned_header_string_translation_is_allowed(tmp_path):
     """The one-hop back-reference case for a direct assignment: an f-string
     header assigned to a variable before being printed."""
-    pl = _notebook(
-        [nbf.v4.new_code_cell('header = f"{\'warunek\':10s}"\nprint(header)')]
-    )
-    en = _notebook(
-        [nbf.v4.new_code_cell('header = f"{\'condition\':10s}"\nprint(header)')]
-    )
+    pl = _notebook([nbf.v4.new_code_cell("header = f\"{'warunek':10s}\"\nprint(header)")])
+    en = _notebook([nbf.v4.new_code_cell("header = f\"{'condition':10s}\"\nprint(header)")])
     problems = _check(tmp_path, pl, en)
     assert problems == [], "a print-only variable-assigned header string must not be reported"
 
@@ -208,12 +198,12 @@ def test_text_command_label_translation_alone_is_allowed(tmp_path):
     prose label inside \\text{...} while preserving the expression's
     meaning (e.g. machine-epsilon's subscript) -- the content is expected
     to differ, only the rest of the equation must still match."""
-    pl = _notebook([
-        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")
-    ])
-    en = _notebook([
-        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}/h$.")
-    ])
+    pl = _notebook(
+        [nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")]
+    )
+    en = _notebook(
+        [nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}/h$.")]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems == [], "a translated \\text{...} prose label must not be reported"
 
@@ -222,12 +212,12 @@ def test_text_command_normalization_does_not_hide_an_operator_change(tmp_path):
     """The \\text{...} normalization only touches text-command content --
     a real change to the surrounding equation (here: + instead of /) must
     still be reported."""
-    pl = _notebook([
-        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")
-    ])
-    en = _notebook([
-        nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}+h$.")
-    ])
+    pl = _notebook(
+        [nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{maszyny}}/h$.")]
+    )
+    en = _notebook(
+        [nbf.v4.new_markdown_cell(r"Rounding error, order $\varepsilon_{\text{machine}}+h$.")]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a changed operator next to a translated text label must still be reported"
 
@@ -239,20 +229,18 @@ def test_helper_function_presentational_label_translation_is_allowed(tmp_path):
     this is the cross-cell generalization of the one-hop rule, needed
     because module 02's `report(name, model, loss)` is defined in one cell
     and called from a later one."""
-    pl = _notebook([
-        nbf.v4.new_code_cell(
-            'def report(name, value):\n'
-            '    print(f"{name}: {value:.3f}")'
-        ),
-        nbf.v4.new_code_cell('report("Liniowy", 0.28)\nreport("MLP", 0.01)'),
-    ])
-    en = _notebook([
-        nbf.v4.new_code_cell(
-            'def report(name, value):\n'
-            '    print(f"{name}: {value:.3f}")'
-        ),
-        nbf.v4.new_code_cell('report("Linear", 0.28)\nreport("MLP", 0.01)'),
-    ])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell('def report(name, value):\n    print(f"{name}: {value:.3f}")'),
+            nbf.v4.new_code_cell('report("Liniowy", 0.28)\nreport("MLP", 0.01)'),
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell('def report(name, value):\n    print(f"{name}: {value:.3f}")'),
+            nbf.v4.new_code_cell('report("Linear", 0.28)\nreport("MLP", 0.01)'),
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems == [], (
         "a translated label passed to a display-only helper parameter must not be reported"
@@ -263,22 +251,22 @@ def test_helper_function_rule_does_not_exempt_a_computationally_used_parameter(t
     """Guard against over-generalizing: if a helper's parameter is used for
     anything beyond display (here: `key` indexes a dict), an argument
     passed to it must still be compared exactly."""
-    pl = _notebook([
-        nbf.v4.new_code_cell(
-            'def lookup(key, table):\n'
-            '    print(f"looking up {key}")\n'
-            '    return table[key]'
-        ),
-        nbf.v4.new_code_cell('lookup("cpu", {"cpu": 1, "cuda": 2})'),
-    ])
-    en = _notebook([
-        nbf.v4.new_code_cell(
-            'def lookup(key, table):\n'
-            '    print(f"looking up {key}")\n'
-            '    return table[key]'
-        ),
-        nbf.v4.new_code_cell('lookup("device", {"cpu": 1, "cuda": 2})'),
-    ])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'def lookup(key, table):\n    print(f"looking up {key}")\n    return table[key]'
+            ),
+            nbf.v4.new_code_cell('lookup("cpu", {"cpu": 1, "cuda": 2})'),
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'def lookup(key, table):\n    print(f"looking up {key}")\n    return table[key]'
+            ),
+            nbf.v4.new_code_cell('lookup("device", {"cpu": 1, "cuda": 2})'),
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a parameter used for more than display must still be compared exactly"
 
@@ -305,11 +293,11 @@ def test_zip_nested_tuple_loop_label_translation_is_allowed(tmp_path):
     nested tuple and the iterable is wrapped in zip(), not a bare list."""
     src_pl = (
         'for ax, (title, data) in zip(axes, [("Obraz", 1), ("Odpowiedz", 2)]):\n'
-        '    ax.set_title(title)'
+        "    ax.set_title(title)"
     )
     src_en = (
         'for ax, (title, data) in zip(axes, [("Image", 1), ("Response", 2)]):\n'
-        '    ax.set_title(title)'
+        "    ax.set_title(title)"
     )
     pl = _notebook([nbf.v4.new_code_cell(src_pl)])
     en = _notebook([nbf.v4.new_code_cell(src_en)])
@@ -322,11 +310,11 @@ def test_zip_nested_tuple_loop_does_not_hide_a_real_value_change(tmp_path):
     nested tuple, never the paired numeric value."""
     src_pl = (
         'for ax, (title, data) in zip(axes, [("Obraz", 1), ("Odpowiedz", 2)]):\n'
-        '    ax.set_title(title)'
+        "    ax.set_title(title)"
     )
     src_en = (
         'for ax, (title, data) in zip(axes, [("Image", 1), ("Response", 99)]):\n'
-        '    ax.set_title(title)'
+        "    ax.set_title(title)"
     )
     pl = _notebook([nbf.v4.new_code_cell(src_pl)])
     en = _notebook([nbf.v4.new_code_cell(src_en)])
@@ -340,13 +328,13 @@ def test_zip_resolves_same_cell_list_variable_not_just_a_literal(tmp_path):
     same cell (module 06's `configs` pattern), not only an inline list."""
     src_pl = (
         'configs = [("wariant A", 1), ("wariant B", 2)]\n'
-        'for ax, (title, n) in zip(axes, configs):\n'
-        '    ax.set_title(title)'
+        "for ax, (title, n) in zip(axes, configs):\n"
+        "    ax.set_title(title)"
     )
     src_en = (
         'configs = [("variant A", 1), ("variant B", 2)]\n'
-        'for ax, (title, n) in zip(axes, configs):\n'
-        '    ax.set_title(title)'
+        "for ax, (title, n) in zip(axes, configs):\n"
+        "    ax.set_title(title)"
     )
     pl = _notebook([nbf.v4.new_code_cell(src_pl)])
     en = _notebook([nbf.v4.new_code_cell(src_en)])
@@ -408,24 +396,28 @@ def test_dict_accumulator_key_translation_is_allowed(tmp_path):
     wide `results = {}` dict populated via `results[<label>] = ...` in one
     cell and only ever read back via `.items()` in another is a display
     grouping, not a meaningful identifier -- its keys may be translated."""
-    pl = _notebook([
-        nbf.v4.new_code_cell('results = {}'),
-        nbf.v4.new_code_cell(
-            'results["od zera"] = 1\n'
-            'results["czesciowy fine-tuning"] = 2\n'
-            'for name, val in results.items():\n'
-            '    print(f"{name}: {val}")'
-        ),
-    ])
-    en = _notebook([
-        nbf.v4.new_code_cell('results = {}'),
-        nbf.v4.new_code_cell(
-            'results["from scratch"] = 1\n'
-            'results["partial fine-tuning"] = 2\n'
-            'for name, val in results.items():\n'
-            '    print(f"{name}: {val}")'
-        ),
-    ])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell("results = {}"),
+            nbf.v4.new_code_cell(
+                'results["od zera"] = 1\n'
+                'results["czesciowy fine-tuning"] = 2\n'
+                "for name, val in results.items():\n"
+                '    print(f"{name}: {val}")'
+            ),
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell("results = {}"),
+            nbf.v4.new_code_cell(
+                'results["from scratch"] = 1\n'
+                'results["partial fine-tuning"] = 2\n'
+                "for name, val in results.items():\n"
+                '    print(f"{name}: {val}")'
+            ),
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems == [], "a translated display-accumulator dict key must not be reported"
 
@@ -434,22 +426,26 @@ def test_dict_accumulator_does_not_hide_a_changed_value(tmp_path):
     """The dict-accumulator extension only exempts the key strings -- a
     genuinely changed value stored under one of those keys must still be
     reported."""
-    pl = _notebook([
-        nbf.v4.new_code_cell('results = {}'),
-        nbf.v4.new_code_cell(
-            'results["od zera"] = 1\n'
-            'for name, val in results.items():\n'
-            '    print(f"{name}: {val}")'
-        ),
-    ])
-    en = _notebook([
-        nbf.v4.new_code_cell('results = {}'),
-        nbf.v4.new_code_cell(
-            'results["from scratch"] = 99\n'
-            'for name, val in results.items():\n'
-            '    print(f"{name}: {val}")'
-        ),
-    ])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell("results = {}"),
+            nbf.v4.new_code_cell(
+                'results["od zera"] = 1\n'
+                "for name, val in results.items():\n"
+                '    print(f"{name}: {val}")'
+            ),
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell("results = {}"),
+            nbf.v4.new_code_cell(
+                'results["from scratch"] = 99\n'
+                "for name, val in results.items():\n"
+                '    print(f"{name}: {val}")'
+            ),
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a changed value under a translated accumulator key must still be reported"
 
@@ -459,14 +455,21 @@ def test_dict_accumulator_rule_does_not_exempt_a_real_config_dict(tmp_path):
     straight into a call (here: an optimizer-style parameter dict) is
     disqualified from the accumulator exemption, so a changed key name
     (a real bug) still surfaces as a mismatch."""
-    pl = _notebook([nbf.v4.new_code_cell(
-        'param_groups = {"params": p, "lr": 0.0001}\n'
-        'build_optimizer(param_groups)'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'param_groups = {"params": p, "learning_rate": 0.0001}\n'
-        'build_optimizer(param_groups)'
-    )])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'param_groups = {"params": p, "lr": 0.0001}\nbuild_optimizer(param_groups)'
+            )
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'param_groups = {"params": p, "learning_rate": 0.0001}\n'
+                "build_optimizer(param_groups)"
+            )
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a renamed key in a dict passed to a call must still be reported"
 
@@ -479,14 +482,14 @@ def test_dict_items_loop_label_translation_is_allowed(tmp_path):
     src_pl = (
         'examples = {"angielskie zdanie": "The quick brown fox.", '
         '"polskie zdanie": "Szybki lis."}\n'
-        'for name, text in examples.items():\n'
-        '    print(name, text)'
+        "for name, text in examples.items():\n"
+        "    print(name, text)"
     )
     src_en = (
         'examples = {"English sentence": "The quick brown fox.", '
         '"Polish sentence": "Szybki lis."}\n'
-        'for name, text in examples.items():\n'
-        '    print(name, text)'
+        "for name, text in examples.items():\n"
+        "    print(name, text)"
     )
     pl = _notebook([nbf.v4.new_code_cell(src_pl)])
     en = _notebook([nbf.v4.new_code_cell(src_en)])
@@ -502,14 +505,14 @@ def test_dict_items_loop_does_not_hide_a_changed_experimental_value(tmp_path):
     src_pl = (
         'examples = {"angielskie zdanie": "The quick brown fox.", '
         '"polskie zdanie": "Szybki lis."}\n'
-        'for name, text in examples.items():\n'
-        '    print(name, text)'
+        "for name, text in examples.items():\n"
+        "    print(name, text)"
     )
     src_en = (
         'examples = {"English sentence": "The quick brown fox.", '
         '"Polish sentence": "Szybki brazowy lis."}\n'
-        'for name, text in examples.items():\n'
-        '    print(name, text)'
+        "for name, text in examples.items():\n"
+        "    print(name, text)"
     )
     pl = _notebook([nbf.v4.new_code_cell(src_pl)])
     en = _notebook([nbf.v4.new_code_cell(src_en)])
@@ -541,12 +544,20 @@ def test_ece_bin_count_change_is_detected(tmp_path):
 def test_json_response_field_name_change_is_detected(tmp_path):
     """An API response's JSON field names are a computational contract --
     translating 'confidence' would break any client parsing the response."""
-    pl = _notebook([nbf.v4.new_code_cell(
-        'return {"predicted_class": label, "confidence": conf, "model_version": v}'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'return {"predicted_class": label, "zaufanie": conf, "model_version": v}'
-    )])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'return {"predicted_class": label, "confidence": conf, "model_version": v}'
+            )
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'return {"predicted_class": label, "zaufanie": conf, "model_version": v}'
+            )
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a renamed JSON response field must be reported"
 
@@ -566,23 +577,23 @@ def test_drift_threshold_change_is_detected(tmp_path):
 
 
 def test_class_mapping_order_change_is_detected(tmp_path):
-    pl = _notebook([nbf.v4.new_code_cell(
-        'CLASS_NAMES = ["AnnualCrop", "Forest", "HerbaceousVegetation"]'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'CLASS_NAMES = ["Forest", "AnnualCrop", "HerbaceousVegetation"]'
-    )])
+    pl = _notebook(
+        [nbf.v4.new_code_cell('CLASS_NAMES = ["AnnualCrop", "Forest", "HerbaceousVegetation"]')]
+    )
+    en = _notebook(
+        [nbf.v4.new_code_cell('CLASS_NAMES = ["Forest", "AnnualCrop", "HerbaceousVegetation"]')]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a reordered class-name mapping must be reported"
 
 
 def test_math_operator_change_in_psi_formula_is_detected(tmp_path):
-    pl = _notebook([nbf.v4.new_code_cell(
-        "psi_val = ((cur - ref) * torch.log(cur / ref)).sum().item()"
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        "psi_val = ((cur + ref) * torch.log(cur / ref)).sum().item()"
-    )])
+    pl = _notebook(
+        [nbf.v4.new_code_cell("psi_val = ((cur - ref) * torch.log(cur / ref)).sum().item()")]
+    )
+    en = _notebook(
+        [nbf.v4.new_code_cell("psi_val = ((cur + ref) * torch.log(cur / ref)).sum().item()")]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems, "a changed operator in the PSI formula must be reported"
 
@@ -591,12 +602,8 @@ def test_todo_message_translation_is_allowed(tmp_path):
     """The TODO message itself (the NotImplementedError's argument) is
     presentational, student-facing text -- it may be translated/reworded
     freely, same as every other TODO cell in modules 01-13."""
-    pl = _notebook([nbf.v4.new_code_cell(
-        'raise NotImplementedError("TODO: oblicz statystyki")'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'raise NotImplementedError("TODO: compute stats")'
-    )])
+    pl = _notebook([nbf.v4.new_code_cell('raise NotImplementedError("TODO: oblicz statystyki")')])
+    en = _notebook([nbf.v4.new_code_cell('raise NotImplementedError("TODO: compute stats")')])
     problems = _check(tmp_path, pl, en)
     assert problems == [], "a translated TODO message must not be reported"
 
@@ -607,12 +614,8 @@ def test_todo_contract_exception_type_change_is_detected(tmp_path):
     tests/test_lab_15_scaffold*.py asserting `ename == "NotImplementedError"`)
     -- changing that type, unlike changing the message text, is a real
     structural regression and must be reported."""
-    pl = _notebook([nbf.v4.new_code_cell(
-        'raise NotImplementedError("TODO: compute_stats")'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'raise ValueError("TODO: compute_stats")'
-    )])
+    pl = _notebook([nbf.v4.new_code_cell('raise NotImplementedError("TODO: compute_stats")')])
+    en = _notebook([nbf.v4.new_code_cell('raise ValueError("TODO: compute_stats")')])
     problems = _check(tmp_path, pl, en)
     assert problems, "a changed exception type for a TODO cell must be reported"
 
@@ -621,12 +624,20 @@ def test_chart_and_metric_label_translation_is_allowed(tmp_path):
     """Presentational plot/print text (axis labels, a metric's descriptive
     name) may be translated -- this must NOT be reported, unlike the
     contract/computational strings above."""
-    pl = _notebook([nbf.v4.new_code_cell(
-        'plt.title("Macierz pomylek")\nplt.xlabel("przewidziana")\nprint("ECE nisko")'
-    )])
-    en = _notebook([nbf.v4.new_code_cell(
-        'plt.title("Confusion matrix")\nplt.xlabel("predicted")\nprint("ECE low")'
-    )])
+    pl = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'plt.title("Macierz pomylek")\nplt.xlabel("przewidziana")\nprint("ECE nisko")'
+            )
+        ]
+    )
+    en = _notebook(
+        [
+            nbf.v4.new_code_cell(
+                'plt.title("Confusion matrix")\nplt.xlabel("predicted")\nprint("ECE low")'
+            )
+        ]
+    )
     problems = _check(tmp_path, pl, en)
     assert problems == [], "translated chart/print labels must not be reported"
 

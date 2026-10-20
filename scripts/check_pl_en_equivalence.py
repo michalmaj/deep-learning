@@ -569,10 +569,7 @@ def _presentational_string_ids(
                 isinstance(elt, ast.Tuple) for elt in resolved.elts
             ):
                 for pos, name_node in enumerate(target.elts):
-                    if (
-                        isinstance(name_node, ast.Name)
-                        and name_node.id in presentational_names
-                    ):
+                    if isinstance(name_node, ast.Name) and name_node.id in presentational_names:
                         for elt in resolved.elts:
                             if pos < len(elt.elts):
                                 _mark_if_plain_string(elt.elts[pos])
@@ -600,9 +597,7 @@ def _presentational_string_ids(
                 and isinstance(node.value, ast.Dict)
             ):
                 for key_node in node.value.keys:
-                    if isinstance(key_node, ast.Constant) and isinstance(
-                        key_node.value, str
-                    ):
+                    if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
                         ids.add(id(key_node))
 
         class _DictAccumulatorVisitor(ast.NodeVisitor):
@@ -643,9 +638,7 @@ def _presentational_string_ids(
     return ids
 
 
-def _normalize_ast(
-    node: ast.AST | list | object, presentational_ids: set[int]
-) -> object:
+def _normalize_ast(node: ast.AST | list | object, presentational_ids: set[int]) -> object:
     """Recursively reduce an AST (sub)tree to a comparable, order-preserving
     structure. A string constant becomes a presentational placeholder only
     if its id() is in `presentational_ids`; every other string constant
@@ -758,8 +751,7 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
 
     if len(pl_cells) != len(en_cells):
         problems.append(
-            f"cell count mismatch: PL has {len(pl_cells)} cells, "
-            f"EN has {len(en_cells)} cells"
+            f"cell count mismatch: PL has {len(pl_cells)} cells, EN has {len(en_cells)} cells"
         )
 
     pl_code_sources = [c.source for c in pl_cells if c.cell_type == "code"]
@@ -772,8 +764,7 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
     for i, (pl_cell, en_cell) in enumerate(zip(pl_cells, en_cells)):
         if pl_cell.cell_type != en_cell.cell_type:
             problems.append(
-                f"cell {i}: type mismatch (PL={pl_cell.cell_type!r}, "
-                f"EN={en_cell.cell_type!r})"
+                f"cell {i}: type mismatch (PL={pl_cell.cell_type!r}, EN={en_cell.cell_type!r})"
             )
             continue
 
@@ -837,8 +828,7 @@ def check_notebook_pair(pl_path: Path, en_path: Path) -> list[str]:
             ]
             if pl_latex != en_latex:
                 problems.append(
-                    f"cell {i}: LaTeX expressions differ -- PL={pl_latex}, "
-                    f"EN={en_latex}"
+                    f"cell {i}: LaTeX expressions differ -- PL={pl_latex}, EN={en_latex}"
                 )
 
     return problems

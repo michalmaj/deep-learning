@@ -216,9 +216,9 @@ jednego na każdy możliwy identyfikator, odczytywanej przez indeksowanie:
 import torch.nn as nn
 
 V, d = 6, 4  # V = rozmiar słownika (liczba możliwych tokenów), d = wymiar embeddingu
-embedding = nn.Embedding(V, d)   # tablica V x d, losowo zainicjalizowana, trenowalna
+embedding = nn.Embedding(V, d)  # tablica V x d, losowo zainicjalizowana, trenowalna
 token_ids = torch.tensor([0, 3, 1])
-vectors = embedding(token_ids)   # (3, 4) -- po prostu odczyt odpowiednich wierszy
+vectors = embedding(token_ids)  # (3, 4) -- po prostu odczyt odpowiednich wierszy
 ```
 
 `nn.Embedding(V, d)` to macierz $V\times d$ przechowywana jako zwykły, trenowalny

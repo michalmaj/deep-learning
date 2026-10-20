@@ -98,9 +98,7 @@ def test_duplicate_repository_paths_are_reported_across_datasets():
 
 
 def test_missing_registered_file_is_reported(tmp_path):
-    registry = _registry(
-        _dataset(files=[{"path": "data/missing.bin", "sha256": "0" * 64}])
-    )
+    registry = _registry(_dataset(files=[{"path": "data/missing.bin", "sha256": "0" * 64}]))
     errors, checked = verify_registered_files(registry, tmp_path)
     assert checked == 1
     assert errors == ["[example-dataset] missing file: data/missing.bin"]
@@ -112,9 +110,7 @@ def test_registered_file_checksum_is_verified(tmp_path):
     payload = b"registered test payload"
     (data_dir / "example.bin").write_bytes(payload)
     checksum = hashlib.sha256(payload).hexdigest()
-    registry = _registry(
-        _dataset(files=[{"path": "data/example.bin", "sha256": checksum}])
-    )
+    registry = _registry(_dataset(files=[{"path": "data/example.bin", "sha256": checksum}]))
 
     assert validate_registry(registry) == []
     assert verify_registered_files(registry, tmp_path) == ([], 1)

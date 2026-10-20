@@ -120,9 +120,7 @@ def test_load_artifact_works_with_no_network_access(fake_artifact_dir):
         ("preprocessing", "manual resize", "preprocessing"),
     ],
 )
-def test_artifact_metadata_contract_rejects_inconsistent_fields(
-    field, value, expected_fragment
-):
+def test_artifact_metadata_contract_rejects_inconsistent_fields(field, value, expected_fragment):
     from app.artifact_contract import validate_artifact_metadata
 
     metadata = _artifact_metadata()

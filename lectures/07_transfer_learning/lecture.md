@@ -111,10 +111,12 @@ forward passu** — zobaczymy to liczbowo w eksperymencie.
 natywnie przez *parameter groups*:
 
 ```python
-optimizer = torch.optim.Adam([
-    {"params": model.layer4.parameters(), "lr": eta_backbone},
-    {"params": model.fc.parameters(), "lr": eta_head},
-])
+optimizer = torch.optim.Adam(
+    [
+        {"params": model.layer4.parameters(), "lr": eta_backbone},
+        {"params": model.fc.parameters(), "lr": eta_head},
+    ]
+)
 ```
 
 gdzie zwykle $\eta_{\text{backbone}} \ll \eta_{\text{head}}$ (np. $10$–$100\times$

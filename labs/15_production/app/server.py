@@ -53,9 +53,7 @@ def model_info():
     }
 
 
-async def read_upload_limited(
-    file: UploadFile, max_bytes: int = MAX_UPLOAD_BYTES
-) -> bytes:
+async def read_upload_limited(file: UploadFile, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
     """Read at most one byte beyond the limit so oversized uploads stay bounded."""
     data = await file.read(max_bytes + 1)
     if not data:
