@@ -152,6 +152,7 @@ uv run ruff check .
 uv run pytest -m "not network" # fast, network-free PR suite
 uv run pytest -m network       # download-dependent notebook tests only
 uv run pytest                  # full local suite, including downloads
+uv run python scripts/run_network_test_shard.py --check
 uv run python scripts/verify_data.py
 uv run python scripts/check_pl_en_equivalence.py
 git ls-files decisions/        # must print nothing
@@ -164,8 +165,16 @@ to confirm that prose, outputs, and metadata remain unchanged.
 
 Tests that download datasets or model weights carry the registered
 `network` marker. Pull-request CI runs the network-free selector; the
-separate `Network tests` workflow runs the marked group every Monday and
-can also be started manually from GitHub Actions.
+separate `Network tests` workflow runs three cache-friendly shards
+(`fashion`, `vision`, and `language`) in parallel every Monday and can
+also be started manually from GitHub Actions. The shard manifest is in
+`scripts/run_network_test_shard.py`; its `--check` mode fails when a
+marked test is missing, duplicated, or stale. To reproduce one CI shard
+locally, run for example:
+
+```bash
+uv run python scripts/run_network_test_shard.py vision
+```
 
 Also check, by hand or with a short script: every relative Markdown/
 notebook link in changed files resolves to a file that exists, and
