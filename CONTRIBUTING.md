@@ -55,6 +55,10 @@ English-only student would see it too), fix it in place.
 4. Execute both notebooks from a clean kernel and compare. Numbers should
    match exactly, except measured CPU timings (train/eval duration,
    latency, throughput), which naturally vary run to run.
+5. Before committing a lab scaffold, clear all cell outputs and execution
+   counts in both language versions. A starter notebook must open without
+   stale results or tracebacks; the intentional `NotImplementedError`s are
+   encountered only when the student runs the unfinished cells.
 
 ## Adding a new module
 
