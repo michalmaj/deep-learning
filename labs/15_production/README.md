@@ -86,8 +86,11 @@ weights + metadata). Your task:
 
 The provided application uses FastAPI's lifespan context to load the model
 once at startup and release the in-process reference during shutdown.
+`/model-info` returns HTTP 503 whenever the model is not ready.
 
-1. Read the file, check its size (reject ones too large, too small/empty).
+1. Read the file with the provided `read_upload_limited()` helper. It reads
+   at most one byte beyond the 5 MB limit and rejects oversized or empty
+   files without first buffering an unbounded request body.
 2. Call `model.predict()` from `app/model.py`.
 3. Handle errors **without** revealing the raw exception/traceback to the
    client (HTTP code 400 with a clear, limited message).
@@ -100,12 +103,14 @@ response with a direct call to `model.predict()` on the same image -- it
 
 ## 5. `benchmark.py` -- measuring cost -- your task
 
-`send_requests(client, image_bytes, n)` is provided (it collects raw
-times). Your task: `compute_stats(times)` -- mean, p50, p95 (ms),
-throughput (req/s). **Measure**: cold (the 1st request) vs. warm (the
-next 20+), batch size=1 for single requests (the API accepts one image
-per request -- throughput is computed from **many sequential** requests,
-not batching within one request).
+`send_requests(client, image_bytes, n)` is provided. It measures elapsed
+time with a monotonic clock and rejects unsuccessful HTTP responses, so
+only valid predictions become benchmark samples. Your task:
+`compute_stats(times)` -- mean, p50, p95 (ms), throughput (req/s).
+**Measure**: cold (the 1st request) vs. warm (the next 20+), batch size=1
+for single requests (the API accepts one image per request -- throughput
+is computed from **many sequential** requests, not batching within one
+request).
 
 ## 6. `monitoring.py` -- PSI and controlled streams -- your task
 

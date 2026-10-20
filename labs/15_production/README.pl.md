@@ -75,8 +75,11 @@ metadane). Twoje zadanie:
 
 Gotowa aplikacja używa kontekstu lifespan FastAPI, aby wczytać model raz
 przy starcie i zwolnić referencję w procesie podczas zamykania.
+`/model-info` zwraca HTTP 503, gdy model nie jest gotowy.
 
-1. Odczytaj plik, sprawdź rozmiar (odrzuć zbyt duże, zbyt małe/puste).
+1. Odczytaj plik przez gotowy helper `read_upload_limited()`. Odczytuje on
+   najwyżej jeden bajt ponad limit 5 MB i odrzuca zbyt duże lub puste pliki,
+   nie buforując wcześniej nieograniczonego ciała żądania.
 2. Wywołaj `model.predict()` z `app/model.py`.
 3. Obsłuż błędy **bez** ujawniania surowego wyjątku/tracebacka klientowi
    (kod HTTP 400 z jasnym, ograniczonym komunikatem).
@@ -89,11 +92,13 @@ obrazie — **musi się zgadzać dokładnie** (ta sama klasa i confidence).
 
 ## 5. `benchmark.py` — pomiar kosztu — Twoje zadanie
 
-`send_requests(client, image_bytes, n)` jest gotowe (zbiera surowe czasy).
-Twoje zadanie: `compute_stats(times)` — mean, p50, p95 (ms), throughput
-(req/s). **Zmierz**: cold (1. żądanie) vs warm (kolejne 20+), batch size=1
-dla pojedynczych żądań (API przyjmuje jeden obraz na żądanie — throughput
-liczony z **wielu sekwencyjnych** żądań, nie batchingu w jednym żądaniu).
+`send_requests(client, image_bytes, n)` jest gotowe. Mierzy czas zegarem
+monotonicznym i odrzuca nieudane odpowiedzi HTTP, więc próbkami benchmarku
+są tylko prawidłowe predykcje. Twoje zadanie: `compute_stats(times)` — mean,
+p50, p95 (ms), throughput (req/s). **Zmierz**: cold (1. żądanie) vs warm
+(kolejne 20+), batch size=1 dla pojedynczych żądań (API przyjmuje jeden
+obraz na żądanie — throughput liczony z **wielu sekwencyjnych** żądań, nie
+batchingu w jednym żądaniu).
 
 ## 6. `monitoring.py` — PSI i kontrolowane strumienie — Twoje zadanie
 
