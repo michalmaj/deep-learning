@@ -147,6 +147,7 @@ duplicated pair.
 ## Validation before opening a PR
 
 ```bash
+uv run ruff format --check .
 uv run ruff check .
 uv run pytest -m "not network" # fast, network-free PR suite
 uv run pytest -m network       # download-dependent notebook tests only
@@ -156,6 +157,10 @@ uv run python scripts/check_pl_en_equivalence.py
 git ls-files decisions/        # must print nothing
 git log <base>..HEAD --format=%B | grep -i "claude\|anthropic"   # must print nothing
 ```
+
+Run `uv run ruff format .` to fix formatting failures. Ruff formats Python
+files, Python code fences, and notebook code cells; review notebook diffs
+to confirm that prose, outputs, and metadata remain unchanged.
 
 Tests that download datasets or model weights carry the registered
 `network` marker. Pull-request CI runs the network-free selector; the
