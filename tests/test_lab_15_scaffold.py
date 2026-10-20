@@ -140,6 +140,31 @@ def test_server_given_endpoints_work_with_fake_artifact(fake_artifact_dir, monke
     assert r_info.json()["class_names"] == ["A", "B", "C"]
 
 
+def test_server_lifespan_loads_once_and_clears_state(fake_artifact_dir, monkeypatch):
+    monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
+    import importlib
+
+    from app import server as server_module
+
+    importlib.reload(server_module)
+    original_load_artifact = server_module.model_module.load_artifact
+    load_calls = []
+
+    def tracked_load_artifact(artifact_dir):
+        load_calls.append(artifact_dir)
+        return original_load_artifact(artifact_dir)
+
+    monkeypatch.setattr(server_module.model_module, "load_artifact", tracked_load_artifact)
+
+    with TestClient(server_module.app) as client:
+        assert client.get("/ready").json() == {"ready": True}
+        assert client.get("/health").json() == {"status": "ok"}
+        assert client.get("/model-info").status_code == 200
+        assert load_calls == [fake_artifact_dir]
+
+    assert server_module.app.state.loaded is None
+
+
 def test_predict_endpoint_is_not_yet_implemented(fake_artifact_dir, monkeypatch):
     monkeypatch.setenv("MODULE15_ARTIFACT_DIR", fake_artifact_dir)
     import importlib

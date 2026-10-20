@@ -5,6 +5,7 @@ your task -- see README.md section 3.
 """
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: F401 - used in the TODO below
 
@@ -14,15 +15,20 @@ from .schemas import HealthResponse, ModelInfoResponse, PredictionResponse, Read
 MAX_UPLOAD_BYTES = 5_000_000
 ARTIFACT_DIR = os.environ.get("MODULE15_ARTIFACT_DIR", "artifacts")
 
-app = FastAPI(title="Module 15 inference service")
-app.state.loaded = None
 
-
-@app.on_event("startup")
-def _startup():
+@asynccontextmanager
+async def lifespan(application: FastAPI):
     # Model is loaded ONCE here, at process start -- never inside a request
     # handler, and never retrained here.
-    app.state.loaded = model_module.load_artifact(ARTIFACT_DIR)
+    application.state.loaded = model_module.load_artifact(ARTIFACT_DIR)
+    try:
+        yield
+    finally:
+        application.state.loaded = None
+
+
+app = FastAPI(title="Module 15 inference service", lifespan=lifespan)
+app.state.loaded = None
 
 
 @app.get("/health", response_model=HealthResponse)
