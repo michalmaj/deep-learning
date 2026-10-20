@@ -13,6 +13,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torchvision.datasets as tvd
+from app.artifact_contract import ARCHITECTURE, INPUT_CHANNELS, INPUT_SIZE, PREPROCESSING
 from torchvision.models import ResNet18_Weights, resnet18
 
 ARTIFACT_DIR = os.environ.get("MODULE15_ARTIFACT_DIR", "artifacts")
@@ -103,12 +104,12 @@ def main():
     torch.save(backbone.state_dict(), f"{ARTIFACT_DIR}/weights.pt")
     metadata = {
         "model_version": "0.1.0",
-        "architecture": "resnet18",
+        "architecture": ARCHITECTURE,
         "num_classes": n_classes,
         "class_names": class_names,
-        "input_size": [224, 224],
-        "input_channels": 3,
-        "preprocessing": "ResNet18_Weights.IMAGENET1K_V1.transforms()",
+        "input_size": INPUT_SIZE,
+        "input_channels": INPUT_CHANNELS,
+        "preprocessing": PREPROCESSING,
         "torch_version": torch.__version__,
         "trained_on": "EuroSAT subset (1800 train / 400 val / 400 test)",
         "val_accuracy": val_acc,
