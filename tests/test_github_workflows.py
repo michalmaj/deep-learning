@@ -7,10 +7,10 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATHS = sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml"))
-SUPPORTED_ACTION_REFS = {
-    "actions/cache": "v6",
-    "actions/checkout": "v7",
-    "astral-sh/setup-uv": "v10",
+PINNED_ACTION_REFS = {
+    "actions/cache": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+    "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "astral-sh/setup-uv": "1c37ad07a6a961277cf70c0d37d6f313000f5884",
 }
 
 
@@ -37,5 +37,5 @@ def test_workflow_actions_use_supported_node_24_releases(workflow_path: Path):
 
             action, separator, ref = action_ref.partition("@")
             assert separator, f"Action is missing a version: {action_ref}"
-            assert action in SUPPORTED_ACTION_REFS, f"Unreviewed action: {action_ref}"
-            assert ref == SUPPORTED_ACTION_REFS[action], f"Unsupported action version: {action_ref}"
+            assert action in PINNED_ACTION_REFS, f"Unreviewed action: {action_ref}"
+            assert ref == PINNED_ACTION_REFS[action], f"Unpinned action version: {action_ref}"
