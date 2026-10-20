@@ -87,12 +87,25 @@ Gotowa aplikacja używa kontekstu lifespan FastAPI, aby wczytać model raz
 przy starcie i zwolnić referencję w procesie podczas zamykania.
 `/model-info` zwraca HTTP 503, gdy model nie jest gotowy.
 
-1. Odczytaj plik przez gotowy helper `read_upload_limited()`. Odczytuje on
-   najwyżej jeden bajt ponad limit 5 MB i odrzuca zbyt duże lub puste pliki,
-   nie buforując wcześniej nieograniczonego ciała żądania.
-2. Wywołaj `model.predict()` z `app/model.py`.
-3. Obsłuż błędy **bez** ujawniania surowego wyjątku/tracebacka klientowi
-   (kod HTTP 400 z jasnym, ograniczonym komunikatem).
+Bezpieczeństwo uploadu ma trzy warstwy:
+
+- `RequestBodyLimitMiddleware` ogranicza całe żądanie `/predict` podczas
+  odbierania fragmentów ASGI, zanim Starlette zapisze upload multipart na
+  dysku. Limit żądania uwzględnia 64 KiB narzutu multipart ponad limit pliku
+  wynoszący 5 MB.
+- `read_upload_limited()` egzekwuje dokładny limit pliku 5 MB i odrzuca
+  pusty upload.
+- `model.decode_image_bytes()` odrzuca obrazy rozwijające się do ponad
+  25 milionów zdekodowanych pikseli, nawet gdy skompresowany plik jest mały.
+
+Twój endpoint powinien:
+
+1. Zwrócić HTTP 503, gdy model nie jest gotowy.
+2. Odczytać plik przez `read_upload_limited()`.
+3. Zwrócić `await run_prediction(...)`. Helper przenosi synchroniczną,
+   obciążającą CPU inferencję poza wątek pętli zdarzeń i mapuje wyłącznie
+   znane błędy wejścia na bezpieczne odpowiedzi HTTP 400/413. Nieoczekiwane
+   awarie modelu lub infrastruktury pozostają błędami HTTP 500.
 
 ## 4. Zgodność API z bezpośrednim wywołaniem — Twoje zadanie
 
@@ -215,8 +228,9 @@ czekanie na model.
   nie ręcznie odtworzony) i zwraca poprawną odpowiedź.
 - Odpowiedź API zgadza się **dokładnie** z bezpośrednim wywołaniem modelu
   dla tego samego obrazu.
-- Błędne wejścia (uszkodzony plik, zbyt duży plik) obsłużone bez wycieku
-  wewnętrznych informacji.
+- Błędne wejścia (uszkodzony plik, zbyt duże żądanie/plik lub obraz ze zbyt
+  dużą liczbą zdekodowanych pikseli) obsłużone bez wycieku informacji
+  wewnętrznych, a awarie serwera nie są błędnie oznaczane jako HTTP 400.
 - Benchmark rozróżnia cold/warm, raportuje p50/p95 z jawną metodologią
   (liczba prób).
 - PSI poprawnie obsługuje zerowe częstości (wygładzanie, nie `inf`/`nan`).

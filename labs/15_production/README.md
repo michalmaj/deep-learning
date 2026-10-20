@@ -99,12 +99,25 @@ The provided application uses FastAPI's lifespan context to load the model
 once at startup and release the in-process reference during shutdown.
 `/model-info` returns HTTP 503 whenever the model is not ready.
 
-1. Read the file with the provided `read_upload_limited()` helper. It reads
-   at most one byte beyond the 5 MB limit and rejects oversized or empty
-   files without first buffering an unbounded request body.
-2. Call `model.predict()` from `app/model.py`.
-3. Handle errors **without** revealing the raw exception/traceback to the
-   client (HTTP code 400 with a clear, limited message).
+Upload safety has three layers:
+
+- `RequestBodyLimitMiddleware` caps the complete `/predict` request while
+  ASGI chunks arrive, before Starlette can spool a multipart upload to disk.
+  The request allowance includes 64 KiB of multipart overhead around the
+  5 MB file limit.
+- `read_upload_limited()` enforces the exact 5 MB file limit and rejects an
+  empty upload.
+- `model.decode_image_bytes()` rejects images that expand beyond 25 million
+  decoded pixels, even when the compressed file is small.
+
+Your endpoint should:
+
+1. Return HTTP 503 when the model is not ready.
+2. Read the file with `read_upload_limited()`.
+3. Return `await run_prediction(...)`. The helper moves synchronous,
+   CPU-bound inference off the event-loop thread and maps only known input
+   errors to safe HTTP 400/413 responses. Unexpected model or infrastructure
+   failures remain HTTP 500 errors.
 
 ## 4. API consistency with a direct call -- your task
 
@@ -235,8 +248,9 @@ interpretation, not into waiting for the model.
   not hand-reconstructed) and returns a correct response.
 - The API response agrees **exactly** with a direct model call for the
   same image.
-- Invalid inputs (a corrupted file, a too-large file) are handled without
-  leaking internal information.
+- Invalid inputs (a corrupted file, an oversized request/file, or an image
+  with too many decoded pixels) are handled without leaking internal
+  information, while server failures are not mislabeled as HTTP 400.
 - The benchmark distinguishes cold/warm, reports p50/p95 with an explicit
   methodology (number of trials).
 - PSI correctly handles zero frequencies (smoothing, not `inf`/`nan`).
