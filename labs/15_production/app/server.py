@@ -7,7 +7,7 @@ your task -- see README.md section 3.
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: F401 - used in the TODO below
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from . import model as model_module
 from .schemas import HealthResponse, ModelInfoResponse, PredictionResponse, ReadyResponse
@@ -51,14 +51,26 @@ def model_info():
     }
 
 
+async def read_upload_limited(
+    file: UploadFile, max_bytes: int = MAX_UPLOAD_BYTES
+) -> bytes:
+    """Read at most one byte beyond the limit so oversized uploads stay bounded."""
+    data = await file.read(max_bytes + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+    if len(data) > max_bytes:
+        raise HTTPException(status_code=413, detail="file too large")
+    return data
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_endpoint(file: UploadFile = File(...)):
     # TODO:
     # 1. if app.state.loaded is None: raise HTTPException(503, "model not ready")
-    # 2. data = await file.read()
-    # 3. validate size: reject empty files (400) AND files over MAX_UPLOAD_BYTES (413)
-    # 4. call model_module.predict(app.state.loaded, data) inside a try/except;
+    # 2. data = await read_upload_limited(file) -- this helper rejects empty files
+    #    (400) and files over MAX_UPLOAD_BYTES (413) without reading an unbounded body
+    # 3. call model_module.predict(app.state.loaded, data) inside a try/except;
     #    on ANY exception, raise HTTPException(400, "could not decode or process
     #    image") -- NEVER let the raw exception/traceback reach the client
-    # 5. return the result dict
+    # 4. return the result dict
     raise NotImplementedError("TODO: /predict endpoint")
