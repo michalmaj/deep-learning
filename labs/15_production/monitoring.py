@@ -8,14 +8,29 @@ import torch
 
 
 def histogram_counts(values: torch.Tensor, bin_edges: torch.Tensor) -> torch.Tensor:
-    counts = torch.zeros(len(bin_edges) - 1)
-    for i in range(len(bin_edges) - 1):
-        if i < len(bin_edges) - 2:
-            mask = (values >= bin_edges[i]) & (values < bin_edges[i + 1])
-        else:
-            mask = (values >= bin_edges[i]) & (values <= bin_edges[i + 1])
-        counts[i] = mask.sum()
-    return counts
+    """Count values in fixed bins, keeping underflow and overflow.
+
+    Values outside the reference range belong to the first or last bin.
+    Dropping them would hide exactly the distribution shift this histogram
+    is intended to measure and can leave PSI with an all-zero distribution.
+    """
+    if values.ndim != 1:
+        raise ValueError("values must be one-dimensional")
+    if values.numel() == 0:
+        raise ValueError("values must not be empty")
+    if not torch.isfinite(values).all():
+        raise ValueError("values must be finite")
+    if bin_edges.ndim != 1 or bin_edges.numel() < 2:
+        raise ValueError("bin_edges must contain at least two values")
+    if not torch.isfinite(bin_edges).all():
+        raise ValueError("bin_edges must be finite")
+    if not torch.all(bin_edges[1:] > bin_edges[:-1]):
+        raise ValueError("bin_edges must be strictly increasing")
+    if values.device != bin_edges.device:
+        raise ValueError("values and bin_edges must be on the same device")
+
+    bin_ids = torch.bucketize(values, bin_edges[1:-1], right=True)
+    return torch.bincount(bin_ids, minlength=bin_edges.numel() - 1).to(torch.float32)
 
 
 def psi(ref_counts: torch.Tensor, cur_counts: torch.Tensor, eps: float = 1e-4) -> float:
