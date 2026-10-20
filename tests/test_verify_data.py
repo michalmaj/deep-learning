@@ -43,6 +43,7 @@ def _registry(*datasets):
     [
         (None, "root must be a mapping"),
         ({}, "must contain a 'datasets' list"),
+        ({"datasets": []}, "must contain at least one dataset"),
         ({"datasets": ["not-a-mapping"]}, "must be a mapping"),
         (_registry(_dataset(id="Bad ID")), "lowercase kebab-case"),
         (_registry(_dataset(name="")), "name must be a non-empty string"),
