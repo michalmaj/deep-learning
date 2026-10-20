@@ -32,6 +32,7 @@ target-version = "py312"
 select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
+addopts = ["--strict-markers"]
 markers = [
     "network: tests that download external datasets or model weights",
 ]
