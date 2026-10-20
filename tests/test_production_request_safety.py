@@ -1,14 +1,22 @@
 """Shared request-boundary tests for the module 15 inference service."""
 
+import io
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+from PIL import Image
 
 MODULE_DIR = Path(__file__).resolve().parents[1] / "labs" / "15_production"
 sys.path.insert(0, str(MODULE_DIR))
 
+from app.model import (  # noqa: E402
+    ImageTooLargeError,
+    InvalidImageError,
+    decode_image_bytes,
+)
 from app.server import RequestBodyLimitMiddleware  # noqa: E402
 
 
@@ -69,3 +77,27 @@ def test_request_body_limit_does_not_affect_other_routes():
     assert response.status_code == 200
     assert response.json() == {"size": 5}
     assert called["other"] is True
+
+
+def _png_bytes(size: tuple[int, int], mode: str = "L") -> bytes:
+    buffer = io.BytesIO()
+    Image.new(mode, size).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_decode_image_bytes_returns_an_independent_rgb_image():
+    image = decode_image_bytes(_png_bytes((3, 2)))
+
+    assert image.mode == "RGB"
+    assert image.size == (3, 2)
+    assert image.getpixel((0, 0)) == (0, 0, 0)
+
+
+def test_decode_image_bytes_rejects_invalid_image_data():
+    with pytest.raises(InvalidImageError, match="could not decode image"):
+        decode_image_bytes(b"not an image")
+
+
+def test_decode_image_bytes_rejects_excessive_decoded_pixel_count():
+    with pytest.raises(ImageTooLargeError, match="5-pixel limit"):
+        decode_image_bytes(_png_bytes((3, 2)), max_pixels=5)

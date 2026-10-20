@@ -4,15 +4,55 @@
 are your task -- see README.md sections 2.
 """
 
+import io
 import json
+import warnings
 
 import torch
 import torch.nn as nn
+from PIL import Image, UnidentifiedImageError
 from torchvision.models import ResNet18_Weights, resnet18
 
 from .artifact_contract import validate_artifact_metadata
 
 _PREPROCESS = ResNet18_Weights.IMAGENET1K_V1.transforms()
+MAX_DECODED_IMAGE_PIXELS = 25_000_000
+
+
+class InvalidImageError(ValueError):
+    """The uploaded bytes cannot be decoded as a supported image."""
+
+
+class ImageTooLargeError(InvalidImageError):
+    """The decoded image exceeds the service's explicit pixel budget."""
+
+
+def decode_image_bytes(
+    data: bytes,
+    *,
+    max_pixels: int = MAX_DECODED_IMAGE_PIXELS,
+) -> Image.Image:
+    """Decode one RGB image while bounding decompressed pixel count.
+
+    A compressed-byte limit alone does not bound memory use: a small PNG or
+    TIFF can expand into hundreds of millions of pixels. Pillow exposes the
+    dimensions before decoding the complete pixel buffer, so enforce the
+    service limit before ``convert`` materializes RGB data.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                width, height = image.size
+                if width * height > max_pixels:
+                    raise ImageTooLargeError(f"decoded image exceeds the {max_pixels}-pixel limit")
+                return image.convert("RGB")
+    except ImageTooLargeError:
+        raise
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+        raise ImageTooLargeError("decoded image exceeds Pillow's safety limit") from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise InvalidImageError("could not decode image") from exc
 
 
 class LoadedModel:
@@ -49,7 +89,8 @@ def load_artifact(artifact_dir: str) -> LoadedModel:
 
 def preprocess_image_bytes(data: bytes) -> torch.Tensor:
     # TODO:
-    # 1. decode `data` into a PIL Image (io.BytesIO + Image.open), convert to RGB
+    # 1. call `decode_image_bytes(data)` -- it converts to RGB and rejects
+    #    compressed images whose decoded pixel buffer would be too large
     # 2. apply _PREPROCESS (ResNet18_Weights.IMAGENET1K_V1.transforms()) --
     #    do NOT hand-roll resize/crop/normalize yourself, see README section 8
     #    for exactly why that goes wrong
