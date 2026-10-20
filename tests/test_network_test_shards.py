@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -49,3 +51,23 @@ def test_validator_reports_missing_and_unmarked_files():
 
     assert any("missing files" in problem for problem in problems)
     assert any("without network tests" in problem for problem in problems)
+
+
+def test_network_workflow_runs_every_shard_with_an_isolated_cache():
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "network-tests.yml").read_text()
+    )
+    job = workflow["jobs"]["validate-network-notebooks"]
+
+    assert job["strategy"]["fail-fast"] is False
+    assert set(job["strategy"]["matrix"]["shard"]) == set(NETWORK_TEST_SHARDS)
+
+    cache_step = next(step for step in job["steps"] if step.get("uses") == "actions/cache@v4")
+    assert "${{ matrix.shard }}" in cache_step["with"]["key"]
+
+    run_step = next(
+        step for step in job["steps"] if step.get("name") == "Run network-dependent notebook shard"
+    )
+    assert run_step["run"] == (
+        "uv run python scripts/run_network_test_shard.py ${{ matrix.shard }}"
+    )
