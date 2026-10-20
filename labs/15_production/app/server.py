@@ -44,6 +44,8 @@ def ready():
 @app.get("/model-info", response_model=ModelInfoResponse)
 def model_info():
     loaded = app.state.loaded
+    if loaded is None:
+        raise HTTPException(status_code=503, detail="model not ready")
     return {
         "model_version": loaded.model_version,
         "class_names": loaded.class_names,
