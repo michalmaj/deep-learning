@@ -17,6 +17,8 @@ ResNet18 artifact, so it is skipped under CI=true, matching modules
    publishing the private solution's actual implementations.
 """
 
+import asyncio
+import io
 import json
 import os
 import sys
@@ -26,6 +28,7 @@ import nbformat
 import pytest
 import torch
 import torch.nn as nn
+from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from nbclient import NotebookClient
 from torchvision.models import resnet18
@@ -163,6 +166,29 @@ def test_server_lifespan_loads_once_and_clears_state(fake_artifact_dir, monkeypa
         assert load_calls == [fake_artifact_dir]
 
     assert server_module.app.state.loaded is None
+
+
+def test_read_upload_limited_accepts_a_bounded_payload():
+    from app import server as server_module
+
+    upload = UploadFile(io.BytesIO(b"four"), filename="x.png")
+    data = asyncio.run(server_module.read_upload_limited(upload, max_bytes=4))
+
+    assert data == b"four"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status"),
+    [(b"", 400), (b"five!", 413)],
+)
+def test_read_upload_limited_rejects_empty_and_oversized_payloads(payload, expected_status):
+    from app import server as server_module
+
+    upload = UploadFile(io.BytesIO(payload), filename="x.png")
+    with pytest.raises(server_module.HTTPException) as exc_info:
+        asyncio.run(server_module.read_upload_limited(upload, max_bytes=4))
+
+    assert exc_info.value.status_code == expected_status
 
 
 def test_predict_endpoint_is_not_yet_implemented(fake_artifact_dir, monkeypatch):
