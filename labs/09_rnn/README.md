@@ -14,8 +14,12 @@ Library imports, device, random seed, `torch.set_num_threads(4)`.
 ## 1. Data: SMS Spam Collection (provided + short task)
 
 5574 SMS messages, labeled `ham`/`spam`, downloaded directly (a text file
-with `label\ttext` per line, a ~200KB zip, SHA-256 verified in the code
--- see [`data/registry.yml`](../../data/registry.yml)).
+with `label\ttext` per line, a ~200KB zip -- see
+[`data/registry.yml`](../../data/registry.yml)). The provided cache helper
+writes downloads and extraction results to temporary files, verifies the
+archive SHA-256 and extracted member, and only then replaces the final
+files atomically. A failed or interrupted operation therefore cannot turn
+a valid cache entry into a partial file.
 
 **Task:** count and print the class distribution (`ham`/`spam`). Is the
 set balanced or not? Note this down -- it matters for the choice of
