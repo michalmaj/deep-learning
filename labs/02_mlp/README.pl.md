@@ -1,104 +1,101 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 02: klasyfikacja tabularna z MLP
+# Laboratorium 02. Klasyfikacja danych tabularnych za pomocą MLP
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/02_mlp/lecture.md`](../../lectures/02_mlp/lecture.md)
-(perceptron, MLP, funkcje aktywacji), ale **nie powtarza** eksperymentu z
-wykładu — inne dane, własna implementacja `nn.Module` (nie `nn.Sequential`),
-porównanie architektur/aktywacji i analiza błędnych klasyfikacji, których
-wykład nie robił.
+Przewidywany czas pracy wynosi około dwóch godzin. Laboratorium rozwija materiał
+z [`lectures/02_mlp/lecture.md`](../../lectures/02_mlp/lecture.md) dotyczący
+perceptronu, MLP i funkcji aktywacji. Wykorzystuje jednak inny zbiór danych oraz
+własną implementację `nn.Module` zamiast `nn.Sequential`. Obejmuje też porównanie
+architektur i funkcji aktywacji oraz analizę błędnych klasyfikacji.
 
 ## 1. Problem i dane
 
-Zadanie: klasyfikacja binarna punktów na płaszczyźnie, które leżą na dwóch
-**współśrodkowych okręgach** (pierścień zewnętrzny — klasa 0, okrąg
-wewnętrzny — klasa 1), z szumem gaussowskim. To inny rodzaj nieliniowej
-separowalności niż półksiężyce z wykładu: tutaj granica decyzyjna, której
-potrzeba, jest zamkniętą krzywą (okręgiem), nie pojedynczą "falą".
+Zadanie polega na binarnej klasyfikacji punktów należących do dwóch
+**współśrodkowych okręgów** z dodanym szumem gaussowskim. Zewnętrzny pierścień
+tworzy klasę 0, a wewnętrzny okrąg klasę 1. Jest to inny rodzaj nieliniowej
+separowalności niż półksiężyce z wykładu. Potrzebna granica decyzyjna ma postać
+zamkniętej krzywej, a nie pojedynczej fali.
 
-Dane są generowane lokalnie w notebooku (sekcja 1, kod gotowy — nie jest
-częścią zadania) i dzielone na zbiór treningowy/testowy (gotowe, sekcja 1).
+Dane są generowane lokalnie i dzielone na zbiory treningowy oraz testowy w
+sekcji 1 notebooka. Ten kod jest gotowy i nie stanowi części zadania.
 
-## 2. Metryki — Twoje zadanie
+## 2. Metryki
 
-Zaimplementuj (TODO, sekcja 2) funkcję liczącą z predykcji i etykiet:
-**TP, FP, TN, FP, TN, FN**, a z nich **accuracy, precision, recall**
-(klasa 1 — okrąg wewnętrzny — jako klasa pozytywna). Te funkcje są używane
-przez resztę notebooka, także do oceny baseline'u.
+W sekcji 2 należy uzupełnić funkcję, która na podstawie predykcji i etykiet
+oblicza **TP, FP, TN i FN**, a następnie **accuracy, precision i recall**. Klasa 1,
+czyli wewnętrzny okrąg, jest klasą pozytywną. Funkcja służy w dalszej części
+notebooka również do oceny modelu bazowego.
 
-## 3. Baseline (gotowe)
+## 3. Model bazowy
 
-Pojedyncza warstwa liniowa (`nn.Linear(2, 1)`) — ten sam "model liniowy
-zawodzi na nieliniowym problemie", co na wykładzie, tylko na innych danych.
-Zobaczysz, że na okręgach model liniowy wypada **wyraźnie gorzej** niż na
-półksiężycach z wykładu (bliżej przypadkowego zgadywania) — to nie błąd,
-to konsekwencja kształtu danych: żadna prosta nie wydzieli sensownie
-pierścienia od środka.
+Gotowy model bazowy składa się z pojedynczej warstwy liniowej
+`nn.Linear(2, 1)`. Powtarza zasadniczą obserwację z wykładu na innym zbiorze
+danych. Model liniowy nie rozwiązuje problemu nieliniowego. Na okręgach wypada
+wyraźnie gorzej niż na półksiężycach i zbliża się do losowego zgadywania. Wynika
+to z geometrii danych, ponieważ żadna prosta nie oddzieli pierścienia od środka.
 
-## 4. Twój MLP — Twoje zadanie
+## 4. Implementacja MLP
 
-Zaimplementuj (TODO, sekcja 4) **własną klasę** `MLP(nn.Module)`
-(nie `nn.Sequential`, w odróżnieniu od wykładu) z konfigurowalną liczbą
-neuronów w warstwie ukrytej i konfigurowalną funkcją aktywacji, żeby można
-jej było użyć do porównania z sekcji 6. Zaimplementuj też (TODO, sekcja 5)
-funkcję trenującą (`forward → strata (BCEWithLogitsLoss) → backward →
-optimizer.step()`), analogiczną do tej z wykładu, ale działającą na
-dowolnym przekazanym jej modelu `nn.Module`.
+W sekcji 4 należy zaimplementować klasę `MLP(nn.Module)`. W odróżnieniu od
+przykładu z wykładu nie korzysta ona z `nn.Sequential`. Liczba neuronów w
+warstwie ukrytej oraz funkcja aktywacji powinny być konfigurowalne, aby ta sama
+klasa mogła posłużyć do porównania w sekcji 6.
 
-## 5. Eksperyment (gotowe, korzysta z Twojego kodu)
+Sekcja 5 wymaga uzupełnienia funkcji trenującej, która wykonuje kolejno
+`forward`, obliczenie straty przez `BCEWithLogitsLoss`, `backward` oraz
+`optimizer.step()`. Funkcja powinna przyjmować dowolny model `nn.Module`.
 
-Notebook trenuje jeden domyślny MLP Twoją klasą/funkcją i porównuje go z
-baseline'em.
+## 5. Eksperyment
 
-## 6. Porównanie architektur/aktywacji — Twoje zadanie
+Gotowy kod trenuje domyślną konfigurację MLP za pomocą uzupełnionej klasy i
+funkcji, a następnie porównuje jej wynik z modelem bazowym.
 
-Wybierz **co najmniej trzy** konfiguracje swojego MLP, różniące się liczbą
-neuronów w warstwie ukrytej i/lub funkcją aktywacji (TODO, sekcja 6).
-Włącz do porównania przynajmniej jedną konfigurację, co do której
-podejrzewasz, że będzie **zbyt słaba** (np. bardzo mała liczba neuronów) —
-samo porównanie "większe zawsze lepsze" niczego nie uczy. Wytrenuj każdą
-konfigurację i zbierz metryki testowe w jednej tabeli/wydruku.
+## 6. Porównanie architektur i funkcji aktywacji
 
-## 7. Ewaluacja
+Do porównania należy wybrać **co najmniej trzy** konfiguracje MLP różniące się
+liczbą neuronów w warstwie ukrytej lub funkcją aktywacji. Przynajmniej jedna z
+nich powinna być celowo zbyt słaba, na przykład ze względu na bardzo małą liczbę
+neuronów. Pozwala to sprawdzić coś więcej niż zależność między rozmiarem modelu
+a wynikiem. Każdą konfigurację należy wytrenować, a metryki testowe zebrać w
+jednej tabeli lub jednym wydruku.
 
-Zinterpretuj (komórka Markdown, TODO) tabelę z sekcji 6: która konfiguracja
-była najlepsza, czy któraś była wyraźnie za słaba, i — jeśli tak — dlaczego
-(w kategoriach tego, co ta architektura może, a czego nie może
-reprezentować, nawiązując do dowodu z wykładu).
+## 7. Ocena wyników
 
-## 8. Analiza błędnych klasyfikacji — Twoje zadanie
+W komórce Markdown należy zinterpretować tabelę z sekcji 6. Analiza powinna
+wskazywać najlepszą konfigurację oraz ewentualny model o zbyt małej pojemności.
+Uzasadnienie powinno odwoływać się do tego, jakie funkcje dana architektura może
+reprezentować, oraz do dowodu przedstawionego na wykładzie.
 
-Notebook rysuje (gotowe) granicę decyzyjną Twojego najlepszego modelu z
-zaznaczonymi błędnie sklasyfikowanymi punktami testowymi. Odpowiedz
-(Markdown, TODO, 3–5 zdań): gdzie leżą błędnie sklasyfikowane punkty
-względem granicy między pierścieniem a okręgiem? Czy to są punkty "z
-natury trudne" (blisko prawdziwej granicy, ofiary szumu), czy raczej dowód,
-że model systematycznie czegoś nie rozumie? Jak to rozstrzygniesz, patrząc
-na wykres?
+## 8. Analiza błędnych klasyfikacji
 
-## 9. Wnioski — Twoje zadanie
+Gotowy kod rysuje granicę decyzyjną najlepszego modelu i zaznacza błędnie
+sklasyfikowane punkty testowe. W komórce Markdown należy opisać ich położenie
+względem granicy między pierścieniem a okręgiem w 3–5 zdaniach. Warto
+rozstrzygnąć, czy są to punkty trudne z powodu bliskości prawdziwej granicy i
+szumu, czy oznaka systematycznego błędu modelu. Uzasadnienie powinno wynikać z
+wykresu.
 
-Odpowiedz (Markdown, TODO):
+## 9. Wnioski
 
-- Czy wynik eksperymentu z sekcji 6 pasuje do tego, czego uczy dowód o
-  złożeniu przekształceń afinicznych z wykładu? Czym różni się to, co
-  pokazuje ten eksperyment, od tego, co pokazywał dowód?
-- Gdybyś miał/miała jedno zdanie rady dla kogoś projektującego architekturę
-  MLP do nowego problemu klasyfikacji, co by to było — na podstawie tego,
-  co zaobserwowałeś/aś w tym laboratorium, nie z ogólników?
+W ostatniej komórce Markdown należy odpowiedzieć na dwa pytania.
+
+- Czy wynik eksperymentu z sekcji 6 jest zgodny z wnioskiem z dowodu o składaniu
+  przekształceń afinicznych? Czym obserwacja empiryczna różni się od samego
+  dowodu?
+- Jaka jedna praktyczna zasada dotycząca projektowania MLP wynika z wyników tego
+  laboratorium?
 
 ## Kryteria oceny
 
-- Metryki, klasa `MLP` i funkcja trenująca działają (notebook wykonuje się
-  od danej komórki do końca bez błędu).
-- Porównanie w sekcji 6 obejmuje realnie różne konfiguracje (nie trzy razy
-  to samo z inną nazwą zmiennej) i zawiera przynajmniej jedną wyraźnie
-  słabszą.
-- Interpretacja w sekcji 7 poprawnie łączy wynik liczbowy ze zdolnością
-  reprezentacyjną architektury, nie tylko go opisuje.
-- Analiza błędów w sekcji 8 odwołuje się do konkretnego położenia błędnych
-  punktów na wykresie, nie do ogólników w stylu "model czasem się myli".
-- Odpowiedzi we wnioskach są uzasadnione, nie jednowersowe.
+- Metryki, klasa `MLP` i funkcja trenująca działają, a notebook wykonuje się od
+  uzupełnionej komórki do końca bez błędu.
+- Sekcja 6 obejmuje co najmniej trzy rzeczywiście różne konfiguracje, w tym jedną
+  wyraźnie słabszą.
+- Interpretacja wyników łączy wartości liczbowe ze zdolnością reprezentacyjną
+  architektury.
+- Analiza błędów odwołuje się do położenia błędnie sklasyfikowanych punktów na
+  wykresie.
+- Wnioski są zwięzłe, ale zawierają uzasadnienie.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/02_mlp/`) i nie jest częścią tego repozytorium.
+Pełne rozwiązanie wzorcowe znajduje się lokalnie u prowadzącego w
+`decisions/solutions/02_mlp/` i nie jest częścią repozytorium.
