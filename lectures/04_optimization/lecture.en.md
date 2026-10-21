@@ -9,7 +9,7 @@ After this lecture, you should be able to:
 1. derive and correctly write the update rules for plain gradient descent, mini-batch SGD, momentum (in PyTorch's convention), and Adam (with bias correction), with every symbol unambiguously defined,
 2. distinguish four different objects that are easy to confuse: the loss gradient, the mini-batch gradient estimate, the optimizer's state, and the parameter update vector,
 3. read a loss function's contour plot and an optimizer's trajectory, and explain from it why a given algorithm oscillates, diverges, or crawls slowly,
-4. explain why a learning rate that is safe for plain SGD need not be safe after adding momentum,
+4. distinguish asymptotic momentum stability from convergence speed and short-horizon behavior,
 5. explain Adam's mechanism (adaptive per-parameter scaling) and point out that this is a **different** mechanism than momentum's damping of oscillations, not a "better version" of it,
 6. explain why comparing optimizers at one, shared learning rate and declaring a winner can be misleading.
 
@@ -128,7 +128,7 @@ The notebook [`examples.ipynb`](examples.ipynb), two experiments:
 
 **1. Optimization geometry** -- the function $f(x,y)=\frac12(25x^2+y^2)$ (clearly different curvature: steep in $x$, flat in $y$), starting at $(1,1)$, minimum at $(0,0)$:
 - SGD at several $\eta$: shows the theoretical stability boundary ($\eta<2/25=0.08$ for this problem) -- stable-but-slow below it ($\eta=0.02$), oscillating-but-convergent near the boundary ($\eta=0.06$), clearly divergent above it ($\eta=0.1$),
-- Momentum at **the same** $\eta$ as the oscillating SGD: $\beta=0.3$ damps the oscillation and speeds up the flat direction; $\beta=0.9$ (a typical default choice) at the same $\eta$ **is not stable** -- it needs a separately chosen, smaller $\eta$,
+- Momentum at **the same** $\eta$ as the oscillating SGD: $\beta=0.3$ damps the oscillation and speeds up the flat direction; $\beta=0.9$ (a typical default choice) remains asymptotically stable but has a long, strongly oscillatory transient -- a smaller $\eta$ performs better within a short step budget,
 - Adam at several $\eta$: the $x$ and $y$ trajectories are (for this problem) almost identical, despite the 25-fold difference in curvature -- adaptive scaling in practice.
 
 **2. Training a small MLP** on synthetic data (two interleaving half-moons, $N=2000$, generated locally, an 80/20 train/validation split, mini-batches of 64 examples, an explicit index-shuffling function with a fixed seed):
@@ -140,7 +140,7 @@ The notebook [`examples.ipynb`](examples.ipynb), two experiments:
 
 - Plain SGD's stability boundary on our bowl is exactly where theory predicts ($\eta=2/a=0.08$ for $f=\frac12 a x^2$, $a=25$): at $\eta=0.06$ (below the boundary) the $x$ trajectory oscillates, but the loss drops to $0.0035$ after 40 steps; at $\eta=0.1$ (above the boundary) the loss grows exponentially -- after 40 steps, on the order of $10^{15}$.
 - Momentum $\beta=0.3$ at $\eta=0.06$ (the same value that oscillates for SGD) damps the oscillation in $x$ **and** speeds up convergence in $y$ -- it beats SGD on both fronts at once.
-- Momentum $\beta=0.9$ at the **same** $\eta=0.06$ does not converge at all -- the loss jumps between $\approx 0.1$ and $\approx 15$ over 20 steps with no clear trend. The same $\beta=0.9$ at a smaller $\eta=0.02$ works great (loss $0.003$ after 40 steps -- the best result among all tested SGD/momentum configurations on this task). **A learning rate safe for SGD is not automatically safe after adding momentum.**
+- Momentum $\beta=0.9$ at the **same** $\eta=0.06$ looks poor over the first 20 steps: the loss jumps between $\approx0.1$ and $\approx15$ and ends that interval at $\approx1.92$. A longer run, however, reaches a loss of $\approx0.0066$ after 40 steps and $\approx0.000025$ after 100. The update matrix has spectral radius $\sqrt{0.9}\approx0.9487<1$ for both curvatures, so the configuration is asymptotically stable. The smaller $\eta=0.02$ is faster within a 40-step budget (loss $0.003$), but it is not required for convergence. **A short, oscillatory run is not enough to establish instability.**
 - In this experiment, Adam gives $x$ and $y$ trajectories identical to the fourth decimal place at every step -- despite the 25-fold curvature difference. At too large an $\eta$ ($0.3$-$0.5$) it oscillates, but **in both directions at once** (isotropically), not just the steep one -- a different character of instability than SGD/momentum.
 - On the MLP, at a shared $\eta=0.01$: Adam clearly wins (train/validation loss $\approx0.13/0.15$ after 30 epochs) over momentum ($\approx0.25/0.30$) and SGD ($\approx0.33/0.37$). After separately tuning $\eta$ for each (SGD $0.5$, momentum $0.1$, Adam $0.01$), the gap **largely disappears** ($\approx0.14/0.17$, $\approx0.13/0.15$, $\approx0.13/0.15$ respectively -- momentum and Adam are practically tied, SGD close behind). Adam's edge at a shared $\eta$ was largely **robustness to the choice of $\eta$**, not an unconditional qualitative advantage.
 - Sweeping $\eta$ for SGD on the MLP: smooth convergence at $\eta\in\{1,3\}$, growing instability at $\eta=8$-$10$ (loss spikes), clear non-convergence at $\eta\ge15$.
@@ -184,7 +184,7 @@ The notebook [`examples.ipynb`](examples.ipynb), two experiments:
 - A mini-batch gradient is an unbiased, but noisy, estimator of the full gradient -- not a different gradient.
 - PyTorch's momentum convention ($v_t=\beta v_{t-1}+\hat g_t$) differs from the moving average sometimes used in textbooks -- do not mix them up.
 - Adam normalizes the step separately for each parameter based on the history of its gradients' magnitude -- a different mechanism than momentum's damping of oscillations.
-- A learning rate safe for one algorithm is not automatically safe for another -- adding momentum can make a previously stable $\eta$ unstable.
+- Adding momentum changes both the stability region and the rate at which oscillations decay -- assess a learning rate for the specific algorithm and over a sufficiently long horizon instead of treating poor progress after a few steps as instability.
 - Comparing optimizers at one, shared $\eta$ mainly tells you about robustness to the choice of $\eta$, not which algorithm is "generally better".
 
 ## Questions for students

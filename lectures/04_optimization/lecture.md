@@ -9,7 +9,7 @@ Po tym wykładzie powinieneś/powinnaś umieć:
 1. wyprowadzić i zapisać poprawnie reguły aktualizacji dla zwykłego gradient descent, mini-batch SGD, momentum (w konwencji PyTorch) i Adama (z korekcją obciążenia), z każdym symbolem jednoznacznie zdefiniowanym,
 2. rozróżnić cztery różne obiekty, które łatwo ze sobą pomylić: gradient straty, oszacowanie gradientu na mini-batchu, stan optymalizatora i wektor aktualizacji parametrów,
 3. odczytać wykres poziomicowy funkcji straty i trajektorię optymalizatora, i wyjaśnić na jej podstawie, dlaczego dany algorytm oscyluje, rozbiega się albo wolno pełznie,
-4. wyjaśnić, dlaczego learning rate bezpieczny dla zwykłego SGD nie musi być bezpieczny po dodaniu momentum,
+4. odróżnić asymptotyczną stabilność momentum od szybkości zbieżności i zachowania w krótkim horyzoncie,
 5. wyjaśnić mechanizm Adama (adaptacyjne skalowanie per-parametr) i wskazać, że to **inny** mechanizm niż tłumienie oscylacji przez momentum, nie jego "lepsza wersja",
 6. wyjaśnić, dlaczego porównywanie optymalizatorów przy jednym, wspólnym learning rate i ogłaszanie zwycięzcy bywa mylące.
 
@@ -128,7 +128,7 @@ Notebook [`examples.ipynb`](examples.ipynb), dwa eksperymenty:
 
 **1. Geometria optymalizacji** — funkcja $f(x,y)=\frac12(25x^2+y^2)$ (wyraźnie różna krzywizna: stromo w $x$, płasko w $y$), start $(1,1)$, minimum w $(0,0)$:
 - SGD przy kilku $\eta$: pokazuje teoretyczną granicę stabilności ($\eta<2/25=0{,}08$ dla tego problemu) — stabilny-wolny poniżej ($\eta=0{,}02$), oscylujący-ale-zbieżny blisko granicy ($\eta=0{,}06$), wyraźnie rozbieżny powyżej ($\eta=0{,}1$),
-- Momentum przy **tym samym** $\eta$, co oscylujący SGD: $\beta=0{,}3$ tłumi oscylację i przyspiesza w płaskim kierunku; $\beta=0{,}9$ (typowy domyślny wybór) przy tym samym $\eta$ **nie jest stabilny** — wymaga osobno dobranego, mniejszego $\eta$,
+- Momentum przy **tym samym** $\eta$, co oscylujący SGD: $\beta=0{,}3$ tłumi oscylację i przyspiesza w płaskim kierunku; $\beta=0{,}9$ (typowy domyślny wybór) pozostaje asymptotycznie stabilny, ale ma długi, silnie oscylacyjny stan przejściowy — mniejsze $\eta$ daje lepszy wynik w krótkim budżecie kroków,
 - Adam przy kilku $\eta$: trajektorie w $x$ i $y$ są (dla tego problemu) niemal identyczne, mimo 25-krotnej różnicy krzywizny — adaptacyjne skalowanie w praktyce.
 
 **2. Trening małego MLP** na syntetycznych danych (dwa przeplatające się półksiężyce, $N=2\,000$, generowane lokalnie, podział 80/20 trening/walidacja, mini-batche po 64 przykłady, jawna funkcja losująca indeksy z ustalonym ziarnem):
@@ -140,7 +140,7 @@ Notebook [`examples.ipynb`](examples.ipynb), dwa eksperymenty:
 
 - Granica stabilności zwykłego SGD na naszej misce jest dokładnie tam, gdzie przewiduje teoria ($\eta=2/a=0{,}08$ dla $f=\frac12 a x^2$, $a=25$): przy $\eta=0{,}06$ (poniżej granicy) trajektoria w $x$ oscyluje, ale strata maleje do $0{,}0035$ po 40 krokach; przy $\eta=0{,}1$ (powyżej granicy) strata rośnie wykładniczo — po 40 krokach rzędu $10^{15}$.
 - Momentum $\beta=0{,}3$ przy $\eta=0{,}06$ (ten sam, oscylujący dla SGD) tłumi oscylację w $x$ **i** przyspiesza zbieganie w $y$ — wygrywa z SGD na obu frontach jednocześnie.
-- Momentum $\beta=0{,}9$ przy **tym samym** $\eta=0{,}06$ nie zbiega wcale — strata skacze między $\approx 0{,}1$ a $\approx 15$ przez 20 kroków bez wyraźnego trendu. Ten sam $\beta=0{,}9$ przy mniejszym $\eta=0{,}02$ działa świetnie (strata $0{,}003$ po 40 krokach — najlepszy wynik spośród wszystkich przetestowanych konfiguracji SGD/momentum na tym zadaniu). **Learning rate bezpieczny dla SGD nie jest automatycznie bezpieczny po dodaniu momentum.**
+- Momentum $\beta=0{,}9$ przy **tym samym** $\eta=0{,}06$ przez pierwszych 20 kroków wygląda słabo: strata skacze między $\approx 0{,}1$ a $\approx 15$ i kończy ten odcinek na $\approx1{,}92$. Dłuższy przebieg pokazuje jednak stratę $\approx0{,}0066$ po 40 krokach i $\approx0{,}000025$ po 100. Promień spektralny macierzy aktualizacji wynosi $\sqrt{0{,}9}\approx0{,}9487<1$ dla obu krzywizn, więc konfiguracja jest asymptotycznie stabilna. Mniejsze $\eta=0{,}02$ jest szybsze w budżecie 40 kroków (strata $0{,}003$), ale nie jest warunkiem zbieżności. **Krótki, oscylacyjny przebieg nie wystarcza do rozstrzygnięcia stabilności.**
 - Adam daje w tym eksperymencie identyczne, co do czwartej cyfry po przecinku, trajektorie $x$ i $y$ na każdym kroku — mimo 25-krotnej różnicy krzywizny. Przy zbyt dużym $\eta$ ($0{,}3$–$0{,}5$) oscyluje, ale **w obu kierunkach naraz** (izotropowo), nie tylko w stromym — inny charakter niestabilności niż SGD/momentum.
 - Na MLP, przy wspólnym $\eta=0{,}01$: Adam wyraźnie wygrywa (strata trening/walidacja $\approx0{,}13/0{,}15$ po 30 epokach) z momentum ($\approx0{,}25/0{,}30$) i SGD ($\approx0{,}33/0{,}37$). Po osobnym dostrojeniu $\eta$ dla każdego (SGD $0{,}5$, momentum $0{,}1$, Adam $0{,}01$) różnica **w dużej mierze znika** (odpowiednio $\approx0{,}14/0{,}17$, $\approx0{,}13/0{,}15$, $\approx0{,}13/0{,}15$ — momentum i Adam praktycznie remisują, SGD blisko za nimi). Przewaga Adama przy wspólnym $\eta$ była w dużej mierze **odpornością na wybór $\eta$**, nie bezwarunkową przewagą jakościową.
 - Przegląd $\eta$ dla SGD na MLP: gładka zbieżność przy $\eta\in\{1,3\}$, rosnąca niestabilność przy $\eta=8$–$10$ (skoki straty), wyraźny brak zbieżności przy $\eta\ge15$.
@@ -184,7 +184,7 @@ Notebook [`examples.ipynb`](examples.ipynb), dwa eksperymenty:
 - Gradient na mini-batchu jest nieobciążonym, ale zaszumionym estymatorem gradientu pełnego — nie innym gradientem.
 - Konwencja momentum w PyTorch ($v_t=\beta v_{t-1}+\hat g_t$) różni się od średniej kroczącej używanej czasem w podręcznikach — nie mieszaj ich.
 - Adam normalizuje krok osobno dla każdego parametru na podstawie historii wielkości jego gradientów — to inny mechanizm niż tłumienie oscylacji przez momentum.
-- Learning rate bezpieczny dla jednego algorytmu nie jest automatycznie bezpieczny dla innego — dodanie momentum może uczynić wcześniej stabilny $\eta$ niestabilnym.
+- Dodanie momentum zmienia zarówno obszar stabilności, jak i szybkość tłumienia oscylacji — learning rate trzeba oceniać dla konkretnego algorytmu i dostatecznie długiego horyzontu, zamiast utożsamiać słaby wynik po kilku krokach z niestabilnością.
 - Porównanie optymalizatorów przy jednym, wspólnym $\eta$ mówi głównie o odporności na wybór $\eta$, nie o tym, który algorytm jest "ogólnie lepszy".
 
 ## Pytania dla studentów
