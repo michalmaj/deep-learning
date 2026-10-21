@@ -1,62 +1,60 @@
 Language: **English (default)** | [Polski](lecture.md)
 
-# Lecture 05: generalization, overfitting, and regularization
+# Lecture 05. Generalization, overfitting, and regularization
 
 ## Learning goals
 
-After this lecture, you should be able to:
-
-1. distinguish empirical risk (what we actually minimize) from expected risk (what we actually care about), with unambiguously defined symbols,
-2. recognize underfitting, a good fit, and overfitting on training and validation loss curves -- and justify that diagnosis with specific numbers, not an impression,
+1. distinguish empirical risk, minimized during training, from expected risk, which represents the actual objective, with unambiguously defined symbols,
+2. recognize underfitting, a good fit, and overfitting on training and validation loss curves and justify the diagnosis with specific numbers,
 3. derive the update rule for L2 regularization in plain SGD and state the exact condition under which it is identical to "weight decay",
 4. explain why this identity does **not** have to hold for Adam, and how AdamW differs from it,
 5. write inverted dropout mathematically (a Bernoulli mask, scaling) and explain the difference between `model.train()` and `model.eval()`,
-6. implement correct early stopping -- one that **restores** the best remembered model state, not just remembers it.
+6. implement early stopping that **restores** the best recorded model state.
 
 ## Why this matters
 
-Since lecture 1, we have been minimizing loss on the training set, silently assuming this is a good goal. This lecture challenges that assumption directly: a model that fits the training data perfectly can be a **worse** model than one that fits it less well. This is the moment in the course where "optimization" (lecture 4: how fast and stably to drive the training loss down) and "machine learning" (does what we learned work on new data) formally diverge -- and where you learn to look at this honestly, methodologically, rather than based on a single favorable run.
+Since lecture 1, training has focused on reducing loss on the training set. A model that fits this data perfectly can still perform worse on new examples than one with a less exact fit. Optimization and generalization therefore become separate concerns. The first concerns reducing training loss quickly and stably, while the second concerns performance beyond the data used for learning. Proper evaluation requires a sound methodology rather than a single favorable run.
 
 ## Intuition
 
-### What we actually want
+### The actual training objective
 
-We do not want a model that performs well on data it has already seen -- we want a model that performs well on data it has **not yet seen**, but which comes from the same "world" (the same probability distribution). The loss on the training set is only an **approximation** of what we care about, computed on a finite sample. The better this approximation matches reality, the better the model **generalizes**.
+The goal is a model that performs well on new data from the same distribution as the training data. Training loss is only an **approximation** of this objective, computed from a finite sample. Better representation of the full distribution can lead to better generalization.
 
 ### Underfitting and overfitting
 
-- **Underfitting**: the model is too simple (or trained too briefly) to capture even the structure present in the training data. Symptom: **high loss on both training and validation**, close to each other.
-- **Overfitting**: the model has sufficient (or excess) capacity to fit not only the data's true structure, but also the noise of this specific training sample. Symptom: **the training loss keeps dropping, while the validation loss stops dropping and starts rising** -- the model "memorizes" the training examples, including their random noise, at the expense of general structure.
+- **Underfitting.** The model is too simple or trained too briefly to capture the structure in the training data. Training and validation losses remain high and close to each other.
+- **Overfitting.** The model fits not only the data's structure but also noise specific to the training sample. Training loss continues to decrease while validation loss stops improving and begins to rise.
 
-A key caveat we will return to empirically: **the relationship between model capacity and generalization quality is not monotonic** and cannot always be predicted without an experiment. A larger model **can** overfit more -- but need not; small models also overfit given a sufficiently small amount of data, and large models, given enough data and appropriate regularization, can generalize very well. Do not treat "small = safe, large = risky" as a law of nature.
+**The relationship between model capacity and generalization quality is not monotonic** and often requires experimental verification. A larger model can overfit more, but this is not guaranteed. Small models also overfit on limited data, while large models can generalize well with sufficient data and suitable regularization. Model size alone does not determine the result.
 
 ### Why regularization
 
-Regularization is a family of techniques that do **not** change what a model learns directly from the data's signal, but instead discourage behaviors typical of overfitting: excessively large weights (L2/weight decay), excessive reliance on specific, individual neurons (dropout), or training for too long (early stopping). None of them is a guarantee -- each is a **trade-off** that must be verified experimentally on the specific problem, not assumed in advance.
+Regularization includes techniques that discourage behavior associated with overfitting. L2 and weight decay discourage large weights, dropout limits reliance on individual neurons, and early stopping prevents excessively long training. Each method introduces a **trade-off** that needs to be evaluated experimentally for the problem at hand.
 
 ## Formal model
 
-Let $P$ be the (unknown) probability distribution that pairs $(x,y)$ come from. We define:
+Let $P$ be the unknown probability distribution that generates pairs $(x,y)$. Define
 
 $$R(\theta) = \mathbb{E}_{(x,y)\sim P}\big[\ell(f(x;\theta), y)\big] \qquad \text{(expected risk)}$$
 
-This is **what we actually care about** -- the model's average error over the *entire* data distribution, not just the data we have. We cannot compute it directly (we do not know $P$, we only have a finite sample).
+This is the model's average error over the *entire* data distribution. It cannot be computed directly because $P$ is unknown and only a finite sample is available.
 
 $$\hat R(\theta) = \frac{1}{N}\sum_{i=1}^N \ell\big(f(x_i;\theta), y_i\big) \qquad \text{(empirical risk)}$$
 
-This is exactly the $L(\theta)$ from lecture 1 -- the average loss on **our specific, finite sample** $\{(x_i,y_i)\}_{i=1}^N$. Training minimizes $\hat R(\theta)$ as an **approximation** of $R(\theta)$ -- this approximation is better the more representative data we have, and worse the more the model "exploits" the fact that $\hat R$ and $R$ are not the same function.
+This is $L(\theta)$ from lecture 1, the average loss on the finite sample $\{(x_i,y_i)\}_{i=1}^N$. Training minimizes $\hat R(\theta)$ as an **approximation** of $R(\theta)$. The approximation improves with more representative data and deteriorates when the model fits properties unique to the sample.
 
-**Generalization gap**: $R(\theta) - \hat R(\theta)$ -- in practice approximated by $L_{\text{val}}(\theta) - L_{\text{train}}(\theta)$ (the loss on a validation set the model did not see during training, minus the training loss). A growing gap alongside a decreasing training loss is the operational definition of overfitting we use in this lecture.
+The **generalization gap** is $R(\theta) - \hat R(\theta)$. In practice, it is approximated by $L_{\text{val}}(\theta) - L_{\text{train}}(\theta)$. A growing gap alongside a decreasing training loss serves as the operational definition of overfitting in this lecture.
 
-**Data splits and their roles** (a reminder and a refinement): **training** -- fitting the parameters; **validation** -- comparing models/hyperparameters and (in this lecture) deciding when to stop training; **test** -- a **single**, final evaluation of the already-chosen model. Using the test set to make any decision (which model, which hyperparameter, which epoch) makes it part of the selection process -- and invalidates it as a measure of generalization, for exactly the same reason the training loss is not such a measure.
+**Data splits** assign a different role to each subset. Training data fits the parameters, validation data compares models and hyperparameters and determines when to stop, and test data provides a **single** final evaluation of the selected model. Any use of the test set during decision-making makes it part of model selection and removes its role as an independent measure of generalization.
 
-**Data leakage**: any situation where information from the validation/test set (or from the future, in time-series data) influences training or model selection -- e.g. computing the mean/standard deviation for normalization over the **entire** dataset before splitting, instead of only on the training set. The effect: an inflated, dishonest estimate of generalization -- the model "saw" (indirectly, through statistics) the data we are evaluating it on. In the lab you will measure this, not just read about it.
+**Data leakage** occurs when information from validation, test, or future data influences training or model selection. One example is computing normalization statistics over the **entire** dataset before splitting rather than using only the training set. This inflates the estimate because the model indirectly receives information about evaluation data. The lab measures this effect directly.
 
 ## Mathematics
 
 ### L2 regularization and its effect on the gradient (SGD)
 
-We extend the objective function with a penalty for large weights:
+The objective function is extended with a penalty for large weights.
 
 $$L_{\text{reg}}(\theta) = L(\theta) + \frac{\lambda}{2}\|\theta\|_2^2 = L(\theta) + \frac{\lambda}{2}\sum_j \theta_j^2$$
 
@@ -68,151 +66,153 @@ Plain SGD's step with this gradient:
 
 $$\theta \leftarrow \theta - \eta\big(\nabla L(\theta) + \lambda\theta\big) = \underbrace{(1-\eta\lambda)\theta}_{\text{weight "shrinkage"}} - \eta\nabla L(\theta)$$
 
-This is exactly what we call **weight decay**: every step first multiplies the weights by $(1-\eta\lambda) < 1$ ("shrinking" them toward zero), then performs the ordinary gradient step. **For plain SGD, these two formulations -- "add $\frac{\lambda}{2}\|\theta\|^2$ to the loss" and "multiply the weights by $(1-\eta\lambda)$ at every step" -- are exactly the same formula**, not two similar techniques (verified within numerical tolerance in the notebook, `atol=1e-3`, against `torch.optim.SGD(weight_decay=λ)`). Note that this must be **one, single step**: doing "first a full gradient step $\theta'=\theta-\eta\nabla L(\theta)$, and then a separate shrinkage $(1-\eta\lambda)\theta'$" gives
+This is the definition of **weight decay**. Each step multiplies the weights by $(1-\eta\lambda) < 1$, moving them toward zero, and then applies the ordinary gradient update. **For plain SGD, adding $\frac{\lambda}{2}\|\theta\|^2$ to the loss and multiplying the weights by $(1-\eta\lambda)$ within the same step are exactly equivalent.** The notebook confirms agreement with `torch.optim.SGD(weight_decay=λ)` at `atol=1e-3`.
+
+The equivalence requires one combined step. Applying a full gradient update $\theta'=\theta-\eta\nabla L(\theta)$ first and separate shrinkage $(1-\eta\lambda)\theta'$ afterward gives
 $$(1-\eta\lambda)\theta'= (1-\eta\lambda)\theta - \eta(1-\eta\lambda)\nabla L(\theta),$$
-which differs from the formula above by an extra factor $(1-\eta\lambda)$ on the gradient term -- the difference is exactly $\eta^2\lambda\nabla L(\theta)$, so for $\lambda\neq0$ this is in general a **different** result than the one, combined step, and whether it is larger or smaller depends on the sign of $\nabla L(\theta)$ (it is not universally "a smaller result" in either direction).
+which adds a factor $(1-\eta\lambda)$ to the gradient term. The difference is exactly $\eta^2\lambda\nabla L(\theta)$, so for $\lambda\neq0$ this is generally a **different** update. Its direction depends on the sign of $\nabla L(\theta)$.
 
-### L2 vs. weight decay for adaptive optimizers -- WARNING, these are not the same
+### L2 and weight decay for adaptive optimizers
 
-For Adam **with the `weight_decay` parameter** (as `torch.optim.Adam` implements it by default), the L2 penalty enters the gradient **before** the adaptive normalization:
+In Adam **with the `weight_decay` parameter**, as implemented by `torch.optim.Adam` by default, the L2 penalty enters the gradient **before** adaptive normalization.
 
 $$\hat g_t = \nabla \ell(\theta_t) + \lambda\theta_t, \qquad m_t = \beta_1 m_{t-1} + (1-\beta_1)\hat g_t, \qquad v_t = \beta_2 v_{t-1}+(1-\beta_2)\hat g_t^2, \qquad \dots$$
 
-(the rest exactly as in lecture 4). The problem: $\hat g_t$ then passes through division by $\sqrt{\hat v_t}$ -- **the same mechanism that normalizes the task gradient's scale also normalizes the L2 penalty's contribution**. Consequence, verified in the notebook: if the task gradient is already approximately proportional to $\theta$ (which happens sometimes, and which the worked example below demonstrates exactly), adding $\lambda\theta$ to it **does not change at all** Adam's normalized direction/step -- in this convention, the L2 penalty can in practice be **ineffective**, despite a nonzero $\lambda$.
+The remaining operations follow lecture 4. Since $\hat g_t$ is divided by $\sqrt{\hat v_t}$, the mechanism that normalizes the task gradient also normalizes the L2 contribution. If the task gradient is approximately proportional to $\theta$, adding $\lambda\theta$ may leave Adam's normalized direction and step unchanged. Under this convention, the L2 penalty can therefore be **ineffective** despite a nonzero $\lambda$. The notebook demonstrates this case.
 
-**AdamW** (Loshchilov and Hutter, 2019) fixes this by **decoupling** the penalty from the adaptive normalization -- the moments $m_t, v_t$ are computed from the **pure** task gradient, and the weight shrinkage is applied separately, after normalization:
+**AdamW** (Loshchilov and Hutter, 2019) **decouples** the penalty from adaptive normalization. The moments $m_t$ and $v_t$ are computed from the pure task gradient, while weight shrinkage is applied separately after normalization.
 
 $$m_t, v_t \ \text{computed from } \nabla\ell(\theta_t) \text{ (without } \lambda\theta_t\text{)}, \qquad \theta_{t+1} = \theta_t - \eta\left(\frac{\hat m_t}{\sqrt{\hat v_t}+\varepsilon} + \lambda\theta_t\right)$$
 
-Now $\lambda\theta_t$ acts exactly the same way, regardless of the task gradient's history/scale -- predictably, as in SGD. This is the reason why in practice (and in this lecture's experiment), `AdamW`, not `Adam(weight_decay=...)`, is used to regularize weights with Adam.
+The contribution $\lambda\theta_t$ no longer depends on the task gradient's history or scale, as in SGD. For this reason, weight regularization with Adam typically uses `AdamW`, including in this lecture's experiment.
 
-### Dropout: the Bernoulli mask and *inverted dropout*
+### Dropout, the Bernoulli mask, and *inverted dropout*
 
 For a layer with activations $a\in\mathbb R^m$ and a drop probability $p\in(0,1)$, in **training** mode:
 
 $$r_i \sim \text{Bernoulli}(1-p) \ \text{independently for each } i, \qquad \tilde a_i = \frac{r_i}{1-p}\, a_i$$
 
-$r_i=0$ with probability $p$ (the neuron is "switched off" at this step -- zeroed out, **not** removed from the architecture: at the next step it may be active again, the mask is redrawn on every forward pass), $r_i=1$ with probability $1-p$. Scaling by $\frac{1}{1-p}$ (*inverted dropout* -- the version `nn.Dropout` implements) ensures $\mathbb E[\tilde a_i] = a_i$: the output's expected value is preserved, despite the random zeroing (verified in the notebook over 10,000 samples).
+$r_i=0$ with probability $p$, which zeros the neuron for the current step without removing it from the architecture. A new mask is drawn on every forward pass. The probability of $r_i=1$ is $1-p$. Scaling by $\frac{1}{1-p}$, known as *inverted dropout* and implemented by `nn.Dropout`, ensures $\mathbb E[\tilde a_i] = a_i$. The expected output is therefore preserved despite random zeroing. The notebook confirms this over 10,000 samples.
 
-In **evaluation** mode (`model.eval()`): $\tilde a_i = a_i$ -- no random drawing, no scaling. Because the scaling was already performed during training (hence *inverted*), inference is an ordinary, deterministic forward pass -- nothing extra needs to be done.
+In **evaluation** mode, `model.eval()`, $\tilde a_i = a_i$. No random drawing or scaling occurs. Since scaling is applied during training, inference remains an ordinary deterministic forward pass.
 
-`model.train()` / `model.eval()` is a switch for **the behavior of specific layers** (here: dropout), **not** a switch for computing gradients -- that is a separate mechanism (`torch.no_grad()` / `requires_grad`, lecture 3). `model.eval()` does not automatically disable gradients (verified in the notebook: `.grad` is computed normally in `eval()` mode).
+`model.train()` and `model.eval()` switch **the behavior of specific layers**, including dropout. They do not control gradient computation, which is handled separately through `torch.no_grad()` and `requires_grad`. `model.eval()` does not disable gradients automatically, as confirmed by the successful computation of `.grad` in the notebook.
 
 ### Early stopping as a procedure
 
 After every epoch $e$ with validation loss $V_e$:
 
-1. if $V_e < V_{\text{best}} - \delta$ (a minimal meaningful improvement $\delta$, *min\_delta*): remember $V_{\text{best}}\leftarrow V_e$, remember the **full parameter state** of the model (not just the epoch number!), reset the counter of epochs without improvement;
-2. otherwise: increment the counter of epochs without improvement; if the counter reaches `patience`: **stop training**;
-3. after stopping (or after exhausting the epoch budget): **restore** the remembered best parameter state -- the model you go on to use comes from epoch $e_{\text{best}}$, not from the last trained epoch.
+1. If $V_e < V_{\text{best}} - \delta$, where $\delta$ is the minimum meaningful improvement (*min_delta*), record $V_{\text{best}}\leftarrow V_e$, save the model's **full parameter state**, and reset the counter of epochs without improvement.
+2. Otherwise, the counter is incremented. Training stops when it reaches `patience`.
+3. After stopping or exhausting the epoch budget, the best saved state is **restored**. The model used afterward comes from epoch $e_{\text{best}}$, not the final training epoch.
 
-Step 3 is the one most often skipped (hence the misconception in the section below) -- without it, "early stopping" is only an earlier stop to the loop, with no benefit at all, because the model stays in the (worse) state from the last epoch anyway.
+Omitting the third step leaves the model in the usually worse state from the final epoch. Ending the loop early is not sufficient for correct early stopping.
 
 ## Worked example
 
-$\theta_0=2$, $\eta=0.1$, $\lambda=0.5$ (large, for clarity), the task $\ell(\theta)=\frac12\theta^2$ (so $\nabla\ell(\theta)=\theta$) -- the same task-gradient formula as in modules 1/4.
+Let $\theta_0=2$, $\eta=0.1$, and the deliberately large $\lambda=0.5$. For the task $\ell(\theta)=\frac12\theta^2$, $\nabla\ell(\theta)=\theta$, as in modules 1 and 4.
 
 **SGD, without regularization:** $\theta_1 = 2 - 0.1\cdot 2 = 1.8$.
 
-**SGD with L2/weight decay:** $\nabla L_{\text{reg}} = 2 + 0.5\cdot2 = 3.0$; $\theta_1 = 2 - 0.1\cdot3.0 = 1.7$. (Equivalently: $(1-\eta\lambda)\theta_0 - \eta\nabla\ell(\theta_0) = 0.95\cdot2 - 0.2 = 1.7$ -- the same number, from the second formula).
+**SGD with L2/weight decay:** $\nabla L_{\text{reg}} = 2 + 0.5\cdot2 = 3.0$; $\theta_1 = 2 - 0.1\cdot3.0 = 1.7$. The equivalent expression $(1-\eta\lambda)\theta_0 - \eta\nabla\ell(\theta_0) = 0.95\cdot2 - 0.2 = 1.7$ gives the same value.
 
 **Adam, `weight_decay=0.5` (the L2-in-the-gradient convention):**
 
 $$\hat g_1 = \theta_0 + \lambda\theta_0 = 2+1=3.0 \quad\Rightarrow\quad m_1=0.1\cdot3.0=0.3,\ v_1=0.001\cdot9.0=0.009$$
 $$\hat m_1 = 0.3/0.1=3.0,\quad \hat v_1=0.009/0.001=9.0 \quad\Rightarrow\quad \theta_1 = 2 - 0.1\cdot\frac{3.0}{\sqrt{9.0}} = 2-0.1 = 1.9$$
 
-**Surprising, but verified: for the same $\theta_0$, Adam *without* regularization ($\lambda=0$) gives exactly the same $\theta_1=1.9$** -- because $\hat g_1=\theta_0$ (without $\lambda$), $\hat m_1=2.0$, $\hat v_1=4.0$, $\theta_1=2-0.1\cdot\frac{2.0}{\sqrt{4.0}}=2-0.1=1.9$. When the task gradient is (as here) proportional to $\theta$, adding $\lambda\theta$ only rescales it -- and Adam's normalized direction ($\hat m/\sqrt{\hat v}$) is insensitive to a uniform rescaling of the gradient. **The L2 penalty in this convention, for this step, did literally nothing.**
+**For the same $\theta_0$, Adam without regularization, with $\lambda=0$, also gives $\theta_1=1.9$.** In that case, $\hat g_1=\theta_0$, $\hat m_1=2.0$, $\hat v_1=4.0$, and $\theta_1=2-0.1\cdot\frac{2.0}{\sqrt{4.0}}=1.9$. Since the task gradient is proportional to $\theta$, adding $\lambda\theta$ only rescales it. Adam's normalized direction $\hat m/\sqrt{\hat v}$ is insensitive to this uniform scaling. **The L2 penalty does not change this step.**
 
-**AdamW, `weight_decay=0.5` (the decoupled convention):** the moment computed from the pure $\nabla\ell(\theta_0)=2.0$ (without $\lambda$): $\hat m_1=2.0$, $\hat v_1=4.0$, normalized step $=\hat m_1/\sqrt{\hat v_1}=1.0$.
+**AdamW, `weight_decay=0.5` (the decoupled convention):** the moment is computed from the pure $\nabla\ell(\theta_0)=2.0$, without $\lambda$. This gives $\hat m_1=2.0$, $\hat v_1=4.0$, and a normalized step $\hat m_1/\sqrt{\hat v_1}=1.0$.
 
 $$\theta_1 = \theta_0 - \eta\left(1.0 + \lambda\theta_0\right) = 2 - 0.1\cdot(1.0+0.5\cdot2) = 2-0.1\cdot2.0 = 1.8$$
 
-AdamW **sees** the regularization ($1.8 \neq$ AdamW without regularization, which would give $\theta_1=1.9$ -- the same arithmetic as Adam without $\lambda$, since without the penalty the two formulas coincide) -- Adam with `weight_decay` does not see it at all in this step. All four numbers ($1.8$; $1.7$; $1.9$; $1.8$) are verified in the notebook against the corresponding `torch.optim` classes.
+AdamW incorporates the regularization because it gives $1.8$ instead of the $1.9$ obtained without the penalty. Adam with `weight_decay` does not change the result in this step. The notebook verifies all four values, $1.8$, $1.7$, $1.9$, and $1.8$, against the corresponding `torch.optim` classes.
 
 ## Experiment
 
-The notebook [`examples.ipynb`](examples.ipynb):
+The notebook [`examples.ipynb`](examples.ipynb) contains three parts.
 
-1. **Three capacities, the same problem** -- regression $y=\sin(3x)+0.3x+\varepsilon$, $N=30$ noisy training points, a dense validation set ($N=200$) from the same distribution. A small MLP (underfitting), a medium MLP (a good fit), a large MLP `[128,128,128]` (overfitting) -- identical data, identical training procedure.
-2. **Regularization on the model from (1) that overfit** -- without regularization, with `AdamW(weight_decay=...)`, with `nn.Dropout`, with early stopping -- plus an example of too-strong dropout leading to underfitting.
-3. **(Optional, if time permits) The effect of the number of training examples** -- the same model, $N\in\{15,30,60,120,300\}$.
+1. **Three capacities for the same problem.** Regression $y=\sin(3x)+0.3x+\varepsilon$ uses $N=30$ noisy training points and a dense validation set with $N=200$. The comparison includes a small MLP with underfitting, a medium MLP with a good fit, and a large `[128,128,128]` MLP with overfitting. The data and training procedure are identical.
+2. **Regularization of the model prone to overfitting.** The comparison includes no regularization, `AdamW(weight_decay=...)`, `nn.Dropout`, early stopping, and excessively strong dropout that causes underfitting.
+3. **Optional effect of the number of training examples.** The same model is trained with $N\in\{15,30,60,120,300\}$.
 
-Each of sections 1-2 is **verified across several random seeds** before writing the conclusions below -- not just on a single, chosen run.
+The first two parts were **checked across several random seeds**, not only on a single selected run.
 
-## What we observe
+## Observations
 
-- **Underfitting**: the small model has a high training **and** validation loss, close to each other (e.g. $\approx 0.5$ and $\approx 0.6$) -- the model does not have the means to fit even the training data.
-- **A good fit**: the medium model has a low training loss, a moderate validation loss, and the validation loss is still close to its minimum toward the end of training -- there is no clear upward bounce.
-- **Overfitting, measured, not assumed**: the large model ($33409$ parameters) achieves the lowest training loss ($\approx 0.01$-$0.05$) of all three -- but the validation loss **first drops, reaches a minimum clearly before the end of training, and then rises**, even though the training loss keeps decreasing. The exact scale of this bounce depends on the random seed (checked: in our tests the final-loss/minimum-loss ratio ranged from $\approx 1.1\times$ to over $8\times$ depending on the specific data sample) -- **the direction of the effect is stable, its exact magnitude is not**, and that is how we present it.
-- **Weight decay (AdamW) helps, moderately**: in our tests, with a well-chosen $\lambda$ (on the order of $10^{-2}$), the final validation loss dropped noticeably relative to the model without regularization, though the size of the improvement depended on the seed.
-- **Dropout helped more strongly and more consistently than weight decay in our tests** (at $p\approx0.1$, the final validation loss dropped to a level close to, and sometimes below, the unregularized model's best moment) -- this is a specific observation *for this problem and this architecture*, not a general law "dropout > weight decay".
-- **Too strong dropout hurts**: at $p=0.5$ the training loss rose noticeably (the model stopped being able to fit even the training data) -- regularization turned overfitting into underfitting.
-- **Early stopping works, as long as it actually restores the state** -- stopping by itself gives nothing (the loss at the moment of stopping was sometimes noticeably worse than the loss at the best remembered epoch); only restoring the remembered weights gives the benefit.
-- **An interaction we did not assume in advance**: combining dropout + early stopping with the same `patience` as for the model without dropout stopped training **prematurely** -- dropout introduces extra epoch-to-epoch noise into the validation curve, so the same patience threshold can end up too low. This is not an implementation bug -- it is a real interaction between two techniques that must be accounted for in practice.
+- **Underfitting.** The small model has high, similar training and validation losses, such as $\approx 0.5$ and $\approx 0.6$. It cannot fit even the training data.
+- **A good fit.** The medium model reaches a low training loss and moderate validation loss. Near the end of training, validation loss remains close to its minimum.
+- **Measured overfitting.** The large model with $33409$ parameters achieves the lowest training loss of the three, around $0.01$-$0.05$. Validation loss first decreases, reaches its minimum well before training ends, and then rises while training loss continues to fall. The size of this increase depends on the seed. In the tests, the final-loss to minimum-loss ratio ranged from about $1.1\times$ to over $8\times$. The direction of the effect remained stable, while its magnitude did not.
+- **Weight decay with AdamW helps moderately.** With a suitable $\lambda$ on the order of $10^{-2}$, final validation loss decreased noticeably relative to the unregularized model. The size of the improvement depended on the seed.
+- **Dropout was stronger and more consistent than weight decay.** At $p\approx0.1$, final validation loss approached or sometimes improved on the best result of the unregularized model. This observation applies to this problem and architecture, not to dropout in general.
+- **Excessive dropout hurts.** At $p=0.5$, training loss increased because the model could no longer fit the training data. Regularization turned overfitting into underfitting.
+- **Early stopping requires state restoration.** Loss at the stopping point was sometimes noticeably worse than at the best recorded epoch. The benefit appeared only after restoring the saved weights.
+- **Dropout affects early-stopping settings.** Combining dropout with the same `patience` used for a model without dropout stopped training prematurely. Additional noise in the validation curve can make the same patience threshold too low. This is a real interaction between the methods, not an implementation bug.
 
 ## Common misconceptions
 
 ❌ A low training loss means good generalization.
 
-✅ A low training loss only means the model fit **this specific sample** well -- including its noise. In our experiment, the model with the lowest training loss had one of the worse validation losses.
+✅ A low training loss only indicates a good fit to **this specific sample**, including its noise. In the experiment, the model with the lowest training loss had one of the higher validation losses.
 
 ❌ A high validation loss always means overfitting.
 
-✅ A high validation loss can also mean underfitting (the model too simple, the training loss also high) -- what distinguishes them is exactly the **relationship** between training and validation loss (close to each other and both high = underfitting; diverging, training low = overfitting), not the validation loss value alone, in isolation from the training loss.
+✅ A high validation loss can also result from underfitting, accompanied by a high training loss. The **relationship** between the two values determines the diagnosis. Two high and similar losses indicate underfitting, while a growing gap with low training loss indicates overfitting.
 
 ❌ Dropout permanently removes neurons from the architecture.
 
-✅ Dropout draws a **new** zero mask at every forward pass in training mode -- no neuron is removed permanently; at the next step (and always in `eval()` mode) it is fully active again.
+✅ Dropout draws a **new** zero mask at every forward pass in training mode. No neuron is removed permanently. It may be active again on the next step, and all neurons remain active in `eval()` mode.
 
 ❌ `model.eval()` automatically disables gradient computation.
 
-✅ `model.eval()` only changes the behavior of specific layers (dropout, and others not yet covered in this course) -- gradient computation is controlled by a separate mechanism (`requires_grad`, `torch.no_grad()`, lecture 3), independent of `train`/`eval` mode (verified: in `eval()`, `.grad` is still computed).
+✅ `model.eval()` changes the behavior of selected layers, including dropout. Gradient computation is controlled separately through `requires_grad` and `torch.no_grad()`. The notebook confirms that `.grad` can still be computed in `eval()` mode.
 
 ❌ Early stopping is simply picking the last training epoch.
 
-✅ Early stopping is stopping training **after** detecting no improvement for `patience` epochs, **and restoring the weights from the best, earlier epoch** -- the last trained epoch is by definition worse (or at best equal to) the one remembered as best.
+✅ Early stopping ends training after no improvement for the number of epochs set by `patience` and **restores the weights from the best earlier epoch**. The final trained state is worse than or equal to the best saved state.
 
 ❌ The test set can be used to choose hyperparameters or the number of epochs, as long as the final result is still reported honestly.
 
-✅ Any use of the test set to make a decision (which model, which $\lambda$, which epoch) makes it part of the model-selection process -- it stops being an independent measure of generalization, for exactly the same reason the training loss is not one.
+✅ Using the test set to choose a model, $\lambda$, or epoch count makes it part of model selection. It then stops being an independent measure of generalization.
 
 ❌ Stronger regularization always gives a better result.
 
-✅ Measured directly: at $p=0.5$, dropout made the result worse than at $p=0.1$ (and worse than the training loss itself, which stopped dropping) -- regularization has an optimum, it is not "the more, the better".
+✅ At $p=0.5$, dropout produced a worse result than at $p=0.1$, and training loss stopped decreasing. Regularization strength has an optimum, so a larger value does not necessarily improve the result.
 
 ## Engineering implications
 
-- **The cost of extra experiments**: comparing several values of $\lambda$/$p$/`patience` is a multiple of the cost of a single training run -- in practice this is often the project's largest time cost, larger than the final training run itself.
-- **Storing checkpoints**: correct early stopping requires keeping the full state of the best model in memory (or on disk) during training, not just a metric -- for large models this is a real memory/disk cost that must be decided on deliberately (how often to overwrite the checkpoint, whether to keep more than one).
-- **Training vs. inference**: dropout (and, beyond the scope of this lecture, batch normalization) behave **differently** in `train()` and `eval()` -- forgetting to switch mode before evaluation/deployment is a common, silent bug (the model keeps "working", just worse, and in a way that is not immediately easy to diagnose).
-- **The risk of data leakage in a pipeline**: normalization, feature selection, or augmentation fitted to statistics from data outside the training set is one of the most common, hardest-to-detect bugs in practical ML projects -- because the model "works" and produces numbers, only those numbers are dishonestly optimistic.
-- **Evaluation instability with small datasets**: the sensitivity to the random seed measured in this lecture (a difference between $1.1\times$ and $8\times$ for the same configuration, a different data sample) is not an artifact of our experiment -- it is a real property of small datasets that must be accounted for when interpreting a single result in practice.
-- **Distribution shift**: all the generalization mathematics in this lecture assumes production data comes from the same distribution $P$ as the training/validation data. If that assumption stops holding (data changes over time, new users, a different context), none of these guarantees -- even with ideal regularization -- necessarily carry over. This is a separate problem from overfitting, often confused with it.
+- **Cost of additional experiments.** Comparing several values of $\lambda$, $p$, or `patience` multiplies the cost of a single training run. In practice, tuning can take more time than final training.
+- **Checkpoint storage.** Correct early stopping requires keeping the full state of the best model in memory or on disk. This is a meaningful cost for large models. The overwrite frequency and number of retained checkpoints also require explicit decisions.
+- **Training and inference.** Dropout and batch normalization behave differently in `train()` and `eval()`. Failing to switch modes before evaluation or deployment can reduce quality without producing an explicit program error.
+- **Data-leakage risk in a pipeline.** Normalization, feature selection, or augmentation fitted to statistics outside the training set produces unfairly optimistic results. The error is difficult to detect because the pipeline still runs normally.
+- **Evaluation instability on small datasets.** The difference between $1.1\times$ and $8\times$ for the same configuration on different samples is not an artifact of the experiment. Small datasets introduce real variation that needs to be considered when interpreting a single result.
+- **Distribution shift.** The mathematics presented here assumes that production data comes from the same distribution $P$ as training and validation data. Changes over time, new users, or a different context can violate this assumption. Even a well-regularized model may then lose quality. This is distinct from overfitting.
 
-## What to remember
+## Key points
 
-- We minimize empirical risk as an approximation of expected risk -- the gap between them is overfitting.
-- Underfitting: high training and validation loss, close to each other. Overfitting: diverging, training low.
-- L2 and weight decay are the same formula for SGD -- but **not** for Adam; AdamW fixes this by decoupling the penalty from the adaptive normalization.
-- Inverted dropout scales activations by $1/(1-p)$ during training, so `eval()` can be an ordinary pass with no changes.
+- Empirical risk approximates expected risk. A growing gap between them indicates overfitting.
+- Underfitting produces high and similar training and validation losses. With overfitting, low training loss separates from rising validation loss.
+- L2 and weight decay are equivalent for SGD, but **not** for Adam. AdamW decouples the penalty from adaptive normalization.
+- Inverted dropout scales activations by $1/(1-p)$ during training, allowing `eval()` to use an ordinary forward pass.
 - `train()`/`eval()` and gradient computation are two independent mechanisms.
 - Early stopping without restoring the best state gives no benefit at all.
-- We touch the test set once, after all decisions -- otherwise it stops measuring what it is supposed to measure.
-- No regularization method is a guarantee -- each must be verified on the specific problem, with more than one random seed.
+- The test set is used once after all decisions have been made.
+- No regularization method guarantees improvement. Each needs verification on the specific problem and with more than one random seed.
 
 ## Questions for students
 
-1. You have a model with a low training loss and a high validation loss. How would you distinguish, from these two numbers alone, whether this is overfitting or, say, a bug in the code computing the validation loss (e.g. the validation data is from a different distribution)?
-2. Why can the L2 penalty in Adam (`weight_decay`) fail to have an effect, even though it is mathematically "present" in the gradient? Answer by referring to the adaptive-normalization mechanism from lecture 4.
-3. You implemented early stopping, but after training the model behaves exactly as if it were not there. What is the most likely bug?
-4. Why can you not choose the best $\lambda$ (weight decay) based on the test-set result, even if you ultimately still report the test result in your write-up?
+1. Can low training loss and high validation loss alone distinguish overfitting from an error in validation, such as data from another distribution? What additional information is needed?
+2. Why can the L2 penalty in Adam (`weight_decay`) fail to have an effect despite being present in the gradient? How does this relate to adaptive normalization from lecture 4?
+3. What is the most likely error when an early-stopping implementation does not change the model's behavior after training?
+4. Why should the best $\lambda$ not be selected from test-set results, even if the final report includes a test result?
 
 ## References
 
 - Loshchilov, I., Hutter, F. (2019). *Decoupled Weight Decay Regularization*. ICLR 2019 (arXiv:1711.05101).
 - Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., Salakhutdinov, R. (2014). *Dropout: A Simple Way to Prevent Neural Networks from Overfitting*. Journal of Machine Learning Research, 15(56), 1929-1958.
-- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/ -- chapter 5.2 (Capacity, Overfitting and Underfitting) and chapter 7 (Regularization for Deep Learning).
+- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/, chapter 5.2 (Capacity, Overfitting and Underfitting) and chapter 7 (Regularization for Deep Learning).
 - PyTorch Contributors. *torch.nn.Dropout* documentation. https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html
 - PyTorch Contributors. *torch.optim.AdamW* documentation. https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html
 
-Full bibliography entries: [`references/references.bib`](../../references/references.bib).
+Full bibliography entries are available in [`references/references.bib`](../../references/references.bib).

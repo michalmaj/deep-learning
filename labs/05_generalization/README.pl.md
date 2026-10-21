@@ -1,138 +1,137 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 05: rozpoznawanie przeuczenia i dobór regularyzacji
+# Laboratorium 05. Rozpoznawanie przeuczenia i dobór regularyzacji
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/05_generalization/lecture.md`](../../lectures/05_generalization/lecture.md)
-(ryzyko empiryczne vs. oczekiwane, L2/weight decay, AdamW, dropout, early
-stopping), ale na **innym problemie** niż wykład — klasyfikacja tabularna
-z cechami informacyjnymi i szumowymi, nie regresja 1D.
+Przewidywany czas pracy wynosi około 2 godzin. Laboratorium wykorzystuje
+pojęcia z
+[`lectures/05_generalization/lecture.md`](../../lectures/05_generalization/lecture.md),
+w tym ryzyko empiryczne i oczekiwane, L2, weight decay, AdamW, dropout oraz
+early stopping. Problem różni się od wykładowego. Zamiast regresji
+jednowymiarowej pojawia się klasyfikacja danych tabularnych z cechami
+informacyjnymi i szumowymi.
 
-## 1. Dane i podział (gotowe) + przeciek danych — Twoje zadanie
+## 1. Dane, podział i przeciek danych
 
-Dane: 14 cech ($4$ informacyjne, $10$ czysty szum — niezwiązane z celem),
-$100$ przykładów treningowych, po $200$ walidacyjnych i testowych. Dwie
-cechy mają celowo dużo większą skalę niż pozostałe (częsta sytuacja w
-realnych danych tabularnych) — dlatego normalizacja ma tu znaczenie.
+Zbiór ma 14 cech. Cztery z nich zawierają informację o celu, a dziesięć jest
+czystym szumem. Do treningu służy 100 przykładów, a zbiory walidacyjny i
+testowy zawierają po 200 przykładów. Dwie cechy mają celowo znacznie większą
+skalę niż pozostałe, co odpowiada częstej sytuacji w danych tabularnych i
+uzasadnia normalizację.
 
-Notebook zawiera (gotowy, ale **celowo błędny**) kod, który liczy średnią
-i odchylenie standardowe do normalizacji **na całym zbiorze danych, przed
-podziałem** na trening/walidację/test.
+Notebook zawiera przygotowany, ale **celowo błędny** kod. Średnia i odchylenie
+standardowe do normalizacji są w nim obliczane na całym zbiorze przed
+podziałem na trening, walidację i test.
 
-**Zadanie (Markdown, 3–5 zdań, zanim przejdziesz dalej):** na czym
-dokładnie polega błąd w tym kodzie? Dlaczego to jest data leakage, nawet
-jeśli model "dobrze działa"? Jakie dane, w jakim momencie, nie powinny być
-widoczne przy liczeniu tych statystyk?
+Pierwsze zadanie wymaga zapisania w komórce Markdown diagnozy o długości 3–5
+zdań. Należy wskazać źródło błędu, wyjaśnić, dlaczego stanowi on data leakage,
+oraz określić, które dane nie powinny wpływać na statystyki normalizacji.
 
-**Zadanie (kod):** napisz poprawną wersję — statystyki normalizacji
-policzone **wyłącznie** na `X_train`, zastosowane (tymi samymi, nie
-przeliczonymi na nowo) do `X_train`, `X_val` i `X_test`. Porównaj
-policzone średnie/odchylenia (błędne vs. poprawne) dla pierwszej cechy —
-różnica powinna być wyraźnie niezerowa.
+Następnie należy przygotować poprawną wersję kodu. Statystyki są obliczane
+**wyłącznie** na `X_train`, po czym te same wartości stosuje się do `X_train`,
+`X_val` i `X_test` bez ponownego dopasowania. Średnie i odchylenia z błędnej
+oraz poprawnej wersji należy porównać dla pierwszej cechy. Różnica powinna być
+wyraźnie niezerowa.
 
-Od tego miejsca w notebooku pracujesz **wyłącznie** na poprawnie
-znormalizowanych danych.
+W dalszej części obowiązują wyłącznie poprawnie znormalizowane dane.
 
-## 2. Model bazowy i model o nadmiarowej pojemności (gotowe)
+## 2. Baseline i model o nadmiarowej pojemności
 
-Baseline (klasa większościowa) i MLP `[32,32]` o pojemności wystarczającej
-do przeuczenia na $100$ przykładach są gotowe do uruchomienia — to nie
-jest część zadania.
+Baseline oparty na klasie większościowej oraz MLP `[32,32]` o pojemności
+wystarczającej do przeuczenia 100 przykładów są gotowe do uruchomienia. Nie
+stanowią części implementacyjnej zadania.
 
-## 3. Pętla treningowa — Twoje zadanie
+## 3. Pętla treningowa
 
-Zaimplementuj `train_model(model, epochs, lr, weight_decay=0.0,
-use_adamw=False)`: poprawna pętla z mini-batchami **nie jest tu potrzebna**
-(cały zbiór treningowy, $100$ przykładów, mieści się w jednym batchu) —
-ale kolejność `zero_grad → forward → strata (BCEWithLogitsLoss) →
-backward() → step()` oraz przełączanie `model.train()`/`model.eval()`
-przy liczeniu straty walidacyjnej musi być poprawna. Zwraca
-`(train_losses, val_losses)`.
+Należy zaimplementować
+`train_model(model, epochs, lr, weight_decay=0.0, use_adamw=False)`. Cały zbiór
+treningowy mieści się w jednym batchu, dlatego pętla po mini-batchach nie jest
+potrzebna. Wymagana jest poprawna kolejność `zero_grad() -> forward -> strata
+(BCEWithLogitsLoss) -> backward() -> step()` oraz przełączanie
+`model.train()` i `model.eval()` podczas obliczania straty walidacyjnej.
+Funkcja zwraca `(train_losses, val_losses)`.
 
-**Zadanie (Markdown, 3–5 zdań):** uruchom `train_model` na modelu
-`[32,32]` bez regularyzacji na $1000$ epok i narysuj krzywe (kod do
-wykresu gotowy). Jaka jest dokładność treningowa vs. walidacyjna? W
-którym miejscu krzywej widać dowód przeuczenia — nie "straty są różne",
-tylko konkretny kształt, który to pokazuje?
+Po treningu modelu `[32,32]` bez regularyzacji przez 1000 epok należy
+przeanalizować przygotowany wykres. Odpowiedź w komórce Markdown o długości
+3–5 zdań powinna podać dokładność treningową i walidacyjną oraz wskazać
+konkretny kształt krzywych świadczący o przeuczeniu. Sama różnica między
+stratami nie wystarcza.
 
-## 4. Weight decay i dropout — Twoje zadanie
+## 4. Weight decay i dropout
 
-Dla modelu `[32,32]`:
+Dla modelu `[32,32]` należy porównać:
 
-- przetestuj `AdamW` z `weight_decay` z listy `[0.0, 0.01, 0.1, 0.3]`,
-- przetestuj `nn.Dropout` (dodany między warstwami ukrytymi — gotowa
-  funkcja `make_model(hidden_sizes, dropout_p=...)`) z `p` z listy
-  `[0.0, 0.2, 0.4, 0.6]`.
+- `AdamW` z `weight_decay` równym `0.0`, `0.01`, `0.1` i `0.3`,
+- `nn.Dropout` z `p` równym `0.0`, `0.2`, `0.4` i `0.6`. Dropout jest dodawany
+  między warstwami ukrytymi przez przygotowaną funkcję
+  `make_model(hidden_sizes, dropout_p=...)`.
 
-Dla każdej konfiguracji zbierz dokładność i stratę walidacyjną. Przedstaw
-wyniki w tabeli/wydruku.
+Dla każdej konfiguracji należy zebrać dokładność i stratę walidacyjną, a
+wyniki przedstawić w tabeli lub czytelnym wydruku.
 
-## 5. Early stopping — Twoje zadanie
+## 5. Early stopping
 
-Dostajesz szkielet `train_with_early_stopping(model, epochs, patience,
-min_delta)` z działającą pętlą treningową, ale **bez** logiki
-zapamiętywania i przywracania najlepszego stanu modelu — to jest Twoje
-zadanie. Funkcja ma, po zakończeniu, zwrócić model **przywrócony** do
-stanu z najlepszej epoki (nie z ostatniej), oraz numer tej epoki.
+Przygotowany szkielet `train_with_early_stopping(model, epochs, patience,
+min_delta)` zawiera działającą pętlę treningową, ale nie zapisuje ani nie
+przywraca najlepszego stanu modelu. Uzupełniona funkcja ma zwracać model
+**przywrócony** do stanu z najlepszej epoki oraz numer tej epoki.
 
-Zweryfikuj swoją implementację: strata walidacyjna policzona na modelu
-*po* wywołaniu funkcji musi dokładnie zgadzać się z zapamiętaną najlepszą
-stratą (gotowa asercja to sprawdzi).
+Gotowa asercja sprawdza implementację. Strata walidacyjna obliczona po
+wywołaniu funkcji musi dokładnie odpowiadać najlepszej zapamiętanej stracie.
 
-## 6. Kontrolowane porównanie i finalna ewaluacja — Twoje zadanie
+## 6. Kontrolowane porównanie i finalna ewaluacja
 
-Na podstawie wyników z sekcji 4–5 wybierz **jedną** konfigurację (która z
-nich: brak regularyzacji / weight decay / dropout / early stopping — albo
-kombinacja, jeśli masz ku temu podstawę z wyników) o najlepszej stracie
-**walidacyjnej**. Wytrenuj ją raz jeszcze (dla pewności, z tym samym
-ziarnem) i oceń — **po raz pierwszy w tym laboratorium** — na zbiorze
-**testowym**. Wypisz dokładność i stratę testową.
+Na podstawie wyników z sekcji 4–5 należy wybrać jedną konfigurację o
+najniższej stracie walidacyjnej. Może to być brak regularyzacji, weight decay,
+dropout, early stopping lub uzasadnione wynikami połączenie metod. Wybrana
+konfiguracja jest trenowana ponownie z tym samym ziarnem.
 
-## 7. Wnioski — Twoje zadanie
+Dopiero wtedy, po raz pierwszy w laboratorium, model jest oceniany na zbiorze
+testowym. Należy podać dokładność i stratę testową.
 
-Odpowiedz (Markdown, uzasadnione rzeczywistymi liczbami z sekcji 4–6):
+## 7. Wnioski
 
-1. Która metoda regularyzacji dała największą poprawę względem baseline'u
-   bez regularyzacji? Czy poprawiła tylko dokładność, tylko stratę, czy
-   obie miary — i czy to rozróżnienie ma znaczenie?
-2. Wróć do sekcji 1: czy błąd normalizacji przed podziałem dał w Twoim
-   przebiegu duży, wyraźny efekt na wyniku końcowym, czy mały? Niezależnie
-   od odpowiedzi — dlaczego sama procedura (liczenie statystyk na pełnym
-   zbiorze) jest błędna, nawet jeśli w konkretnym przebiegu efekt okazał
-   się mały?
-3. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar
-   danych, konkretne ziarno losowości, konkretna architektura), które
-   sprawia, że nie powinieneś/aś uogólniać wniosków z sekcji 6 na "zawsze
-   najlepsza jest metoda X"?
+Odpowiedzi w komórce Markdown powinny odwoływać się do wartości z sekcji 4–6.
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+1. Która metoda regularyzacji dała największą poprawę względem modelu bez
+   regularyzacji? Czy zmieniła dokładność, stratę, czy obie miary? Czy to
+   rozróżnienie ma znaczenie?
+2. Czy błędna normalizacja przed podziałem miała duży czy mały wpływ na końcowy
+   wynik? Dlaczego procedura pozostaje błędna niezależnie od wielkości efektu
+   w pojedynczym przebiegu?
+3. Które ograniczenie eksperymentu, na przykład rozmiar danych, ziarno
+   losowości lub architektura, uniemożliwia uznanie jednej metody za zawsze
+   najlepszą?
+
+## Podział czasu
+
+Podane wartości są orientacyjne i nie zostały zweryfikowane podczas zajęć.
 
 | Blok | Czas |
 |---|---|
-| Sekcja 1 (diagnoza przecieku + poprawka) | 20 min |
-| Sekcja 2 (orientacja, gotowe) | 5 min |
-| Sekcja 3 (pętla treningowa + interpretacja krzywych) | 25 min |
-| Sekcja 4 (weight decay + dropout) | 25 min |
-| Sekcja 5 (early stopping) | 20 min |
-| Sekcja 6 (porównanie + test) | 15 min |
-| Sekcja 7 (wnioski) | 10 min |
+| Sekcja 1, diagnoza przecieku i poprawka | 20 min |
+| Sekcja 2, orientacja | 5 min |
+| Sekcja 3, pętla treningowa i interpretacja krzywych | 25 min |
+| Sekcja 4, weight decay i dropout | 25 min |
+| Sekcja 5, early stopping | 20 min |
+| Sekcja 6, porównanie i test | 15 min |
+| Sekcja 7, wnioski | 10 min |
 
-Sekcje 1–7 to rdzeń obowiązkowy. Jeśli zostanie czas: rozszerz sweep z
-sekcji 4 o dodatkowe wartości `weight_decay`/`p`, albo spróbuj kombinacji
-dropout + weight decay jednocześnie — to już rozszerzenie, nie rdzeń.
+Sekcje 1–7 tworzą obowiązkowy rdzeń. Opcjonalnym rozszerzeniem jest dodanie
+wartości do przeglądu `weight_decay` i `p` albo połączenie dropout z weight
+decay.
 
 ## Kryteria oceny
 
-- Poprawka normalizacji w sekcji 1 faktycznie liczy statystyki tylko z
-  `X_train` i stosuje je (bez przeliczania) do pozostałych zbiorów.
-- `train_model` i `train_with_early_stopping` działają poprawnie
-  (notebook wykonuje się od danej komórki do końca bez błędu).
-- Early stopping rzeczywiście przywraca najlepszy stan — asercja w
-  notebooku przechodzi, nie jest pominięta/usunięta.
-- Zbiór testowy pojawia się w notebooku dokładnie raz, po wyborze
-  konfiguracji na podstawie walidacji.
-- Interpretacje i wnioski odwołują się do konkretnych liczb/kształtów
-  krzywych z Twojego przebiegu, nie do ogólników.
+- Statystyki normalizacji w sekcji 1 są obliczane wyłącznie z `X_train` i
+  stosowane bez ponownego dopasowania do pozostałych zbiorów.
+- `train_model` i `train_with_early_stopping` działają poprawnie, a notebook
+  wykonuje się od odpowiedniej komórki do końca bez błędu.
+- Early stopping przywraca najlepszy stan, a przygotowana asercja nie jest
+  pominięta ani usunięta.
+- Zbiór testowy pojawia się dokładnie raz, po wyborze konfiguracji na podstawie
+  walidacji.
+- Interpretacje odwołują się do wartości i kształtów krzywych z wykonanego
+  przebiegu.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/05_generalization/`) i nie jest częścią tego
-repozytorium.
+Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego w
+`decisions/solutions/05_generalization/` i nie jest częścią repozytorium.
