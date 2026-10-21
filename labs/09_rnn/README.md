@@ -147,9 +147,8 @@ to padding handling.
 
 For the model from section 10: print 5-8 misclassified messages (text +
 true/predicted label). Do the errors concentrate on one side (more
-`ham`->`spam` or `spam`->`ham`)? Are short messages confused more often
-than long ones (compute the average length of misclassified vs. correctly
-classified messages)?
+`ham`->`spam` or `spam`->`ham`)? Comparing error rates by message length
+is left as an optional extension.
 
 ## 13. Conclusions -- your task
 
@@ -173,23 +172,24 @@ Answer, justified with actual numbers from sections 6-12:
 |---|---|
 | Sections 0-1 (setup, exploration) | 10 min |
 | Section 2 (tokenization + limitations) | 10 min |
-| Sections 3-5 (vocabulary, PAD/UNK, encoding -- provided/short) | 15 min |
+| Sections 3-5 (vocabulary, PAD/UNK, provided encoding) | 10 min |
 | Section 6 (order-blind baseline) | 15 min |
 | Section 7 (GRU/LSTM classifier + correct padding) | 25 min |
 | Section 8 (training) | 5 min |
 | Section 9 (comparing >=2 configurations) | 10 min |
 | Section 10 (test evaluation) | 10 min |
-| Section 11 (diagnostic task) | 15 min |
-| Section 12 (error analysis) | 10 min |
+| Section 11 (focused padding diagnostic) | 10 min |
+| Section 12 (focused error analysis) | 5 min |
 | Section 13 (conclusions) | 10 min |
 
-Sections 0-12 are the mandatory core. Training on this dataset takes a
+Sections 0-13 are the mandatory core. Training on this dataset takes a
 few seconds on CPU -- the time budget should go into correctly
 implementing sequence handling and analysis, not waiting for training.
 
-**Extension (optional, if time remains):** a bidirectional GRU/LSTM
-(`bidirectional=True`) -- does it help on this task? Or: a separate
-accuracy analysis for short (<10 tokens) and long (>30 tokens) messages.
+**Extensions (optional, if time remains):** compare the average length or
+error rate of correctly and incorrectly classified messages; try a
+bidirectional GRU/LSTM (`bidirectional=True`); or report accuracy
+separately for short (<10 tokens) and long (>30 tokens) messages.
 
 ## Grading criteria
 

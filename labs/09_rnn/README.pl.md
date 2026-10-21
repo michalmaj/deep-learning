@@ -135,8 +135,8 @@ daje jakąś accuracy — ale ma błąd związany z obsługą paddingu.
 
 Dla modelu z sekcji 10: wypisz 5-8 błędnie sklasyfikowanych wiadomości (tekst +
 prawdziwa/przewidziana etykieta). Czy błędy koncentrują się po jednej stronie (więcej
-`ham`→`spam` czy `spam`→`ham`)? Czy krótkie wiadomości są mylone częściej niż długie
-(policz średnią długość błędnie i poprawnie sklasyfikowanych)?
+`ham`→`spam` czy `spam`→`ham`)? Porównanie błędów względem długości wiadomości
+zostawiamy jako rozszerzenie opcjonalne.
 
 ## 13. Wnioski — Twoje zadanie
 
@@ -158,23 +158,24 @@ Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 6-12:
 |---|---|
 | Sekcje 0-1 (konfiguracja, eksploracja) | 10 min |
 | Sekcja 2 (tokenizacja + ograniczenia) | 10 min |
-| Sekcje 3-5 (słownik, PAD/UNK, kodowanie — gotowe/krótkie) | 15 min |
+| Sekcje 3-5 (słownik, PAD/UNK, gotowe kodowanie) | 10 min |
 | Sekcja 6 (baseline bez kolejności) | 15 min |
 | Sekcja 7 (klasyfikator GRU/LSTM + poprawny padding) | 25 min |
 | Sekcja 8 (trening) | 5 min |
 | Sekcja 9 (porównanie ≥2 konfiguracji) | 10 min |
 | Sekcja 10 (ewaluacja testowa) | 10 min |
-| Sekcja 11 (zadanie diagnostyczne) | 15 min |
-| Sekcja 12 (analiza błędów) | 10 min |
+| Sekcja 11 (ukierunkowana diagnostyka paddingu) | 10 min |
+| Sekcja 12 (ukierunkowana analiza błędów) | 5 min |
 | Sekcja 13 (wnioski) | 10 min |
 
-Sekcje 0-12 to rdzeń obowiązkowy. Trening na tym zbiorze trwa pojedyncze sekundy na
+Sekcje 0-13 to rdzeń obowiązkowy. Trening na tym zbiorze trwa pojedyncze sekundy na
 CPU — budżet czasowy ma iść w poprawną implementację obsługi sekwencji i analizę, nie
 w czekanie na trening.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** dwukierunkowy GRU/LSTM
-(`bidirectional=True`) — czy pomaga na tym zadaniu? Albo: osobna analiza accuracy dla
-krótkich (<10 tokenów) i długich (>30 tokenów) wiadomości.
+**Rozszerzenia (opcjonalne, jeśli zostanie czas):** porównaj średnią długość lub odsetek
+błędów dla poprawnie i błędnie sklasyfikowanych wiadomości; wypróbuj dwukierunkowy
+GRU/LSTM (`bidirectional=True`); albo pokaż accuracy osobno dla krótkich (<10 tokenów)
+i długich (>30 tokenów) wiadomości.
 
 ## Kryteria oceny
 
