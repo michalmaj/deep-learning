@@ -1,107 +1,103 @@
 Language: **English (default)** | [Polski](README.pl.md)
 
-# Lab 02: tabular classification with an MLP
+# Lab 02. Tabular classification with an MLP
 
-Time: about 2 hours. Builds on
-[`lectures/02_mlp/lecture.en.md`](../../lectures/02_mlp/lecture.en.md)
-(the perceptron, MLP, activation functions), but **does not repeat** the
-lecture's experiment -- different data, your own `nn.Module` implementation
-(not `nn.Sequential`), an architecture/activation comparison, and a
-misclassification analysis the lecture did not do.
+The estimated completion time is about two hours. This lab builds on the
+perceptron, MLP, and activation-function material in
+[`lectures/02_mlp/lecture.en.md`](../../lectures/02_mlp/lecture.en.md). It uses a
+different dataset and a custom `nn.Module` implementation instead of
+`nn.Sequential`. It also introduces a comparison of architectures and activation
+functions, followed by an analysis of misclassified points.
 
 ## 1. Problem and data
 
-Task: binary classification of points on a plane that lie on two
-**concentric circles** (outer ring -- class 0, inner circle -- class 1),
-with Gaussian noise. This is a different kind of nonlinear separability
-than the lecture's half-moons: here the decision boundary that is needed is
-a closed curve (a circle), not a single "wave".
+The task is binary classification of points from two **concentric circles** with
+added Gaussian noise. The outer ring forms class 0, and the inner circle forms
+class 1. This is a different kind of nonlinear separability from the half-moons
+in the lecture. The required decision boundary is a closed curve rather than a
+single wave.
 
-The data is generated locally in the notebook (section 1, code given --
-not part of the task) and split into a training/test set (given,
-section 1).
+Section 1 of the notebook generates the data locally and splits it into training
+and test sets. This code is provided and is not part of the assignment.
 
-## 2. Metrics -- your task
+## 2. Metrics
 
-Implement (TODO, section 2) a function that computes from predictions and
-labels: **TP, FP, TN, FN**, and from them **accuracy, precision, recall**
-(class 1 -- the inner circle -- as the positive class). These functions
-are used by the rest of the notebook, including evaluating the baseline.
+The function in section 2 must be completed to calculate **TP, FP, TN, and FN**
+from predictions and labels, followed by **accuracy, precision, and recall**.
+Class 1, the inner circle, is treated as the positive class. The rest of the
+notebook also uses this function to evaluate the baseline model.
 
-## 3. Baseline (given)
+## 3. Baseline model
 
-A single linear layer (`nn.Linear(2, 1)`) -- the same "linear model fails
-on a nonlinear problem" as in the lecture, just on different data. You will
-see that on the circles, the linear model performs **noticeably worse**
-than on the lecture's half-moons (closer to random guessing) -- this is
-not a bug, it is a consequence of the data's shape: no line can sensibly
-separate the ring from the center.
+The provided baseline contains a single linear layer, `nn.Linear(2, 1)`. It
+repeats the central observation from the lecture on a different dataset. A
+linear model cannot solve a nonlinear problem. Its result on the circles is
+noticeably worse than on the half-moons and approaches random guessing. This
+follows from the geometry of the data because no line can separate the ring
+from the center.
 
-## 4. Your MLP -- your task
+## 4. MLP implementation
 
-Implement (TODO, section 4) **your own class** `MLP(nn.Module)` (not
-`nn.Sequential`, unlike the lecture) with a configurable number of hidden
-neurons and a configurable activation function, so it can be used for the
-comparison in section 6. Also implement (TODO, section 5) a training
-function (`forward → loss (BCEWithLogitsLoss) → backward →
-optimizer.step()`), analogous to the lecture's, but working on any
-`nn.Module` passed to it.
+Section 4 requires an implementation of the `MLP(nn.Module)` class. Unlike the
+lecture example, it must not use `nn.Sequential`. Both the number of hidden
+neurons and the activation function should be configurable so that the same
+class can support the comparison in section 6.
 
-## 5. Experiment (given, uses your code)
+Section 5 requires a training function that performs `forward`, computes the
+loss with `BCEWithLogitsLoss`, calls `backward`, and finishes with
+`optimizer.step()`. The function should accept any `nn.Module` model.
 
-The notebook trains one default MLP using your class/function and compares
-it against the baseline.
+## 5. Experiment
 
-## 6. Architecture/activation comparison -- your task
+The provided code trains the default MLP configuration with the completed class
+and training function, then compares its result with the baseline.
 
-Choose **at least three** configurations of your MLP, differing in the
-number of hidden neurons and/or the activation function (TODO, section 6).
-Include in the comparison at least one configuration you suspect will be
-**too weak** (e.g. a very small number of neurons) -- a comparison that
-only shows "bigger is always better" teaches nothing. Train each
-configuration and collect the test metrics in a single table/printout.
+## 6. Architecture and activation comparison
+
+The comparison must include **at least three** MLP configurations that differ in
+the number of hidden neurons or the activation function. At least one should be
+deliberately too weak, for example because it contains very few neurons. This
+makes it possible to examine more than a simple relationship between model size
+and performance. Each configuration must be trained, and its test metrics must
+be collected in one table or printout.
 
 ## 7. Evaluation
 
-Interpret (Markdown cell, TODO) the table from section 6: which
-configuration was best, was any clearly too weak, and -- if so -- why (in
-terms of what that architecture can and cannot represent, referring back
-to the lecture's proof).
+The Markdown cell should interpret the table from section 6. The analysis must
+identify the best configuration and any model with insufficient capacity. The
+explanation should refer to the functions that each architecture can represent
+and connect the result with the proof from the lecture.
 
-## 8. Misclassification analysis -- your task
+## 8. Misclassification analysis
 
-The notebook plots (given) your best model's decision boundary with the
-misclassified test points marked. Answer (Markdown, TODO, 3-5 sentences):
-where do the misclassified points lie relative to the boundary between the
-ring and the circle? Are these points that are "inherently hard" (close to
-the true boundary, victims of noise), or rather evidence that the model
-systematically misunderstands something? How will you decide, looking at
-the plot?
+The provided code plots the best model's decision boundary and marks the
+misclassified test points. The Markdown response should describe their location
+relative to the boundary between the ring and the circle in 3–5 sentences. It
+should determine whether these are difficult points near the true boundary and
+affected by noise, or evidence of a systematic model error. The plot should
+support the conclusion.
 
-## 9. Conclusions -- your task
+## 9. Conclusions
 
-Answer (Markdown, TODO):
+The final Markdown cell should answer two questions.
 
-- Does the result of the experiment in section 6 match what the lecture's
-  proof about composing affine transformations teaches? How does what this
-  experiment shows differ from what the proof showed?
-- If you had to give one sentence of advice to someone designing an MLP
-  architecture for a new classification problem, what would it be --
-  based on what you observed in this lab, not generalities?
+- Is the result from section 6 consistent with the conclusion of the proof about
+  composing affine transformations? How does the empirical observation differ
+  from the proof itself?
+- What single practical principle for designing an MLP follows from the results
+  of this lab?
 
 ## Grading criteria
 
-- The metrics, the `MLP` class, and the training function work (the
-  notebook runs from the given cell to the end without error).
-- The comparison in section 6 covers genuinely different configurations
-  (not the same thing three times under a different variable name) and
-  includes at least one clearly weaker one.
-- The interpretation in section 7 correctly connects the numeric result to
-  the architecture's representational capacity, not just describing it.
-- The error analysis in section 8 refers to the specific location of the
-  misclassified points on the plot, not generalities like "the model is
-  sometimes wrong".
-- The conclusions are justified, not one-liners.
+- The metrics, `MLP` class, and training function work, and the notebook runs
+  from the completed cell to the end without an error.
+- Section 6 contains at least three genuinely different configurations,
+  including one clearly weaker model.
+- The interpretation connects the numerical results with the architecture's
+  representational capacity.
+- The error analysis refers to the location of the misclassified points in the
+  plot.
+- The conclusions are concise but supported by reasoning.
 
-A full model solution exists locally with the instructor
-(`decisions/solutions/02_mlp/`) and is not part of this repository.
+A complete model solution is stored locally by the instructor in
+`decisions/solutions/02_mlp/` and is not part of this repository.
