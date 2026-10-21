@@ -111,19 +111,19 @@ is not obvious from checking `requires_grad` alone.
 the object in `optimizer.param_groups` with `id(model.fc.weight)` **after**
 running the buggy cell.)
 
-## 8. Comparing strategies and the effect of settings -- your task
+## 8. Comparing strategies -- your task
 
 Compile the results of the frozen backbone (section 5) and partial
 fine-tuning (section 6): validation and test accuracy, number of
 trainable parameters, training time. You use the test set here **for the
 first time**, after choosing the better configuration based on validation.
 
-**Task:** investigate the effect of **one** setting on the result of
-partial fine-tuning -- choose either a different
+**Optional extension:** investigate the effect of **one** setting on the
+result of partial fine-tuning -- choose either a different
 $\eta_{\text{backbone}}/\eta_{\text{head}}$ ratio (e.g. $10\times$ vs.
 $100\times$ smaller) **or** a different unfreezing range (`layer3`+`layer4`
-instead of `layer4` alone). Briefly justify the choice and interpret the
-result.
+instead of `layer4` alone). This additional training run is not part of
+the required core.
 
 ## 9. Confusion matrix and error analysis -- your task
 
@@ -164,19 +164,18 @@ Answer, justified with actual numbers from sections 5-9:
 | Section 5 (frozen backbone + training the head) | 20 min |
 | Section 6 (partial fine-tuning, 2 LR groups) | 20 min |
 | Section 7 (diagnostic task) | 15 min |
-| Section 8 (comparison + effect of settings) | 15 min |
+| Section 8 (comparison of the two core strategies) | 10 min |
 | Section 9 (confusion matrix + errors) | 10 min |
 | Section 10 (conclusions) | 10 min |
 
-Sections 0-9 are the mandatory core. Training on the reduced subset (500
+Sections 0-10 are the mandatory core. Training on the reduced subset (500
 images) takes a few to a few dozen seconds on CPU -- the time budget
 should go into design decisions and analysis, not waiting for training.
 
-**Extension (optional, if time remains):** training from scratch (without
-pretrained weights) as an additional reference point -- how much accuracy
-is lost by giving up transfer learning entirely on this task? Or: full
-fine-tuning (all layers unfrozen) -- does it give anything beyond partial,
-and at what cost?
+**Extensions (optional, if time remains):** run the additional setting
+experiment described in section 8; train from scratch (without pretrained
+weights) as an additional reference point; or try full fine-tuning (all
+layers unfrozen) and compare its benefit and cost with partial fine-tuning.
 
 ## Grading criteria
 

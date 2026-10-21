@@ -102,17 +102,18 @@ dlaczego to się nie rzuca w oczy przy samym sprawdzeniu `requires_grad`.
 `optimizer.param_groups` z `id(model.fc.weight)` już **po** uruchomieniu komórki z
 błędem.)
 
-## 8. Porównanie strategii i wpływ ustawień — Twoje zadanie
+## 8. Porównanie strategii — Twoje zadanie
 
 Zestaw wyniki zamrożonego backbone'u (sekcja 5) i częściowego fine-tuningu (sekcja 6):
 accuracy walidacyjna i testowa, liczba trenowalnych parametrów, czas treningu. Zbiór
 testowy wykorzystujesz tutaj **po raz pierwszy**, po wyborze lepszej konfiguracji na
 podstawie walidacji.
 
-**Zadanie:** zbadaj wpływ **jednego** ustawienia na wynik częściowego fine-tuningu — do
-wyboru: inny stosunek $\eta_{\text{backbone}}/\eta_{\text{head}}$ (np. $10\times$ vs
-$100\times$ mniejszy) **albo** inny zakres odmrażania (`layer3`+`layer4` zamiast
-samego `layer4`). Krótko uzasadnij wybór i zinterpretuj wynik.
+**Rozszerzenie opcjonalne:** zbadaj wpływ **jednego** ustawienia na wynik częściowego
+fine-tuningu — do wyboru: inny stosunek
+$\eta_{\text{backbone}}/\eta_{\text{head}}$ (np. $10\times$ vs $100\times$ mniejszy)
+**albo** inny zakres odmrażania (`layer3`+`layer4` zamiast samego `layer4`). Ten
+dodatkowy przebieg treningu nie jest częścią rdzenia obowiązkowego.
 
 ## 9. Confusion matrix i analiza błędów — Twoje zadanie
 
@@ -149,18 +150,18 @@ Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 5-9:
 | Sekcja 5 (zamrożony backbone + trening głowicy) | 20 min |
 | Sekcja 6 (częściowy fine-tuning, 2 grupy LR) | 20 min |
 | Sekcja 7 (zadanie diagnostyczne) | 15 min |
-| Sekcja 8 (porównanie + wpływ ustawień) | 15 min |
+| Sekcja 8 (porównanie dwóch strategii z rdzenia) | 10 min |
 | Sekcja 9 (confusion matrix + błędy) | 10 min |
 | Sekcja 10 (wnioski) | 10 min |
 
-Sekcje 0-9 to rdzeń obowiązkowy. Trening na zredukowanym podzbiorze (500 obrazów)
+Sekcje 0-10 to rdzeń obowiązkowy. Trening na zredukowanym podzbiorze (500 obrazów)
 trwa pojedyncze do kilkudziesięciu sekund na CPU — budżet czasowy ma iść w decyzje
 projektowe i analizę, nie w czekanie na trening.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** trening od zera (bez wag
-pretrained) jako dodatkowy punkt odniesienia — ile accuracy traci się, rezygnując z
-transfer learningu całkowicie na tym zadaniu? Albo: pełny fine-tuning (wszystkie
-warstwy odmrożone) — czy daje coś więcej niż częściowy, i jakim kosztem?
+**Rozszerzenia (opcjonalne, jeśli zostanie czas):** wykonaj dodatkowy eksperyment z
+ustawieniem opisany w sekcji 8; wytrenuj model od zera (bez wag pretrained) jako
+dodatkowy punkt odniesienia; albo wykonaj pełny fine-tuning (wszystkie warstwy
+odmrożone) i porównaj jego korzyść oraz koszt z częściowym fine-tuningiem.
 
 ## Kryteria oceny
 
