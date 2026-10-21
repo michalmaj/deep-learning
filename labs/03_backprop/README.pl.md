@@ -1,108 +1,104 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 03: backpropagation od podstaw w NumPy
+# Laboratorium 03. Backpropagation od podstaw w NumPy
 
-Czas: ok. 2 godziny. Bazuje na wyprowadzeniu z [`lectures/03_backprop/lecture.md`](../../lectures/03_backprop/lecture.md),
-ale implementujesz je **samodzielnie w NumPy**, bez `loss.backward()`, dla
-innego problemu niż wykład (regresja jednej zmiennej, nie losowe dane do
-weryfikacji wzorów) i z inną aktywacją (**tanh**, nie sigmoid z wykładu —
-wzór na pochodną tanh poznałeś/aś w wykładzie 2, teraz użyjesz go w
-backpropagation).
+Przewidywany czas pracy wynosi około dwóch godzin. Laboratorium rozwija
+wyprowadzenie z
+[`lectures/03_backprop/lecture.md`](../../lectures/03_backprop/lecture.md), ale
+wymaga samodzielnej implementacji w NumPy bez `loss.backward()`. Zamiast danych
+użytych do weryfikacji wzorów pojawia się regresja jednej zmiennej. Funkcją
+aktywacji jest tanh, a nie sigmoid. Jej pochodna została przedstawiona w
+wykładzie 2 i tutaj zostanie użyta w propagacji wstecznej.
 
-Nie budujesz uniwersalnego silnika automatycznego różniczkowania — tylko
-forward i backward dla **tej jednej, ustalonej architektury** (1 warstwa
-ukryta). Celem jest zrozumienie mechanizmu, nie napisanie alternatywy dla
-PyTorch.
+Celem nie jest zbudowanie uniwersalnego mechanizmu automatycznego
+różniczkowania. Implementacja obejmuje przebieg w przód i wstecz dla jednej,
+ustalonej architektury z pojedynczą warstwą ukrytą. Najważniejsze jest
+zrozumienie mechanizmu, a nie stworzenie zamiennika PyTorch.
 
-## 1. Problem i dane (gotowe)
+## 1. Problem i dane
 
-Regresja jednej zmiennej: $x\in[-3,3]$, $y = \sin(2x) + 0{,}3x^2 + \varepsilon$
-— funkcja wyraźnie nieliniowa (model liniowy nie ma szans), generowana
-lokalnie z ustalonym ziarnem. Kod generujący dane i wizualizujący je jest
+Zadanie dotyczy regresji jednej zmiennej dla $x\in[-3,3]$ oraz
+$y = \sin(2x) + 0{,}3x^2 + \varepsilon$. Funkcja jest wyraźnie nieliniowa, więc
+model liniowy nie może jej dobrze odwzorować. Dane są generowane lokalnie z
+ustalonym ziarnem. Kod odpowiedzialny za ich utworzenie i wizualizację jest
 gotowy.
 
-## 2. Forward pass — Twoje zadanie
+## 2. Propagacja w przód
 
-Zaimplementuj `forward(X, W1, b1, W2, b2)` dla sieci: `Linear(1, hidden) →
-tanh → Linear(hidden, 1)`. Funkcja musi zwrócić **wszystkie** wartości
-pośrednie ($Z^{(1)}, A^{(1)}, Z^{(2)}$), nie tylko końcową predykcję —
-będą potrzebne do propagacji wstecznej w kolejnym kroku. Sprawdź kształty
-tego, co zwracasz, zanim przejdziesz dalej.
+Do zaimplementowania pozostaje funkcja `forward(X, W1, b1, W2, b2)` dla sieci
+`Linear(1, hidden) → tanh → Linear(hidden, 1)`. Powinna zwracać wszystkie
+wartości pośrednie $Z^{(1)}, A^{(1)}$ i $Z^{(2)}$, ponieważ są potrzebne w
+propagacji wstecznej. Przed przejściem dalej należy sprawdzić kształty zwracanych
+tablic.
 
-## 3. Backward pass — Twoje zadanie
+## 3. Propagacja wsteczna
 
-To jest rdzeń laboratorium. Zaimplementuj `backward(X, Y, Z1, A1, Z2, W2)`,
-która zwraca `(dW1, db1, dW2, db2)`:
+Głównym zadaniem jest implementacja `backward(X, Y, Z1, A1, Z2, W2)`, która
+zwraca `(dW1, db1, dW2, db2)`.
 
-1. Wyprowadź (na kartce, zanim zaczniesz pisać kod) pochodną straty MSE
-   względem $Z^{(2)}$ dla batcha — to jest dokładnie wzór z wykładu
-   (sekcja *Wersja wsadowa*), tylko podstaw swoje oznaczenia.
-2. Wyprowadź pochodną $\tanh'(z) = 1 - \tanh^2(z)$ (podaną w wykładzie 2) i
-   użyj jej zamiast $\sigma(z)(1-\sigma(z))$ z wykładu 3 — to jest miejsce,
-   w którym Twoja implementacja musi się różnić od wzoru z wykładu, nie
-   kopiować go jeden do jednego.
-3. Zaimplementuj propagację wsteczną przez obie warstwy, używając wzorów
-   macierzowych z wykładu (transpozycje, $\odot$, sumowanie po batchu dla
-   biasów).
+1. Najpierw należy wyprowadzić pochodną straty MSE względem $Z^{(2)}$ dla
+   batcha. Jest to wzór z sekcji *Wersja wsadowa* wykładu zapisany z oznaczeniami
+   używanymi w notebooku.
+2. Następnie należy zastosować pochodną $\tanh'(z) = 1 - \tanh^2(z)$ zamiast
+   $\sigma(z)(1-\sigma(z))$. Ten krok odróżnia implementację od przykładu z
+   wykładu 3.
+3. Propagacja przez obie warstwy powinna korzystać ze wzorów macierzowych,
+   uwzględniając transpozycje, mnożenie $\odot$ i sumowanie gradientów biasów po
+   batchu.
 
-Nie przechodź do sekcji 4, dopóki kształty `dW1, db1, dW2, db2` nie
-zgadzają się dokładnie z kształtami `W1, b1, W2, b2`.
+Kształty `dW1, db1, dW2, db2` muszą dokładnie odpowiadać kształtom
+`W1, b1, W2, b2` przed rozpoczęciem sekcji 4.
 
-## 4. Weryfikacja gradientu — Twoje zadanie
+## 4. Weryfikacja gradientu
 
-Zaimplementuj `gradient_check(...)`, która buduje **ten sam** forward pass
-w PyTorch (z tych samych wartości `W1, b1, W2, b2`, jako `torch.tensor(...,
-requires_grad=True)`), woła `backward()`, i porównuje otrzymane gradienty
-z Twoimi — wypisz maksymalną różnicę dla każdego z czterech gradientów.
+Funkcja `gradient_check(...)` powinna zbudować w PyTorch **ten sam** przebieg w
+przód, używając tych samych wartości `W1, b1, W2, b2` przekazanych jako
+`torch.tensor(..., requires_grad=True)`. Po wywołaniu `backward()` należy
+porównać gradienty z implementacją NumPy i wypisać maksymalną różnicę dla każdej
+z czterech tablic.
 
-**Nie przechodź do treningu, dopóki ta weryfikacja nie przejdzie** (różnice
-rzędu $10^{-10}$ lub mniejsze — NumPy domyślnie liczy w `float64`, więc
-nie powinieneś/aś napotkać ograniczeń precyzji z wykładu).
+Trening można rozpocząć dopiero po przejściu tej kontroli. Oczekiwane różnice są
+rzędu $10^{-10}$ lub mniejsze. NumPy domyślnie korzysta z `float64`, dlatego
+ograniczenia precyzji omawiane na wykładzie nie powinny tu dominować.
 
-## 5. Trening — Twoje zadanie
+## 5. Trening
 
-Zaimplementuj `train(X, Y, hidden_size, lr, epochs)`: inicjalizuje wagi
-losowo, w pętli woła Twój `forward` i `backward`, aktualizuje parametry
-**ręcznie** (`W -= lr * dW`, bez `torch.optim` — ten mechanizm poznasz w
-wykładzie 4), zbiera historię straty. Porównaj końcową stratę z
-baseline'em "przewiduj średnią z $y$" (gotowe).
+Do uzupełnienia pozostaje `train(X, Y, hidden_size, lr, epochs)`. Funkcja losowo
+inicjalizuje wagi, wywołuje `forward` i `backward`, ręcznie aktualizuje parametry
+przez `W -= lr * dW` i zapisuje historię straty. `torch.optim` nie jest używany,
+ponieważ mechanizm optymalizatorów stanowi temat wykładu 4. Końcową stratę
+należy porównać z gotowym modelem bazowym przewidującym średnią wartość $y$.
 
-## 6. Interpretacja — Twoje zadanie
+## 6. Interpretacja
 
-Notebook rysuje (gotowe): krzywą straty i wykres dopasowania (predykcja
-Twojej sieci na tle prawdziwych danych). Odpowiedz (Markdown, 3–5 zdań):
-czy krzywa straty wygląda tak, jak oczekujesz po wykładzie 1 i 3 (kształt,
-tempo spadku)? Czy dopasowanie dobrze oddaje kształt funkcji w całym
-przedziale $x$, czy widzisz region z systematycznym (nie losowym)
-odchyleniem od danych — a jeśli nie, czy pozostały rozrzut punktów wokół
-krzywej modelu da się wytłumaczyć samym szumem, z jakim dane zostały
-wygenerowane?
+Gotowy kod rysuje krzywą straty oraz predykcję sieci na tle danych. Komórka
+Markdown powinna zawierać analizę w 3–5 zdaniach. Należy ocenić kształt i tempo
+spadku straty, a także jakość dopasowania w całym zakresie $x$. Warto wskazać
+ewentualny obszar systematycznego odchylenia. Jeśli go nie ma, pozostały rozrzut
+punktów należy odnieść do szumu użytego podczas generowania danych.
 
-## 7. Błędny gradient — Twoje zadanie
+## 7. Błędny gradient
 
-Notebook zawiera (gotowe) drugą wersję `backward`, z **celowo** wstawionym
-błędem (zobaczysz który dopiero w kodzie — nie zdradzamy go tutaj) i
-trenuje nią identyczną sieć na tych samych danych. Porównaj krzywe straty
-obu wersji.
+Notebook zawiera drugą, celowo błędną wersję `backward` i trenuje za jej pomocą
+identyczną sieć na tych samych danych. Rodzaj błędu można rozpoznać dopiero w
+kodzie. Wynik należy porównać z krzywą straty poprawnej implementacji.
 
-**Zadanie (Markdown, 3–5 zdań):** zidentyfikuj, czego brakuje w błędnej
-wersji `backward`, odwołując się do konkretnego wzoru z wykładu (które
-mnożenie/sumowanie zostało pominięte), i wyjaśnij, dlaczego akurat ten
-brak prowadzi do zaobserwowanego zachowania krzywej straty (a nie np. do
-błędu wykonania).
+Analiza w komórce Markdown powinna mieć 3–5 zdań. Należy wskazać pominięte
+mnożenie lub sumowanie, odwołać się do odpowiedniego wzoru z wykładu i wyjaśnić,
+dlaczego błąd zmienia przebieg straty, ale nie powoduje błędu wykonania.
 
 ## Kryteria oceny
 
-- `forward`, `backward`, `gradient_check` i `train` działają (notebook
-  wykonuje się od danej komórki do końca bez błędu).
+- `forward`, `backward`, `gradient_check` i `train` działają, a notebook wykonuje
+  się od uzupełnionej komórki do końca bez błędu.
 - Gradienty z `backward` zgadzają się z PyTorch `autograd` w granicach
-  $10^{-8}$–$10^{-10}$ (nie $10^{-3}$ — to by znaczyło, że coś jest nie tak).
-- Model trenowany własnymi gradientami bije baseline "średnia" o wyraźny
-  margines, nie tylko nieznacznie.
-- Interpretacja w sekcji 6 odwołuje się do konkretnego kształtu
-  wykresów/liczb, nie do ogólników.
-- Interpretacja błędu w sekcji 7 poprawnie wskazuje brakujący element
-  wzoru backpropagation, nie tylko opisuje objaw ("strata jest gorsza").
+  $10^{-8}$–$10^{-10}$.
+- Model trenowany własnymi gradientami osiąga wyraźnie niższą stratę niż model
+  bazowy przewidujący średnią.
+- Interpretacja z sekcji 6 odwołuje się do konkretnych wartości lub kształtu
+  wykresów.
+- Analiza z sekcji 7 wskazuje brakujący element wzoru propagacji wstecznej, a nie
+  tylko objaw w postaci gorszej straty.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/03_backprop/`) i nie jest częścią tego repozytorium.
+Pełne rozwiązanie wzorcowe znajduje się lokalnie u prowadzącego w
+`decisions/solutions/03_backprop/` i nie jest częścią repozytorium.
