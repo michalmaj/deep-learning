@@ -1,32 +1,32 @@
 Język: [English](lecture.en.md) | **Polski**
 
-# Wykład 02: Perceptron, sieci wielowarstwowe (MLP) i funkcje aktywacji
+# Wykład 02. Perceptron, sieci wielowarstwowe (MLP) i funkcje aktywacji
 
 ## Cele wykładu
 
-Po tym wykładzie powinieneś/powinnaś umieć:
-
 1. zdefiniować klasyczny perceptron (kombinacja liniowa + próg decyzyjny) i wskazać, czym różni się od współczesnej warstwy sieci neuronowej,
 2. zinterpretować geometrycznie granicę decyzyjną klasyfikatora liniowego i wyjaśnić, dlaczego pojedynczy perceptron nie rozwiąże problemu XOR,
-3. **udowodnić**, że złożenie dowolnej liczby przekształceń afinicznych jest nadal przekształceniem afinicznym — i wyciągnąć z tego wniosek o granicach głębokich sieci bez nieliniowości,
+3. **udowodnić**, że złożenie dowolnej liczby przekształceń afinicznych jest nadal przekształceniem afinicznym, oraz określić wynikające z tego ograniczenia głębokich sieci bez nieliniowości,
 4. zapisać wzory i pochodne funkcji aktywacji sigmoid, tanh, ReLU oraz wskazać praktyczną konsekwencję każdej z nich,
 5. policzyć ręcznie *forward pass* małego MLP i odtworzyć ten wynik w PyTorch za pomocą `torch.nn`.
 
 ## Dlaczego to jest ważne
 
-Perceptron (Rosenblatt, 1958) to historyczny punkt startowy sieci neuronowych — i pierwszy model, który okazał się mieć fundamentalne ograniczenie (problem XOR, formalnie opisany przez Minsky'ego i Paperta w 1969 roku), które na kilkanaście lat wyhamowało rozwój tej dziedziny. Zrozumienie *dlaczego* ten model zawodzi, i co dokładnie dodaje mu MLP, nie jest ciekawostką historyczną — to jest powód, dla którego każda sieć, którą zbudujesz w tym kursie (CNN, Transformer, cokolwiek), ma nieliniowe aktywacje między warstwami. Bez tego elementu żadna z tych architektur, niezależnie od głębokości, nie robiłaby nic więcej niż pojedyncza warstwa liniowa.
+Perceptron Rosenblatta z 1958 roku jest historycznym punktem wyjścia dla sieci neuronowych. Jego podstawowe ograniczenie ujawnia problem XOR, opisany formalnie przez Minsky'ego i Paperta w 1969 roku. Ograniczenie to na kilkanaście lat spowolniło rozwój dziedziny.
+
+Analiza przyczyny niepowodzenia perceptronu wyjaśnia rolę MLP. Nieliniowe aktywacje między warstwami występują we wszystkich późniejszych architekturach omawianych w kursie, między innymi w CNN i transformerach. Bez nieliniowości głęboka sieć nie ma większej mocy reprezentacyjnej niż pojedyncza warstwa liniowa.
 
 ## Intuicja
 
 ### Perceptron jako klasyfikator liniowy
 
-Perceptron podejmuje decyzję binarną na podstawie ważonej sumy cech wejściowych: jeśli suma przekracza pewien próg, klasyfikuje do jednej klasy, w przeciwnym razie do drugiej. Geometrycznie: dla danych dwuwymiarowych granica decyzyjna to **prosta** (ogólnie: hiperpłaszczyzna) — wszystko po jednej jej stronie trafia do klasy 0, wszystko po drugiej do klasy 1.
+Perceptron podejmuje decyzję binarną na podstawie ważonej sumy cech wejściowych. Wynik powyżej ustalonego progu oznacza jedną klasę, a wynik poniżej progu drugą. Dla danych dwuwymiarowych granicą decyzyjną jest **prosta**, a w ogólnym przypadku hiperpłaszczyzna. Punkty po przeciwnych stronach granicy trafiają do różnych klas.
 
 To działa dobrze, gdy klasy da się rozdzielić jedną prostą (dane *liniowo separowalne*). Nie działa, gdy się nie da.
 
 ### Problem XOR
 
-Rozważmy cztery punkty i funkcję XOR (różnicę symetryczną):
+Funkcję XOR (różnicę symetryczną) można opisać za pomocą czterech punktów.
 
 | $x_1$ | $x_2$ | $y = x_1 \oplus x_2$ |
 |---|---|---|
@@ -35,11 +35,13 @@ Rozważmy cztery punkty i funkcję XOR (różnicę symetryczną):
 | 0 | 1 | 1 |
 | 1 | 1 | 0 |
 
-Narysuj te cztery punkty na płaszczyźnie i pokoloruj je klasą: $(0,0)$ i $(1,1)$ to klasa 0, $(1,0)$ i $(0,1)$ to klasa 1. Żadna prosta nie odseparuje tych dwóch grup — klasy 0 i 1 leżą naprzemiennie na przekątnych kwadratu jednostkowego. To nie jest kwestia "złego" doboru wag — **żaden** wybór $w$, $b$ pojedynczego perceptronu nie rozwiąże tego zadania idealnie. W notebooku zobaczysz to nie jako twierdzenie, tylko jako wynik faktycznego treningu: strata liniowego klasyfikatora zbiega dokładnie do poziomu losowego zgadywania, niezależnie od ziarna losowości — a wagi modelu zbiegają w okolice zera, bo przez symetrię XOR poprawienie predykcji dla jednego punktu pogarsza ją dla innego o dokładnie tyle samo.
+Na płaszczyźnie punkty $(0,0)$ i $(1,1)$ należą do klasy 0, a $(1,0)$ i $(0,1)$ do klasy 1. Klasy leżą naprzemiennie na przekątnych kwadratu jednostkowego, więc nie można rozdzielić ich jedną prostą. **Żaden** wybór $w$ i $b$ pojedynczego perceptronu nie rozwiąże tego zadania idealnie.
+
+Notebook pokazuje to ograniczenie podczas treningu. Strata klasyfikatora liniowego zbiega do poziomu losowego zgadywania niezależnie od ziarna losowości, a wagi zbliżają się do zera. Symetria XOR sprawia, że poprawa predykcji dla jednego punktu pogarsza predykcję dla innego o taką samą wartość.
 
 ### Dlaczego nie pomoże samo dodanie kolejnej warstwy liniowej
 
-Naturalny odruch: skoro jedna warstwa liniowa nie wystarcza, dodajmy drugą. Problem w tym, że **warstwa liniowa złożona z warstwą liniową dalej jest warstwą liniową** — matematyczny dowód w sekcji *Matematyka*. Tym, co faktycznie zmienia możliwości sieci, jest wstawienie między warstwy **nieliniowej funkcji aktywacji**. MLP (*Multi-Layer Perceptron*, sieć wielowarstwowa) to właśnie na przemian: przekształcenie afiniczne → nieliniowa aktywacja → przekształcenie afiniczne → aktywacja → ...
+Dodanie drugiej warstwy liniowej nie rozwiązuje problemu. **Złożenie warstw liniowych nadal jest warstwą liniową**, co zostanie wykazane w sekcji *Matematyka*. Możliwości sieci zmienia dopiero **nieliniowa funkcja aktywacji** umieszczona między warstwami. MLP (*Multi-Layer Perceptron*, sieć wielowarstwowa) składa się z naprzemiennych przekształceń afinicznych i nieliniowych aktywacji.
 
 ```mermaid
 flowchart LR
@@ -49,81 +51,81 @@ flowchart LR
     L2 --> A2["aktywacja / wyjście"]
 ```
 
-Warstwy między wejściem a wyjściem nazywamy **warstwami ukrytymi** (*hidden layers*) — ich liczba to **głębokość** sieci, liczba neuronów w każdej to jej **szerokość**. Oba te wymiary wpływają na to, jak złożone granice decyzyjne sieć może w zasadzie reprezentować — ale, jak zobaczymy w sekcji o błędnych przekonaniach, "może reprezentować" i "nauczy się dobrze" to dwie różne sprawy.
+Warstwy między wejściem a wyjściem są nazywane **warstwami ukrytymi** (*hidden layers*). Ich liczba określa **głębokość** sieci, a liczba neuronów w każdej warstwie jej **szerokość**. Oba wymiary wpływają na złożoność możliwej granicy decyzyjnej. Zdolność do reprezentowania funkcji nie oznacza jednak, że trening znajdzie dobre rozwiązanie.
 
 ## Formalny model
 
-**Klasyczny perceptron** (Rosenblatt, 1958): dla wejścia $x \in \mathbb{R}^n$,
+**Klasyczny perceptron.** Dla wejścia $x \in \mathbb{R}^n$
 
 $$z = w^\top x + b, \qquad \hat{y} = \text{step}(z) = \begin{cases} 1 & z \geq 0 \\ 0 & z < 0 \end{cases}$$
 
-Funkcja $\text{step}$ jest **nieróżniczkowalna** (ma skok) — perceptron Rosenblatta uczono własną, dedykowaną regułą aktualizacji wag, nie spadkiem gradientu. To jest właśnie różnica względem tego, co dziś nazywamy "warstwą" sieci neuronowej:
+Funkcja $\text{step}$ jest **nieróżniczkowalna**, ponieważ zawiera skok. Perceptron Rosenblatta trenowano za pomocą osobnej reguły aktualizacji wag, a nie spadku gradientu. Tym różni się od współczesnej warstwy sieci neuronowej.
 
-**Współczesny neuron/warstwa**: ten sam liniowy rdzeń $z = w^\top x + b$, ale z **różniczkowalną** funkcją aktywacji $\phi$ zamiast progu:
+**Współczesny neuron lub warstwa.** Liniowy rdzeń $z = w^\top x + b$ pozostaje bez zmian, ale próg zastępuje **różniczkowalna** funkcja aktywacji $\phi$.
 
 $$a = \phi(z) = \phi(w^\top x + b)$$
 
-Dzięki temu, że $\phi$ ma dobrze określoną pochodną, całą sieć można trenować dokładnie tym mechanizmem spadku gradientu, który poznałeś/poznałaś w wykładzie 1 — tylko teraz zastosowanym do funkcji złożonej z wielu warstw (pełny mechanizm liczenia tego gradientu, *backpropagation*, to temat wykładu 3; tutaj używamy `autograd` i `torch.optim` jako gotowych narzędzi).
+Dobrze określona pochodna $\phi$ pozwala trenować całą sieć spadkiem gradientu, podobnie jak w wykładzie 1. Tym razem optymalizowana funkcja składa się z wielu warstw. Pełny mechanizm obliczania gradientu, czyli *backpropagation*, jest tematem wykładu 3. Tutaj wykorzystywane są gotowe narzędzia `autograd` i `torch.optim`.
 
-**Warstwa wektorowo**: dla wejścia $x \in \mathbb{R}^n$ i warstwy o $m$ neuronach, $W \in \mathbb{R}^{m \times n}$, $b \in \mathbb{R}^m$:
+**Warstwa w postaci wektorowej.** Dla wejścia $x \in \mathbb{R}^n$ i warstwy o $m$ neuronach zachodzi $W \in \mathbb{R}^{m \times n}$ oraz $b \in \mathbb{R}^m$.
 
 $$z = Wx + b \in \mathbb{R}^m, \qquad a = \phi(z) \quad \text{(element po elemencie)}$$
 
-**MLP** to złożenie $K$ takich warstw (liczbę warstw oznaczamy $K$, żeby nie kolidować z $L$ — symbolem straty, zobacz sekcja *Strata dla klasyfikacji binarnej* niżej i wykłady 1, 3): $a^{(0)} = x$, a dla $l = 1, \dots, K$:
+**MLP** jest złożeniem $K$ takich warstw. Symbol $K$ oznacza liczbę warstw, natomiast $L$ jest zarezerwowane dla straty. Dla $a^{(0)} = x$ i $l = 1, \dots, K$
 
 $$z^{(l)} = W^{(l)} a^{(l-1)} + b^{(l)}, \qquad a^{(l)} = \phi^{(l)}\big(z^{(l)}\big)$$
 
-gdzie ostatnia warstwa często ma inną aktywację niż warstwy ukryte (np. dla klasyfikacji binarnej: sigmoid albo brak aktywacji, jeśli stratę liczymy z logitów — zobacz niżej).
+Ostatnia warstwa często wykorzystuje inną aktywację niż warstwy ukryte. W klasyfikacji binarnej może to być sigmoid albo brak aktywacji, jeśli strata jest obliczana bezpośrednio z logitów.
 
 ## Matematyka
 
-### Dowód: złożenie przekształceń afinicznych jest afiniczne
+### Złożenie przekształceń afinicznych jest afiniczne
 
-Przekształcenie $f(x) = Wx + b$ nazywamy **afinicznym** (liniowe plus przesunięcie). Niech $f_1(x) = W_1 x + b_1$ i $f_2(y) = W_2 y + b_2$. Ich złożenie:
+Przekształcenie $f(x) = Wx + b$ jest **afiniczne**, czyli liniowe z przesunięciem. Dla $f_1(x) = W_1 x + b_1$ oraz $f_2(y) = W_2 y + b_2$ ich złożenie ma postać
 
 $$f_2\big(f_1(x)\big) = W_2\big(W_1 x + b_1\big) + b_2 = \underbrace{(W_2 W_1)}_{W'} x + \underbrace{(W_2 b_1 + b_2)}_{b'} = W' x + b'$$
 
-Wynik ma dokładnie postać $W'x + b'$ — czyli **nadal jest afiniczny**. Ten sam argument, zastosowany indukcyjnie, działa dla dowolnej liczby złożonych ze sobą warstw: $f_K \circ f_{K-1} \circ \dots \circ f_1$ jest afiniczne, niezależnie od tego, czy $K = 2$ czy $K = 200$ (liczbę warstw oznaczamy $K$, nie $L$ — $L$ rezerwujemy dla straty).
+Wynik ma postać $W'x + b'$, więc **nadal jest afiniczny**. Ten sam argument można zastosować indukcyjnie do dowolnej liczby warstw. Złożenie $f_K \circ f_{K-1} \circ \dots \circ f_1$ pozostaje afiniczne zarówno dla $K = 2$, jak i dla $K = 200$.
 
-**Wniosek:** sieć zbudowana wyłącznie z warstw $z = Wx+b$ *bez* nieliniowości między nimi ma dokładnie taką samą moc reprezentacyjną jak pojedyncza warstwa liniowa $W'x + b'$ — żadna liczba dodatkowych warstw tego nie zmieni. Dopiero wstawienie nieliniowej $\phi$ między warstwy łamie tę własność: $f_2(\phi(f_1(x)))$ nie da się w ogólności sprowadzić do jednego przekształcenia afinicznego.
+Sieć złożona wyłącznie z warstw $z = Wx+b$ ma taką samą moc reprezentacyjną jak pojedyncza warstwa $W'x + b'$. Liczba warstw nie zmienia tego wyniku. Dopiero nieliniowa funkcja $\phi$ łamie tę własność, ponieważ $f_2(\phi(f_1(x)))$ nie daje się w ogólnym przypadku sprowadzić do jednego przekształcenia afinicznego.
 
 ### Funkcje aktywacji
 
-**Sigmoid:**
+**Sigmoid**
 
 $$\sigma(z) = \frac{1}{1 + e^{-z}}, \qquad \sigma'(z) = \sigma(z)\big(1 - \sigma(z)\big)$$
 
-Zakres $(0, 1)$ — wygodny do interpretacji jako "prawdopodobieństwo". Pochodna osiąga maksimum $0{,}25$ przy $z=0$ i **dąży do zera**, gdy $|z|$ rośnie (funkcja się *nasyca* — *saturates*). To oznacza, że dla neuronów mocno "pobudzonych" w jedną lub drugą stronę gradient niesie bardzo mało informacji — konsekwencje tego dla głębokich sieci rozwiniemy przy okazji wykładu 3 (graf obliczeniowy i mnożenie wielu takich pochodnych przez siebie).
+Zakres $(0, 1)$ pozwala interpretować wynik jako prawdopodobieństwo. Pochodna osiąga maksimum $0{,}25$ dla $z=0$ i **dąży do zera** wraz ze wzrostem $|z|$. Funkcja ulega wtedy nasyceniu (*saturation*), a gradient przekazuje niewiele informacji. W głębokiej sieci efekt wzmacnia się przez mnożenie wielu małych pochodnych. Zjawisko to zostanie rozwinięte w wykładzie 3.
 
-**Tanh:**
+**Tanh**
 
 $$\tanh(z) = \frac{e^{z} - e^{-z}}{e^{z} + e^{-z}} = 2\sigma(2z) - 1, \qquad \tanh'(z) = 1 - \tanh^2(z)$$
 
-Zakres $(-1, 1)$, **wyśrodkowana na zerze** (*zero-centered*) — w przeciwieństwie do sigmoid, której wyjście jest zawsze dodatnie. To bywa praktyczną zaletą (wyjścia kolejnej warstwy nie są systematycznie przesunięte w jedną stronę). Tanh nasyca się tak samo jak sigmoid — pochodna też dąży do zera dla dużych $|z|$.
+Zakres $(-1, 1)$ jest **wyśrodkowany na zerze** (*zero-centered*), podczas gdy wynik sigmoid pozostaje dodatni. Dzięki temu wejścia kolejnej warstwy nie są systematycznie przesunięte w jednym kierunku. Tanh również ulega nasyceniu, a jej pochodna dąży do zera dla dużych $|z|$.
 
-**ReLU** (*Rectified Linear Unit*):
+**ReLU** (*Rectified Linear Unit*)
 
 $$\text{ReLU}(z) = \max(0, z), \qquad \text{ReLU}'(z) = \begin{cases} 1 & z > 0 \\ 0 & z < 0 \end{cases}$$
 
-(w $z=0$ pochodna jest formalnie nieokreślona; PyTorch przyjmuje konwencję $0$). Dla $z>0$ pochodna jest **stała i równa 1** — ReLU się nie nasyca po dodatniej stronie, co w praktyce bardzo pomaga w trenowaniu głębszych sieci. Jest też **tania obliczeniowo** (jedno porównanie, żadnej funkcji wykładniczej) — to realny powód inżynierski, dla którego jest dziś domyślnym wyborem w wielu architekturach. Ma jednak swoją wadę: dla $z<0$ pochodna wynosi dokładnie $0$ — neuron, który konsekwentnie dostaje ujemne pobudzenie, przestaje się uczyć (problem "martwych neuronów", *dead ReLU*).
+Dla $z=0$ pochodna jest formalnie nieokreślona, a PyTorch przyjmuje wartość $0$. Po dodatniej stronie pochodna jest **stała i równa 1**, więc ReLU nie ulega tam nasyceniu. Ułatwia to trening głębszych sieci. Obliczenie wymaga tylko jednego porównania, bez funkcji wykładniczej. Dla $z<0$ pochodna wynosi jednak dokładnie $0$. Neuron stale otrzymujący ujemne pobudzenie przestaje się uczyć, co prowadzi do problemu *dead ReLU*.
 
 ### Strata dla klasyfikacji binarnej
 
-Dla klasyfikacji (w odróżnieniu od regresji z wykładu 1) zamiast MSE używamy **binarnej entropii krzyżowej** (*Binary Cross-Entropy*, BCE). Dla predykcji $\hat{y} \in (0,1)$ (np. wyjścia sigmoid) i etykiety $y \in \{0,1\}$:
+W klasyfikacji zamiast MSE stosuje się **binarną entropię krzyżową** (*Binary Cross-Entropy*, BCE). Dla predykcji $\hat{y} \in (0,1)$, na przykład wyjścia sigmoid, oraz etykiety $y \in \{0,1\}$
 
 $$\ell(\hat{y}, y) = -\big[y \log \hat{y} + (1-y)\log(1-\hat{y})\big], \qquad L = \frac{1}{N}\sum_{i=1}^N \ell(\hat{y}_i, y_i)$$
 
-Intuicja: jeśli prawdziwa etykieta to $y=1$, strata to $-\log \hat{y}$ — rośnie bez ograniczeń, gdy model jest *pewny i błędny* ($\hat{y} \to 0$), a dąży do zera, gdy model jest pewny i słuszny ($\hat{y}\to 1$). To dużo silniej karze "pewne siebie" pomyłki niż MSE. W praktyce (i w naszym notebooku) liczy się BCE bezpośrednio z **logitów** $z$ (wyjścia przed sigmoid), jedną, liczbowo stabilną funkcją (`BCEWithLogitsLoss` w PyTorch) — unika to osobnego liczenia $\log(\sigma(z))$, co dla skrajnych $z$ mogłoby dać błąd numeryczny.
+Dla etykiety $y=1$ strata wynosi $-\log \hat{y}$. Rośnie bez ograniczeń, gdy model jest pewny błędnej odpowiedzi ($\hat{y} \to 0$), i dąży do zera dla poprawnej odpowiedzi ($\hat{y}\to 1$). BCE karze więc pewne, błędne predykcje mocniej niż MSE. W notebooku strata jest obliczana bezpośrednio z **logitów** $z$ przez stabilną numerycznie funkcję `BCEWithLogitsLoss`. Pozwala to uniknąć osobnego obliczania $\log(\sigma(z))$, które dla skrajnych wartości $z$ może powodować błędy numeryczne.
 
 ## Przykład rozwiązany
 
-Skonstruujemy *ręcznie* (bez treningu) wagi małego MLP, które rozwiązuje XOR — żeby zobaczyć, że problem nie leży w "nieosiągalności" rozwiązania, tylko w ograniczeniach samej architektury perceptronu.
+Poniższy przykład przedstawia ręcznie dobrane wagi małego MLP rozwiązującego XOR bez treningu. Pokazuje to, że rozwiązanie istnieje, ale pozostaje poza możliwościami pojedynczego perceptronu.
 
-Sieć: 2 wejścia → warstwa ukryta z 2 neuronami ReLU → 1 wyjście liniowe (bez aktywacji — porównujemy bezpośrednio z etykietą).
+Sieć zawiera 2 wejścia, warstwę ukrytą z 2 neuronami ReLU oraz 1 wyjście liniowe bez aktywacji. Wynik jest porównywany bezpośrednio z etykietą.
 
 $$W^{(1)} = \begin{pmatrix} 1 & 1 \\ 1 & 1 \end{pmatrix}, \quad b^{(1)} = \begin{pmatrix} 0 \\ -1 \end{pmatrix}, \quad w^{(2)} = \begin{pmatrix} 1 \\ -2 \end{pmatrix}, \quad b^{(2)} = 0$$
 
-Policzmy $h = \text{ReLU}(W^{(1)} x + b^{(1)})$ i $\hat{y} = w^{(2)\top} h + b^{(2)}$ dla każdego z czterech punktów:
+Dla każdego z czterech punktów obliczane są $h = \text{ReLU}(W^{(1)} x + b^{(1)})$ oraz $\hat{y} = w^{(2)\top} h + b^{(2)}$.
 
 | $x$ | $z^{(1)} = W^{(1)}x + b^{(1)}$ | $h = \text{ReLU}(z^{(1)})$ | $\hat{y} = h_1 - 2h_2$ | $y$ |
 |---|---|---|---|---|
@@ -132,76 +134,76 @@ Policzmy $h = \text{ReLU}(W^{(1)} x + b^{(1)})$ i $\hat{y} = w^{(2)\top} h + b^{
 | $(0,1)$ | $(1,0)$ | $(1,0)$ | $1$ | $1$ |
 | $(1,1)$ | $(2,1)$ | $(2,1)$ | $2 - 2 = 0$ | $0$ |
 
-Dokładne trafienie we wszystkich czterech przypadkach — **bez treningu, bez gradientu, czystym ręcznym doborem wag**. Co istotne: oba neurony ukryte $h_1 = x_1+x_2$ i $h_2 = \max(0, x_1+x_2-1)$ są same w sobie liniowe/łatwe — to dopiero **kombinacja $h_1 - 2h_2$** po przejściu przez ReLU tworzy nieliniową, "załamaną" funkcję, która rozróżnia środek przedziału $x_1+x_2=1$ (gdzie $h_2=0$) od $x_1+x_2=2$ (gdzie $h_2=1$ zaczyna "odejmować"). Zobaczysz w notebooku, że PyTorch, dostając dokładnie te same wagi, da identyczny wynik — a osobno, że sieć *trenowana od losowej inicjalizacji* gradientowo też znajduje rozwiązanie, choć niekoniecznie te same liczby.
+Wszystkie cztery wyniki są poprawne **bez treningu i obliczania gradientu**. Neurony ukryte $h_1 = x_1+x_2$ oraz $h_2 = \max(0, x_1+x_2-1)$ wykonują proste operacje. Dopiero **kombinacja $h_1 - 2h_2$** po aktywacji ReLU tworzy nieliniową, załamaną funkcję. Rozróżnia ona przypadek $x_1+x_2=1$, dla którego $h_2=0$, od $x_1+x_2=2$, dla którego $h_2=1$. Notebook odtwarza ten wynik w PyTorch. Pokazuje również, że sieć trenowana od losowej inicjalizacji znajduje rozwiązanie, choć zwykle z innymi wagami.
 
-*(Konstrukcja zaadaptowana z klasycznego przykładu w: Goodfellow, Bengio, Courville, 2016, rozdz. 6.)*
+*(Konstrukcja została zaadaptowana z klasycznego przykładu opisanego przez Goodfellowa, Bengio i Courville'a w rozdziale 6 książki z 2016 roku.)*
 
 ## Eksperyment
 
-Notebook [`examples.ipynb`](examples.ipynb):
+Notebook [`examples.ipynb`](examples.ipynb) obejmuje pięć eksperymentów.
 
-1. **XOR i pojedynczy perceptron** — trenuje liniowy model (bez warstwy ukrytej) na XOR; strata zatrzymuje się dokładnie na poziomie losowego zgadywania ($\ln 2 \approx 0{,}69$) niezależnie od ziarna losowości, a wagi kolapsują w okolice zera (model przewiduje $p\approx 0{,}5$ dla każdego punktu) — pokazujemy też, że "dokładność" liczona progiem 0,5 w tym zdegenerowanym reżimie jest niewiarygodnym szumem, nie sygnałem.
-2. **XOR i ręcznie skonstruowany MLP** — odtwarza przykład rozwiązany powyżej w PyTorch i weryfikuje zgodność co do wartości.
-3. **Funkcje aktywacji** — wykresy sigmoid, tanh, ReLU i ich pochodnych na $z\in[-5,5]$; pochodna liczona dwoma sposobami (wzór w zamkniętej postaci i `autograd`) — tak jak w wykładzie 1, pokazujemy, że się zgadzają.
-4. **Dwa przeplatające się półksiężyce** — dane generowane lokalnie (funkcja parametryczna, bez pobierania niczego i bez nowych zależności), porównanie: model liniowy (`nn.Linear` + sigmoid) kontra MLP (`nn.Linear` → ReLU → `nn.Linear`), obie strony z wizualizacją granicy decyzyjnej na siatce punktów.
-5. **Ablacja: usunięcie nieliniowości** — dokładnie ta sama architektura MLP co w punkcie 4, ale z `nn.Identity()` zamiast `nn.ReLU()` między warstwami — sprawdzamy empirycznie, że wynikowa granica decyzyjna i skuteczność są (w granicach przypadkowości optymalizacji) takie same jak dla modelu czysto liniowego, co potwierdza dowód z sekcji *Matematyka*.
+1. **XOR i pojedynczy perceptron.** Model liniowy bez warstwy ukrytej jest trenowany na XOR. Strata zatrzymuje się na poziomie losowego zgadywania ($\ln 2 \approx 0{,}69$) niezależnie od ziarna losowości, a wagi zbliżają się do zera. Model przewiduje $p\approx 0{,}5$ dla każdego punktu. Dokładność liczona z progiem 0,5 jest w tym stanie podatna na szum numeryczny i nie stanowi wiarygodnego sygnału.
+2. **XOR i ręcznie skonstruowany MLP.** Implementacja w PyTorch odtwarza rozwiązany przykład i sprawdza zgodność wartości.
+3. **Funkcje aktywacji.** Wykresy przedstawiają sigmoid, tanh, ReLU oraz ich pochodne dla $z\in[-5,5]$. Pochodne obliczone ze wzoru i przez `autograd` dają zgodne wyniki.
+4. **Dwa przeplatające się półksiężyce.** Dane powstają lokalnie za pomocą funkcji parametrycznej, bez pobierania plików i dodatkowych zależności. Porównywane są model liniowy (`nn.Linear` + sigmoid) oraz MLP (`nn.Linear` → ReLU → `nn.Linear`). Obie granice decyzyjne są wizualizowane na siatce punktów.
+5. **Ablacja nieliniowości.** Architektura MLP z punktu 4 zostaje zachowana, ale `nn.Identity()` zastępuje `nn.ReLU()`. Granica decyzyjna i skuteczność odpowiadają, z dokładnością do losowości optymalizacji, modelowi liniowemu. Wynik potwierdza dowód z sekcji *Matematyka*.
 
-W notebooku `torch.nn.Module`, `nn.Linear`, `nn.Sequential` i `torch.optim` są używane jako narzędzia: `nn.Linear(n, m)` to dokładnie $z = Wx+b$ z sekcji *Formalny model* (z $W$, $b$ jako parametrami), a `optimizer.step()` wykonuje aktualizację parametrów na podstawie gradientu — tą samą ideę, którą w wykładzie 1 pisaliśmy ręcznie jako `w -= lr * w.grad`. Nie wchodzimy w to, *jak dokładnie* `optimizer.step()` różni się dla różnych optymalizatorów (Adam, SGD z momentum) — to temat wykładu 4.
+Notebook korzysta z `torch.nn.Module`, `nn.Linear`, `nn.Sequential` i `torch.optim`. Warstwa `nn.Linear(n, m)` odpowiada równaniu $z = Wx+b$ z sekcji *Formalny model*, gdzie $W$ i $b$ są parametrami. Metoda `optimizer.step()` aktualizuje je na podstawie gradientu. Jest to ta sama operacja, która w wykładzie 1 została zapisana ręcznie jako `w -= lr * w.grad`. Różnice między optymalizatorami, takimi jak Adam i SGD z momentum, są tematem wykładu 4.
 
-## Co obserwujemy
+## Obserwacje
 
-- Model liniowy na XOR utyka dokładnie na poziomie losowego zgadywania, a jego wagi kolapsują w okolice zera — to nie jest kwestia zbyt małej liczby epok czy złego learning rate, tylko fundamentalnego braku zdolności reprezentacyjnej: optymalizator "poddaje się", bo symetria XOR sprawia, że żadna niezerowa waga nie poprawia średniej straty. "Dokładność" liczona progiem $0{,}5$ przy takich wagach bywa myląca (zależy od szumu numerycznego blisko granicy) — to strata, nie accuracy, jest tu wiarygodnym sygnałem.
-- Ręcznie skonstruowany MLP trafia XOR idealnie, zero epok treningu — moc reprezentacyjna i to, czy *znajdziemy* dobre wagi, to dwie osobne sprawy.
-- Na półksiężycach model liniowy osiąga sensowną, ale wyraźnie niedoskonałą dokładność (błądzi systematycznie w obszarze, gdzie półksiężyce się przeplatają) — MLP z ReLU osiąga wyraźnie wyższą dokładność, a jego granica decyzyjna wizualnie "owija się" wokół kształtu danych.
-- MLP bez nieliniowości (z `nn.Identity`) odtwarza niemal dokładnie wynik modelu czysto liniowego — mimo że formalnie ma więcej warstw i więcej parametrów. To empiryczne potwierdzenie dowodu o kompozycji przekształceń afinicznych, nie tylko twierdzenie na papierze.
-- Pochodna sigmoid i tanh wyraźnie maleje do zera przy krańcach wykresu (nasycenie); pochodna ReLU jest stałą wartością $1$ dla całego dodatniego zakresu i dokładnie $0$ dla całego ujemnego — bez stopniowego zanikania.
+- Model liniowy na XOR zatrzymuje się na poziomie losowego zgadywania, a jego wagi zbliżają się do zera. Nie wynika to ze zbyt małej liczby epok ani niewłaściwego współczynnika uczenia, lecz z ograniczonej mocy reprezentacyjnej. Symetria XOR sprawia, że żadna niezerowa waga nie poprawia średniej straty. W tym przypadku strata jest bardziej wiarygodnym sygnałem niż dokładność zależna od progu $0{,}5$ i szumu numerycznego.
+- Ręcznie skonstruowany MLP rozwiązuje XOR bez treningu. Moc reprezentacyjna modelu i zdolność optymalizatora do znalezienia dobrych wag są osobnymi zagadnieniami.
+- Dla półksiężyców model liniowy osiąga rozsądną, ale niedoskonałą dokładność. Popełnia systematyczne błędy w obszarze nakładania się kształtów. MLP z ReLU uzyskuje wyższą dokładność, a jego granica decyzyjna dopasowuje się do geometrii danych.
+- MLP z `nn.Identity()` zamiast nieliniowości daje niemal taki sam wynik jak model liniowy, mimo większej liczby warstw i parametrów. Stanowi to empiryczne potwierdzenie własności przekształceń afinicznych.
+- Pochodne sigmoid i tanh maleją do zera przy krańcach wykresu. Pochodna ReLU jest równa $1$ dla dodatnich wejść oraz $0$ dla ujemnych, bez stopniowego zanikania.
 
 ## Częste błędne przekonania
 
 ❌ Perceptron Rosenblatta i warstwa współczesnej sieci neuronowej to w zasadzie to samo.
 
-✅ Mają ten sam liniowy rdzeń ($w^\top x + b$), ale perceptron używa nieróżniczkowalnej funkcji skoku i swojej własnej, historycznej reguły uczenia. Współczesna warstwa używa różniczkowalnej aktywacji właśnie po to, żeby dało się ją trenować spadkiem gradientu — mechanizmem jednolitym dla całej sieci.
+✅ Oba rozwiązania mają ten sam liniowy rdzeń $w^\top x + b$. Perceptron używa jednak nieróżniczkowalnej funkcji skoku oraz osobnej reguły uczenia. Współczesna warstwa ma różniczkowalną aktywację, dzięki czemu cała sieć może być trenowana spadkiem gradientu.
 
 ❌ Dodanie kolejnych warstw liniowych samo w sobie zwiększa moc modelu.
 
-✅ Udowodniliśmy, że złożenie przekształceń afinicznych jest afiniczne — sieć zbudowana z samych warstw $Wx+b$, bez nieliniowości między nimi, ma dokładnie taką moc reprezentacyjną jak jedna warstwa liniowa, niezależnie od liczby warstw.
+✅ Złożenie przekształceń afinicznych pozostaje afiniczne. Sieć zbudowana z samych warstw $Wx+b$, bez nieliniowości między nimi, ma taką samą moc reprezentacyjną jak jedna warstwa liniowa.
 
 ❌ Głębsza lub szersza sieć zawsze uczy się lepiej.
 
-✅ Większa pojemność modelu zwiększa *możliwości* reprezentacyjne (może w zasadzie wyrazić bardziej złożone funkcje), ale nie gwarantuje, że trening faktycznie znajdzie dobre rozwiązanie, ani że model będzie dobrze generalizował na nowych danych — to zależy też od optymalizacji, ilości danych i ryzyka przeuczenia (overfitting, wykład 5). W tym wykładzie pokazujemy wyłącznie, że nieliniowość jest *konieczna*, nie że większy model jest automatycznie lepszy.
+✅ Większa pojemność pozwala reprezentować bardziej złożone funkcje, ale nie gwarantuje dobrego wyniku treningu ani generalizacji. Znaczenie mają również optymalizacja, ilość danych i ryzyko przeuczenia omówione w wykładzie 5. Nieliniowość jest konieczna dla zwiększenia mocy reprezentacyjnej, lecz większy model nie musi być lepszy.
 
 ❌ ReLU nie ma żadnych wad, bo w przeciwieństwie do sigmoid/tanh się nie nasyca.
 
-✅ ReLU nie nasyca się dla dodatnich wejść, ale ma inny problem: dla ujemnych wejść pochodna wynosi dokładnie zero, więc neuron, który trwale dostaje ujemne pobudzenie, przestaje otrzymywać jakikolwiek sygnał uczący ("martwy neuron").
+✅ ReLU nie ulega nasyceniu dla dodatnich wejść, ale dla ujemnych ma pochodną równą zero. Neuron stale otrzymujący ujemne pobudzenie przestaje dostawać sygnał uczący i staje się martwy.
 
 ## Implikacje inżynierskie
 
-- **Koszt obliczeniowy aktywacji**: ReLU to jedno porównanie; sigmoid i tanh wymagają obliczenia $e^{-z}$. Przy milionach neuronów i wielu krokach treningu ta różnica ma realny wpływ na czas treningu — to jeden z praktycznych powodów dominacji ReLU (i jego wariantów) w nowoczesnych architekturach.
-- **Stabilność numeryczna straty**: liczenie BCE z logitów jedną funkcją (`BCEWithLogitsLoss`) zamiast ręcznego `log(sigmoid(z))` unika błędów numerycznych dla skrajnych wartości $z$ — mały, ale realny szczegół inżynierski.
-- **Wybór architektury ma koszt pamięciowy**: każda dodana warstwa i każdy dodatkowy neuron to kolejne parametry $W$, $b$ do przechowania i policzenia gradientu dla każdego z nich — "spróbujmy większej sieci" nie jest operacją za darmo, nawet gdy (jak tutaj) mówimy o modelach, które i tak mieszczą się w pamięci CPU bez trudu.
-- **Nasycenie aktywacji a głębokość**: to, że pochodna sigmoid/tanh maleje do zera przy nasyceniu, staje się poważnym problemem praktycznym dopiero przy wielu warstwach z rzędu (mnożymy przez siebie wiele małych liczb) — zobaczymy to precyzyjnie przy okazji grafu obliczeniowego w wykładzie 3.
-- **CPU wystarcza**: wszystkie modele w tym wykładzie (kilkanaście–kilkadziesiąt neuronów) trenują się na CPU w ułamku sekundy — trening na GPU staje się praktycznie istotny dopiero przy znacznie większych sieciach i zbiorach danych, które poznamy w dalszej części kursu.
+- **Koszt obliczeniowy aktywacji.** ReLU wymaga jednego porównania, a sigmoid i tanh obliczenia $e^{-z}$. Przy milionach neuronów i wielu krokach różnica wpływa na czas treningu. Jest to jeden z powodów popularności ReLU i jej wariantów.
+- **Stabilność numeryczna straty.** Obliczanie BCE z logitów przez `BCEWithLogitsLoss` pozwala uniknąć błędów numerycznych związanych z ręcznym `log(sigmoid(z))` dla skrajnych wartości $z$.
+- **Koszt pamięciowy architektury.** Każda warstwa i każdy neuron dodają parametry $W$ i $b$, które trzeba przechować oraz obliczyć dla nich gradient. Zwiększenie sieci zawsze wiąże się więc z dodatkowym kosztem, nawet jeśli mały model mieści się bez problemu w pamięci CPU.
+- **Nasycenie aktywacji i głębokość.** Zanikanie pochodnej sigmoid i tanh staje się szczególnie istotne w głębokich sieciach, gdzie wiele małych wartości jest przez siebie mnożonych. Wykład 3 przedstawia ten proces na grafie obliczeniowym.
+- **CPU wystarcza dla małych modeli.** Sieci używane w tym wykładzie mają od kilkunastu do kilkudziesięciu neuronów i trenują się na CPU w ułamku sekundy. GPU nabiera znaczenia przy większych architekturach i zbiorach danych.
 
 ## Co warto zapamiętać
 
 - Perceptron = model liniowy + nieróżniczkowalny próg; współczesna warstwa = model liniowy + różniczkowalna aktywacja.
-- Złożenie warstw liniowych bez nieliniowości między nimi to wciąż jedna warstwa liniowa — to twierdzenie, nie obserwacja empiryczna, i notebook to dodatkowo potwierdza eksperymentalnie.
+- Złożenie warstw liniowych bez nieliniowości między nimi nadal odpowiada jednej warstwie liniowej. Wynika to z dowodu i jest dodatkowo potwierdzone eksperymentalnie.
 - Sigmoid i tanh się nasycają (pochodna → 0 dla dużych $|z|$); ReLU się nie nasyca dla $z>0$, ale ma martwą strefę dla $z<0$.
-- MLP z jedną warstwą ukrytą i nieliniową aktywacją rozwiązuje XOR — zarówno przez ręczny dobór wag, jak i przez trening gradientowy.
-- "Więcej warstw/neuronów" zwiększa możliwości modelu, ale nie gwarantuje lepszego wyniku — to osobne zagadnienie od samej reprezentowalności.
+- MLP z jedną warstwą ukrytą i nieliniową aktywacją rozwiązuje XOR zarówno przy ręcznie dobranych wagach, jak i po treningu gradientowym.
+- Większa liczba warstw lub neuronów zwiększa możliwości modelu, ale nie gwarantuje lepszego wyniku. Reprezentowalność i skuteczność treningu są osobnymi zagadnieniami.
 
 ## Pytania dla studentów
 
-1. Dlaczego perceptron Rosenblatta nie rozwiąże XOR, a MLP z jedną warstwą ukrytą i nieliniową aktywacją — tak?
-2. Odtwórz (własnymi słowami, bez patrzenia do notatek) dowód, dlaczego sieć złożona wyłącznie z warstw liniowych ma moc reprezentacyjną pojedynczej warstwy liniowej, niezależnie od głębokości.
+1. Dlaczego perceptron Rosenblatta nie rozwiąże XOR, podczas gdy MLP z jedną warstwą ukrytą i nieliniową aktywacją poradzi sobie z tym zadaniem?
+2. Dlaczego sieć złożona wyłącznie z warstw liniowych ma moc reprezentacyjną pojedynczej warstwy liniowej, niezależnie od głębokości?
 3. Czym różni się zachowanie pochodnej sigmoid i ReLU dla dużych dodatnich wartości wejścia? Jakie mogą być tego konsekwencje przy trenowaniu głębokich sieci?
-4. Podaj sytuację, w której tanh mógłby być lepszym wyborem niż sigmoid, i sytuację, w której ReLU mógłby być lepszym wyborem niż oba. Uzasadnij.
+4. W jakiej sytuacji tanh może być lepszym wyborem niż sigmoid, a ReLU lepszym wyborem niż obie te funkcje? Z czego wynika taki wybór?
 
 ## Bibliografia
 
 - Rosenblatt, F. (1958). *The Perceptron: A Probabilistic Model for Information Storage and Organization in the Brain*. Psychological Review, 65(6), 386–408.
-- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/ — rozdział 6 (Deep Feedforward Networks) dla formalizacji MLP i klasycznego przykładu XOR.
-- PyTorch Contributors. *torch.nn* — dokumentacja. https://pytorch.org/docs/stable/nn.html
-- PyTorch Contributors. *BCEWithLogitsLoss* — dokumentacja. https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
+- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/. Rozdział 6 (*Deep Feedforward Networks*) zawiera formalizację MLP i klasyczny przykład XOR.
+- PyTorch Contributors. Dokumentacja *torch.nn*. https://pytorch.org/docs/stable/nn.html
+- PyTorch Contributors. Dokumentacja *BCEWithLogitsLoss*. https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
 
-Pełne wpisy bibliograficzne: [`references/references.bib`](../../references/references.bib).
+Pełne wpisy znajdują się w pliku [`references/references.bib`](../../references/references.bib).
