@@ -1,142 +1,129 @@
 Language: **English (default)** | [Polski](README.pl.md)
 
-# Lab 05: recognizing overfitting and choosing regularization
+# Lab 05. Recognizing overfitting and choosing regularization
 
-Time: about 2 hours. Builds on
-[`lectures/05_generalization/lecture.en.md`](../../lectures/05_generalization/lecture.en.md)
-(empirical vs. expected risk, L2/weight decay, AdamW, dropout, early
-stopping), but on a **different problem** than the lecture -- tabular
-classification with informative and noise features, not 1D regression.
+The expected working time is about 2 hours. This lab uses concepts from
+[`lectures/05_generalization/lecture.en.md`](../../lectures/05_generalization/lecture.en.md),
+including empirical and expected risk, L2, weight decay, AdamW, dropout, and
+early stopping. The problem differs from the lecture. Tabular classification
+with informative and noise features replaces one-dimensional regression.
 
-## 1. Data and split (given) + data leakage -- your task
+## 1. Data, splits, and leakage
 
-Data: 14 features ($4$ informative, $10$ pure noise -- unrelated to the
-target), $100$ training examples, $200$ each for validation and test. Two
-features have deliberately much larger scale than the rest (a common
-situation in real tabular data) -- which is why normalization matters
-here.
+The dataset has 14 features. Four contain information about the target, while
+ten are pure noise. The training set contains 100 examples, and the validation
+and test sets contain 200 examples each. Two features deliberately have a much
+larger scale than the others. This reflects a common property of tabular data
+and makes normalization important.
 
-The notebook contains (given, but **deliberately buggy**) code that
-computes the mean and standard deviation for normalization **over the
-entire dataset, before the split** into train/validation/test.
+The notebook contains provided but **deliberately incorrect** code. It computes
+the normalization mean and standard deviation over the full dataset before
+splitting it into training, validation, and test sets.
 
-**Task (Markdown, 3-5 sentences, before moving on):** what exactly is the
-bug in this code? Why is this data leakage, even if the model "works
-well"? What data, at what point, should not be visible when computing
-these statistics?
+The first task is a diagnosis of 3–5 sentences in a Markdown cell. It should
+identify the error, explain why it constitutes data leakage, and state which
+data must remain unavailable when fitting normalization statistics.
 
-**Task (code):** write a correct version -- normalization statistics
-computed **only** on `X_train`, applied (the same ones, not recomputed) to
-`X_train`, `X_val`, and `X_test`. Compare the computed means/standard
-deviations (buggy vs. correct) for the first feature -- the difference
-should be clearly nonzero.
+Next, implement the correct version. Compute statistics **only** on `X_train`,
+then apply the same values to `X_train`, `X_val`, and `X_test` without fitting
+them again. Compare the means and standard deviations from the incorrect and
+correct versions for the first feature. The difference should be clearly
+nonzero.
 
-From this point in the notebook you work **exclusively** on correctly
-normalized data.
+Only correctly normalized data is used in the remaining sections.
 
-## 2. Baseline model and an over-capacity model (given)
+## 2. Baseline and an over-capacity model
 
-A baseline (majority class) and an MLP `[32,32]` with capacity sufficient
-to overfit on $100$ examples are ready to run -- this is not part of the
+The majority-class baseline and an MLP `[32,32]` with enough capacity to
+overfit 100 examples are ready to run. They are not part of the implementation
 task.
 
-## 3. Training loop -- your task
+## 3. Training loop
 
 Implement `train_model(model, epochs, lr, weight_decay=0.0,
-use_adamw=False)`: a correct mini-batch loop **is not needed here** (the
-whole training set, $100$ examples, fits in one batch) -- but the order
-`zero_grad -> forward -> loss (BCEWithLogitsLoss) -> backward() ->
-step()`, and switching `model.train()`/`model.eval()` when computing the
-validation loss, must be correct. Returns `(train_losses, val_losses)`.
+use_adamw=False)`. The entire training set fits in one batch, so a mini-batch
+loop is unnecessary. The implementation must follow `zero_grad() -> forward
+-> loss (BCEWithLogitsLoss) -> backward() -> step()` and switch between
+`model.train()` and `model.eval()` when computing validation loss. The function
+returns `(train_losses, val_losses)`.
 
-**Task (Markdown, 3-5 sentences):** run `train_model` on the `[32,32]`
-model without regularization for $1000$ epochs and plot the curves (the
-plotting code is given). What is the training vs. validation accuracy? At
-which point of the curve do you see evidence of overfitting -- not just
-"the losses are different", but the specific shape that shows it?
+After training the `[32,32]` model without regularization for 1000 epochs,
+analyze the provided plot. A 3–5 sentence Markdown response should report the
+training and validation accuracy and identify the specific curve shape that
+demonstrates overfitting. A difference between losses alone is insufficient.
 
-## 4. Weight decay and dropout -- your task
+## 4. Weight decay and dropout
 
-For the `[32,32]` model:
+For the `[32,32]` model, compare:
 
-- test `AdamW` with `weight_decay` from the list `[0.0, 0.01, 0.1, 0.3]`,
-- test `nn.Dropout` (added between the hidden layers -- given function
-  `make_model(hidden_sizes, dropout_p=...)`) with `p` from the list
-  `[0.0, 0.2, 0.4, 0.6]`.
+- `AdamW` with `weight_decay` values `0.0`, `0.01`, `0.1`, and `0.3`,
+- `nn.Dropout` with `p` values `0.0`, `0.2`, `0.4`, and `0.6`. The provided
+  `make_model(hidden_sizes, dropout_p=...)` adds dropout between hidden layers.
 
-For each configuration, collect the accuracy and validation loss. Present
-the results in a table/printout.
+Collect validation accuracy and loss for every configuration. Present the
+results in a table or readable printout.
 
-## 5. Early stopping -- your task
+## 5. Early stopping
 
-You are given the skeleton of `train_with_early_stopping(model, epochs,
-patience, min_delta)` with a working training loop, but **without** the
-logic for remembering and restoring the model's best state -- that is your
-task. The function must, when done, return the model **restored** to the
-state from the best epoch (not the last one), and the number of that
-epoch.
+The provided `train_with_early_stopping(model, epochs, patience, min_delta)`
+skeleton contains a working training loop but does not save or restore the
+best model state. The completed function returns a model **restored** to the
+best epoch and the number of that epoch.
 
-Verify your implementation: the validation loss computed on the model
-*after* calling the function must exactly match the remembered best loss
-(a given assertion will check this).
+A provided assertion verifies the implementation. Validation loss computed
+after the function returns must exactly match the best recorded loss.
 
-## 6. Controlled comparison and final evaluation -- your task
+## 6. Controlled comparison and final evaluation
 
-Based on the results from sections 4-5, choose **one** configuration
-(which one: no regularization / weight decay / dropout / early stopping --
-or a combination, if your results give you grounds for it) with the best
-**validation** loss. Train it once more (to be sure, with the same seed)
-and evaluate it -- **for the first time in this lab** -- on the **test**
-set. Print the test accuracy and loss.
+Select one configuration with the lowest validation loss using the results
+from sections 4–5. The choice may use no regularization, weight decay, dropout,
+early stopping, or a combination supported by the results. Train the selected
+configuration again with the same seed.
 
-## 7. Conclusions -- your task
+Only then, for the first time in the lab, evaluate the model on the test set.
+Report test accuracy and loss.
 
-Answer (Markdown, justified with real numbers from sections 4-6):
+## 7. Conclusions
 
-1. Which regularization method gave the largest improvement over the
-   unregularized baseline? Did it improve only accuracy, only loss, or
-   both measures -- and does that distinction matter?
-2. Go back to section 1: did the pre-split normalization bug have a
-   large, clear effect on the final result in your run, or a small one?
-   Regardless of the answer -- why is the procedure itself wrong (computing
-   statistics on the full dataset), even if the effect turned out small
-   in this specific run?
-3. What is at least one limitation of this experiment (data size, the
-   specific random seed, the specific architecture) that means you should
-   not generalize the conclusions from section 6 to "method X is always
-   best"?
+The answers in a Markdown cell should refer to values from sections 4–6.
 
-## Time budget (indicative, not verified in a real class)
+1. Which regularization method produced the largest improvement over the
+   unregularized model? Did it change accuracy, loss, or both? Does this
+   distinction matter?
+2. Did normalization before splitting have a large or small effect on the
+   final result? Why does the procedure remain incorrect regardless of the
+   effect observed in one run?
+3. Which limitation of the experiment, such as dataset size, random seed, or
+   architecture, prevents one method from being considered universally best?
+
+## Time budget
+
+The values are indicative and have not been verified in a classroom setting.
 
 | Block | Time |
 |---|---|
-| Section 1 (leakage diagnosis + fix) | 20 min |
-| Section 2 (orientation, given) | 5 min |
-| Section 3 (training loop + curve interpretation) | 25 min |
-| Section 4 (weight decay + dropout) | 25 min |
-| Section 5 (early stopping) | 20 min |
-| Section 6 (comparison + test) | 15 min |
-| Section 7 (conclusions) | 10 min |
+| Section 1, leakage diagnosis and fix | 20 min |
+| Section 2, orientation | 5 min |
+| Section 3, training loop and curve interpretation | 25 min |
+| Section 4, weight decay and dropout | 25 min |
+| Section 5, early stopping | 20 min |
+| Section 6, comparison and test | 15 min |
+| Section 7, conclusions | 10 min |
 
-Sections 1-7 are the required core. If time remains: widen the sweep from
-section 4 with additional `weight_decay`/`p` values, or try combining
-dropout + weight decay at once -- this is already an extension, not the
-core.
+Sections 1–7 form the required core. Optional extensions include adding values
+to the `weight_decay` and `p` sweep or combining dropout with weight decay.
 
 ## Grading criteria
 
-- The normalization fix in section 1 actually computes statistics only
-  from `X_train` and applies them (without recomputing) to the other
-  sets.
-- `train_model` and `train_with_early_stopping` work correctly (the
-  notebook runs from the given cell to the end without error).
-- Early stopping actually restores the best state -- the assertion in the
-  notebook passes, it is not skipped/removed.
-- The test set appears in the notebook exactly once, after choosing the
-  configuration based on validation.
-- The interpretations and conclusions refer to the specific numbers/curve
-  shapes from your run, not generalities.
+- Normalization statistics in section 1 are computed only from `X_train` and
+  applied to the other sets without refitting.
+- `train_model` and `train_with_early_stopping` work correctly, and the
+  notebook runs from the relevant cell to the end without an error.
+- Early stopping restores the best state, and the provided assertion is not
+  skipped or removed.
+- The test set appears exactly once, after configuration selection through
+  validation.
+- Interpretations refer to values and curve shapes from the executed run.
 
-A full model solution exists locally with the instructor
-(`decisions/solutions/05_generalization/`) and is not part of this
-repository.
+A full model solution exists locally with the instructor in
+`decisions/solutions/05_generalization/` and is not part of this repository.
