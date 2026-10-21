@@ -1,124 +1,126 @@
 Language: **English (default)** | [Polski](README.pl.md)
 
-# Lab 04: an experimental comparison of optimization strategies
+# Lab 04. An experimental comparison of optimization strategies
 
-Time: about 2 hours. Builds on
-[`lectures/04_optimization/lecture.en.md`](../../lectures/04_optimization/lecture.en.md)
-(the SGD/momentum/Adam update rules), but on a **different problem** than
-the lecture (multivariate regression, not the 2D bowl or half-moon
-classification) and without implementing Adam from scratch -- you have the
-algorithms' mathematics from the lecture, here you learn to
-**experimentally compare and diagnose** optimization.
+The expected working time is about 2 hours. This lab builds on the SGD,
+momentum, and Adam update rules described in
+[`lectures/04_optimization/lecture.en.md`](../../lectures/04_optimization/lecture.en.md),
+but uses a different problem. Multivariate regression replaces the
+two-dimensional quadratic function and half-moon classification from the
+lecture. Adam is not implemented from scratch. The goal is to compare and
+diagnose optimization experimentally.
 
-## 1. Problem and data (given)
+## 1. Problem and data
 
-Regression: three input features with **deliberately different scales**
-(one in the range $[-1,1]$, one in $[-40,40]$, one in $[-3,3]$), a target
-depending on all three (nonlinearly on the first). Data generated locally,
-split **three ways**: train (70%) / validation (15%) / test (15%).
+The regression task has three input features with deliberately different
+scales. The first lies in $[-1,1]$, the second in $[-40,40]$, and the third in
+$[-3,3]$. The target depends on all three features, including a nonlinear
+dependence on the first. The data is generated locally and split into training
+(70%), validation (15%), and test (15%) sets.
 
-**Roles of the splits, which you must respect throughout the lab:**
-- **train** -- for learning the model's parameters,
-- **validation** -- for comparing optimizers and choosing a learning rate (you may "peek" at it as many times as you like),
-- **test** -- you touch it **exactly once**, at the very end, for the already-chosen configuration. If you use the test set to make decisions along the way, it stops being an honest measure of how the model handles new data.
+Each split has a separate role.
 
-The different feature scales are not an accident -- you will see why they
-matter.
+- The **training set** is used to learn model parameters.
+- The **validation set** is used to compare optimizers and select a learning
+  rate. It may be evaluated multiple times.
+- The **test set** is used once at the end of the lab to evaluate the selected
+  configurations. Using it to make earlier decisions would prevent it from
+  serving as an independent measure of performance on new data.
 
-## 2. Training loop -- your task
+The different feature scales are a deliberate part of the experiment and
+affect the optimization process.
 
-Implement `train_model(opt_name, lr, epochs, batch_size, model_seed,
-data_seed, momentum)`: it creates a model (given function `make_model(seed)`),
-the corresponding optimizer (`torch.optim.SGD` with/without `momentum`,
-`torch.optim.Adam` -- you do **not** implement Adam from scratch), and
-trains it, iterating over mini-batches (given function
-`iterate_minibatches`) in the correct order: `zero_grad() -> forward ->
-loss (MSE) -> backward() -> step()`. After every epoch, record the
-training and validation loss (without `torch.no_grad()` here you would
-needlessly spend memory on a graph you do not need). The function must
-return `(model, train_losses, val_losses)`.
+## 2. Training loop
 
-This is a **controlled experiment**: the same `model_seed` and the same
-`data_seed` on every call mean the same weight initialization and the same
-mini-batch order -- so differences in results between calls will come
-solely from the choice of optimizer/learning rate, not chance. The
-"predict the training mean" baseline is given -- this is your reference
-point.
+Implement
+`train_model(opt_name, lr, epochs, batch_size, model_seed, data_seed, momentum)`.
+The function creates a model with the provided `make_model(seed)` and selects
+the appropriate optimizer. The available choices are `torch.optim.SGD` with
+or without momentum and `torch.optim.Adam`. Adam should not be implemented
+from scratch.
 
-## 3. Comparison at a shared learning rate -- your task
+Training uses mini-batches returned by `iterate_minibatches` and follows the
+order `zero_grad() -> forward -> loss (MSE) -> backward() -> step()`. The
+training and validation losses are recorded after each epoch. Both values
+should be computed inside `torch.no_grad()` to avoid building an unnecessary
+graph. The function returns `(model, train_losses, val_losses)`.
 
-Call `train_model` for `"sgd"`, `"momentum"` (default `momentum=0.9`), and
-`"adam"`, all with `lr=0.01`, `epochs=20`. Plot the training and
-validation loss curves for all three on one plot (each method its own
-line).
+The experiment remains controlled by using the same `model_seed` and
+`data_seed` on every call. This preserves the initial weights and mini-batch
+order, so differences between runs result from the optimizer and learning
+rate rather than chance. The provided baseline, which always predicts the
+training-set mean, serves as a reference point.
 
-**Before moving on:** look at the results. Did all three actually learn
-anything?
+## 3. Comparison at a shared learning rate
 
-## 4. Learning-rate sweep -- your task
+Run `train_model` for `"sgd"`, `"momentum"` with the default `momentum=0.9`,
+and `"adam"`. Every configuration uses `lr=0.01` and `epochs=20`. Plot the
+training and validation loss curves for all three methods in one figure, with
+a separate line for each method.
 
-For **SGD** (without momentum), test `lr` from the list `[0.0001, 0.001,
-0.01]` (`epochs=20` each), collect the final validation loss for each. Do
-the same for **momentum** (`momentum=0.9`) with the list `[0.00005,
-0.0005, 0.005]`. Present the results in a simple table/printout.
+Before continuing, check whether each optimizer learned anything useful.
 
-## 5. Diagnosis -- your task
+## 4. Learning-rate sweep
 
-**Task (Markdown, 4-6 sentences):** in section 3, at least one of the
-optimizers (other than Adam) probably learned nothing sensible at
-`lr=0.01` -- the loss may even have exploded to `nan`. Based on the
-results from section 4 (the `lr` sweep) and what you know from the lecture
-about different feature scales and the loss's curvature: diagnose **why**
-exactly `lr=0.01` failed for that optimizer, while Adam handled it without
-trouble. It is not enough to write "lr was too large" -- explain **why**
-this specific problem (this specific data) makes SGD/momentum so sensitive
-to the choice of `lr`, while Adam is far less so.
+For SGD without momentum, test the values `[0.0001, 0.001, 0.01]` for 20
+epochs each. For momentum with `momentum=0.9`, use `[0.00005, 0.0005, 0.005]`.
+Collect the final validation losses in a simple table or readable printout.
 
-## 6. Final evaluation -- your task
+## 5. Diagnosis
 
-Based on the sweep from section 4 (and your knowledge of Adam from the
-lecture), choose **one, best by validation loss** `lr` for each of the
-three optimizers. Train each with the chosen `lr` (`epochs=25`), and then
--- **only now, once** -- evaluate each of the three trained models on the
-**test** set. Present the result in a table: optimizer, chosen `lr`, test
-loss.
+Write a diagnosis of 4–6 sentences in a Markdown cell. In section 3, at least
+one optimizer other than Adam will probably fail to learn anything useful at
+`lr=0.01`, and the loss may even reach `nan`.
 
-## 7. Conclusions -- your task
+The explanation should connect the sweep results from section 4 with the
+feature scales and loss curvature discussed in the lecture. Stating only that
+the learning rate was too large is not enough. The diagnosis needs to explain
+why this dataset makes SGD and momentum highly sensitive to `lr`, while Adam
+is much less sensitive.
 
-Answer (Markdown, justified with real numbers from section 6, not
-generalities):
+## 6. Final evaluation
 
-1. Which optimizer achieved the lowest test loss? Does this result match
-   what the lecture taught you about this specific type of problem
-   (ill-conditioned by different feature scales)?
-2. If you compared the same three optimizers on a problem **without** a
-   difference in feature scales (all features normalized to a similar
-   range) -- would you expect a similarly large difference between them?
-   What is your prediction based on?
+Select one `lr` for each optimizer using the validation loss from section 4
+and the material about Adam from the lecture. Train each selected configuration
+for 25 epochs.
 
-## Required core vs. extension (time guidance)
+Only after selection is complete, evaluate all three models on the test set
+exactly once. The results table should contain the optimizer name, selected
+`lr`, and test loss.
 
-Sections 1-6 (about 100 min: the introduction and section 2 ~30 min,
-sections 3-4 ~35 min, section 5 ~15 min, section 6 ~20 min) are the core --
-they fully fulfill the lab's goal. Section 7 (~15-20 min) is a short, but
-required, interpretation -- it is **not** an extension that can be
-skipped, unlike further widening the `lr` sweep with more values or a
-`momentum` other than `0.9`, which we leave as optional, if time remains.
+## 7. Conclusions
+
+Record the answers in a Markdown cell and support them with values from
+section 6.
+
+1. Which optimizer achieved the lowest test loss? Does the result match the
+   lecture's conclusions for a problem made ill-conditioned by different
+   feature scales?
+2. Would similarly large differences between the optimizers be expected after
+   normalizing all features to comparable ranges? What supports this
+   prediction?
+
+## Required core and extension
+
+Sections 1–6 take about 100 minutes and form the core of the lab. As a rough
+guide, the introduction and section 2 require about 30 minutes, sections 3–4
+about 35 minutes, section 5 about 15 minutes, and section 6 about 20 minutes.
+Section 7 takes another 15–20 minutes and is a required interpretation of the
+results.
+
+Optional extensions include adding more values to the `lr` sweep or testing a
+`momentum` value other than `0.9`.
 
 ## Grading criteria
 
-- `train_model` works correctly (the correct
-  `zero_grad/backward/step` order, correct mini-batches, returns the
-  history).
-- The comparison at a shared `lr` and the `lr` sweep from section 4
-  actually show a difference in behavior (not three identical, flat
-  curves).
-- The diagnosis in section 5 refers to a specific cause (feature scale /
-  the loss's curvature), not just the symptom ("it was too large").
-- The final evaluation in section 6 touches the test set exactly once,
-  after choosing `lr` based on validation -- not the other way around.
-- The conclusions in section 7 refer to the actual numbers from section 6.
+- `train_model` follows the correct `zero_grad/backward/step` order, handles
+  mini-batches correctly, and returns the loss history.
+- The shared-`lr` comparison and the sweep from section 4 reveal differences
+  in behavior rather than three identical flat curves.
+- The diagnosis in section 5 identifies a specific cause related to feature
+  scale and loss curvature, not only the symptom of an excessive `lr`.
+- The test set is used exactly once, after selecting `lr` through validation.
+- The conclusions in section 7 refer to the actual values from section 6.
 
-A full model solution exists locally with the instructor
-(`decisions/solutions/04_optimization/`) and is not part of this
-repository.
+A full model solution exists locally with the instructor in
+`decisions/solutions/04_optimization/` and is not part of this repository.
