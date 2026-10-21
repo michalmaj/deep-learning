@@ -1,54 +1,52 @@
 Language: **English (default)** | [Polski](lecture.md)
 
-# Lecture 04: optimization -- gradient descent, SGD, momentum, and Adam
+# Lecture 04. Gradient descent, SGD, momentum, and Adam
 
 ## Learning goals
 
-After this lecture, you should be able to:
-
 1. derive and correctly write the update rules for plain gradient descent, mini-batch SGD, momentum (in PyTorch's convention), and Adam (with bias correction), with every symbol unambiguously defined,
-2. distinguish four different objects that are easy to confuse: the loss gradient, the mini-batch gradient estimate, the optimizer's state, and the parameter update vector,
-3. read a loss function's contour plot and an optimizer's trajectory, and explain from it why a given algorithm oscillates, diverges, or crawls slowly,
+2. distinguish four objects that are easy to confuse: the loss gradient, the mini-batch gradient estimate, the optimizer state, and the parameter update vector,
+3. interpret a loss function's contour plot and an optimizer trajectory to explain why an algorithm oscillates, diverges, or converges slowly,
 4. distinguish asymptotic momentum stability from convergence speed and short-horizon behavior,
 5. explain Adam's mechanism (adaptive per-parameter scaling) and point out that this is a **different** mechanism than momentum's damping of oscillations, not a "better version" of it,
 6. explain why comparing optimizers at one, shared learning rate and declaring a winner can be misleading.
 
 ## Why this matters
 
-In lecture 3 you learned to compute the gradient -- `backward()` is no longer a black box. But the gradient is only a **direction**. *How* to use it -- how long a step to take, whether to remember previous steps, whether to adjust the step separately for each parameter -- is a separate, rich design decision, one that determines whether the network learns at all, whether training takes minutes or days, and whether it is stable at all. This is also the first lecture in this course where the *way* of training (rather than the architecture) becomes the main character -- and where you will see that a "better" optimizer is not an absolute notion, only one that depends on the specific problem.
+Lecture 3 explained how to compute a gradient, so `backward()` no longer needs to be treated as a black box. A gradient, however, provides only a **direction**. The step length, the use of previous steps, and separate scaling for individual parameters are independent design choices. They determine whether a network learns, how long training takes, and whether the process remains stable. This lecture therefore focuses on the training procedure rather than the architecture. It also shows why a "better" optimizer can only be defined in relation to a specific problem.
 
 ## Intuition
 
 ### Optimization as a search across a loss landscape
 
-Imagine the loss $L(\theta)$ as a landscape: the height at point $\theta$ is the loss value. Training is descending this landscape, step by step, with access only to the local slope (the gradient) at the current point -- not to a map of the whole terrain. The gradient $\nabla L(\theta)$ points in the direction of **steepest increase** at a given point (lecture 1); we go in the opposite direction.
+The loss $L(\theta)$ can be viewed as a landscape whose height at point $\theta$ equals the loss value. Training moves downhill one step at a time. Only the local slope at the current point is available, not a map of the entire terrain. The gradient $\nabla L(\theta)$ points toward the **steepest increase**, as introduced in lecture 1, so optimization moves in the opposite direction.
 
-What distinguishes optimization algorithms is **what we do with that direction** beyond just "go the opposite way": whether we take a long or short step, whether we remember which way we were going before, whether the step is the same for all parameters or adjusted separately for each.
+Optimization algorithms differ in how they use that direction. They may take a longer or shorter step, retain information about earlier movement, or scale the step separately for each parameter.
 
 ### Why the landscape can be hard
 
-Three classic problems with the loss's geometry:
+Three common difficulties arise from the geometry of the loss.
 
-- **Ill-conditioning**: the landscape is steep in one direction and flat in another (a narrow "valley") -- a step good for the steep direction is too large for the flat one, and vice versa. This is the main character of this lecture's experiment.
-- **Oscillation**: with too large a step in the steep direction, the algorithm "jumps" across the bottom of the valley back and forth, instead of sliding into it.
-- **Flat regions and saddle points**: in the high-dimensional, nonlinear losses of neural networks (unlike our two-dimensional, convex bowl in the experiment), there are regions with a near-zero gradient that are not a minimum -- the gradient "falls silent" there, even though there is still somewhere to descend to. We do not demonstrate this with a separate experiment (it would require a much larger, nonlinear parameter space than our 2D bowl) -- but the mechanisms you will learn today (momentum, adaptive scaling) also help in such regions, not only with oscillation.
+- **Ill-conditioning.** The landscape is steep in one direction and flat in another, forming a narrow valley. A step suited to one direction is poorly suited to the other. This is the central geometry in the experiment.
+- **Oscillation.** If the step is too large in the steep direction, the algorithm repeatedly crosses the bottom of the valley instead of settling into it.
+- **Flat regions and saddle points.** High-dimensional, nonlinear neural-network losses may have regions with a near-zero gradient that are not minima. The gradient carries little information there even though lower values remain available. A separate experiment would require a larger nonlinear parameter space than the two-dimensional convex bowl used here. Momentum and adaptive scaling can also help in such regions, not only with oscillation.
 
 ### Why "one number" (the learning rate) is not enough
 
-Plain gradient descent has one global, fixed step $\eta$ for all parameters and all directions at once. Momentum adds **memory** (previous steps influence the current one). Adam adds **per-parameter adaptation** (the step is scaled separately for each parameter, based on the history of its own gradients' magnitude). These are two **different** ideas for the same problem -- and, as you will see in the experiment, neither is universally better.
+Plain gradient descent uses one fixed, global step $\eta$ for all parameters and directions. Momentum adds **memory**, so previous steps affect the current one. Adam adds **per-parameter adaptation**, scaling each parameter according to the history of its gradient magnitude. These are different approaches to the same problem, and neither is universally better.
 
 ## Formal model
 
-A reminder from lecture 1: training is iteratively adjusting parameters $\theta$ to reduce $L(\theta) = \frac1N\sum_{i=1}^N \ell(f(x_i;\theta), y_i)$. In this lecture we explicitly distinguish four objects that we have so far treated together:
+Training repeatedly adjusts parameters $\theta$ to reduce $L(\theta) = \frac1N\sum_{i=1}^N \ell(f(x_i;\theta), y_i)$, as introduced in lecture 1. Four related objects need to be kept separate.
 
 | Object | Notation | What it is |
 |---|---|---|
-| Gradient (full) | $\nabla L(\theta_t)$ | the loss's derivative over the **entire** dataset at point $\theta_t$ -- rarely computed directly (too expensive) |
-| Gradient estimate | $\hat g_t$ | a gradient computed on a **mini-batch** -- a random, cheap approximate version of $\nabla L(\theta_t)$ |
-| Optimizer state | e.g. $v_t$ (momentum), $(m_t, v_t)$ (Adam) | the algorithm's memory of past $\hat g_t$ -- **not** a model parameter, stored separately (in PyTorch: `optimizer.state`) |
-| Update vector | $\Delta\theta_t = \theta_{t+1}-\theta_t$ | what we actually add to the parameters -- built from $\hat g_t$ and the state, scaled by $\eta$ |
+| Full gradient | $\nabla L(\theta_t)$ | the derivative of the loss over the **entire** dataset at point $\theta_t$; rarely computed directly because of its cost |
+| Gradient estimate | $\hat g_t$ | a gradient computed on a **mini-batch**, giving a cheap random approximation of $\nabla L(\theta_t)$ |
+| Optimizer state | e.g. $v_t$ for momentum or $(m_t, v_t)$ for Adam | the algorithm's memory of earlier $\hat g_t$ values; stored separately from model parameters in `optimizer.state` |
+| Update vector | $\Delta\theta_t = \theta_{t+1}-\theta_t$ | the value added to the parameters, constructed from $\hat g_t$, the optimizer state, and $\eta$ |
 
-`backward()` computes $\hat g_t$ (stores it in `.grad`, lecture 3). `optimizer.step()` uses $\hat g_t$ and the state to compute $\Delta\theta_t$ and apply it to $\theta$. These are two **separate** steps -- just as in lecture 3 we stressed that `backward()` does not update the parameters.
+`backward()` computes $\hat g_t$ and stores it in `.grad`, as described in lecture 3. `optimizer.step()` uses $\hat g_t$ and the optimizer state to compute $\Delta\theta_t$ and apply it to $\theta$. These are two separate operations. In particular, `backward()` does not update the parameters.
 
 ## Mathematics
 
@@ -56,37 +54,37 @@ A reminder from lecture 1: training is iteratively adjusting parameters $\theta$
 
 $$\theta_{t+1} = \theta_t - \eta \nabla L(\theta_t)$$
 
-$\eta > 0$ is the **learning rate** -- the only hyperparameter. Introduced in lecture 1; here we generalize it.
+$\eta > 0$ is the **learning rate** and the only hyperparameter in this rule. It was introduced in lecture 1 and is generalized here.
 
 ### Mini-batch SGD
 
-Computing $\nabla L(\theta_t)$ over the full set of $N$ examples is expensive. Instead, we sample a mini-batch $B_t$ (usually $|B_t| \ll N$) and compute:
+Computing $\nabla L(\theta_t)$ over the full set of $N$ examples is expensive. A mini-batch $B_t$, usually with $|B_t| \ll N$, provides a cheaper estimate:
 
 $$\hat g_t = \frac{1}{|B_t|}\sum_{i\in B_t} \nabla \ell\big(f(x_i;\theta_t), y_i\big), \qquad \theta_{t+1} = \theta_t - \eta\, \hat g_t$$
 
-$\hat g_t$ is an **unbiased estimator** of $\nabla L(\theta_t)$: when $B_t$ is sampled uniformly from the dataset, $\mathbb E[\hat g_t] = \nabla L(\theta_t)$ -- on average it points in the right direction, but for a single step it has variance that **decreases** with batch size ($\text{Var}[\hat g_t] \propto 1/|B_t|$). This is the formal meaning behind the statement "a mini-batch is not the same as the full dataset" from the *Common misconceptions* section: it is not a different, worse gradient -- it is the same gradient in expectation, just noisy.
+$\hat g_t$ is an **unbiased estimator** of $\nabla L(\theta_t)$. When $B_t$ is sampled uniformly, $\mathbb E[\hat g_t] = \nabla L(\theta_t)$. The estimate points in the correct direction on average, while an individual step has variance that **decreases** with batch size, $\text{Var}[\hat g_t] \propto 1/|B_t|$. A mini-batch therefore does not produce a different or inferior gradient. It produces a noisy estimate of the same gradient.
 
-**Full-batch** ($|B_t|=N$): zero noise, but one step per full pass over the data (expensive).
-**Stochastic** ($|B_t|=1$): maximum noise, the cheapest single step.
-**Mini-batch**: the compromise used in practice almost always -- enough examples that the noise does not dominate the direction, few enough to fit in memory and take many steps per epoch.
+- **Full batch** ($|B_t|=N$) has no sampling noise, but each step requires a full pass over the data.
+- **Stochastic optimization** ($|B_t|=1$) has maximum noise and the lowest cost per step.
+- **Mini-batch optimization** is the usual compromise. A batch contains enough examples to limit noise but remains small enough to fit in memory and permit multiple steps per epoch.
 
 ### Momentum
 
-**A note on convention.** Different textbooks define the momentum variable differently -- some use a moving average $v_t = \beta v_{t-1} + (1-\beta)\hat g_t$ (similar to Adam's first moment below). **PyTorch (`torch.optim.SGD(momentum=...)`) does not do this.** In this course we consistently use PyTorch's convention, because that is what our code actually uses (verified below, in the *Worked example*, by a direct comparison against `torch.optim.SGD`):
+**Convention.** Momentum is defined differently across textbooks. Some sources use the moving average $v_t = \beta v_{t-1} + (1-\beta)\hat g_t$, which resembles Adam's first moment below. **PyTorch's `torch.optim.SGD(momentum=...)` uses another convention.** The course follows the PyTorch definition because it matches the implementation. The worked example verifies it directly against `torch.optim.SGD`.
 
 $$v_t = \beta v_{t-1} + \hat g_t, \qquad \theta_{t+1} = \theta_t - \eta\, v_t \qquad (v_0 = 0,\ \text{so } v_1 = \hat g_1)$$
 
-$v_t$ is the **optimizer state** (here: "velocity") -- $\beta\in[0,1)$ (usually $0.9$) controls how long we remember previous steps. The physical intuition: a ball rolling across the loss landscape has **inertia** -- it does not stop immediately when the slope changes, it continues moving, gradually corrected by the current gradient. When successive $\hat g_t$ consistently point the same way (a flat but one-directional slope), $v_t$ builds up and speeds up the movement. When successive $\hat g_t$ oscillate between opposite signs (a steep "back and forth" direction), their contributions to $v_t$ partially cancel out -- hence the damping of oscillations. **But**, as you will see in the experiment, too large a $\beta$ at the same $\eta$ as plain SGD can **amplify** oscillation instead of damping it -- this is not a free mechanism.
+$v_t$ is the **optimizer state**, often described as velocity. The value $\beta\in[0,1)$, usually $0.9$, determines how long previous steps remain influential. A ball rolling across the loss landscape provides a useful analogy. Its inertia prevents it from stopping immediately when the slope changes, while the current gradient gradually corrects its motion. When successive $\hat g_t$ values point in the same direction, $v_t$ accumulates and movement accelerates. When their signs alternate, the contributions partially cancel and reduce oscillation. This effect is not automatic. With the same $\eta$ as plain SGD, a large $\beta$ can initially amplify oscillations instead of damping them.
 
 ### Adam
 
-Adam (*Adaptive Moment Estimation*, Kingma and Ba, 2015) keeps **two** optimizer states per parameter: an exponential moving average of the gradient ($m_t$, the "first moment", similar in spirit to momentum) and an exponential moving average of the gradient's **square** ($v_t$, the "second moment", a measure of the gradient's typical magnitude/scale -- a different $v_t$ than in the momentum section above, here a different object with the same letter, matching PyTorch's and the original paper's notation; context unambiguously distinguishes them):
+Adam (*Adaptive Moment Estimation*, Kingma and Ba, 2015) keeps **two** optimizer states per parameter. The first, $m_t$, is an exponential moving average of the gradient and is similar in spirit to momentum. The second, $v_t$, is an exponential moving average of the gradient's square and describes its typical scale. The symbol $v_t$ denotes a different object than in the momentum section, following the notation used by PyTorch and the original paper.
 
 $$m_t = \beta_1 m_{t-1} + (1-\beta_1)\hat g_t, \qquad v_t = \beta_2 v_{t-1} + (1-\beta_2)\hat g_t^2 \qquad (m_0=v_0=0)$$
 
-$\beta_1$ (default $0.9$) controls memory of the **direction** -- similar to momentum, but here in a weighted-average convention (with the factor $1-\beta_1$), not the PyTorch-SGD convention from the section above. $\beta_2$ (default $0.999$, i.e. longer memory than $\beta_1$) controls memory of the gradient's **scale** per parameter -- $v_t$ grows for parameters that consistently have large gradients, and shrinks for those with small ones.
+$\beta_1$, whose default is $0.9$, controls memory of the **direction**. Unlike PyTorch SGD momentum, it uses a weighted average with the factor $1-\beta_1$. $\beta_2$ defaults to $0.999$ and therefore has a longer memory. It tracks the gradient's **scale** separately for each parameter. $v_t$ grows for consistently large gradients and decreases for small ones.
 
-**Bias correction.** Since $m_0=v_0=0$, the first few estimates are systematically biased low (pulled toward zero) -- for $t=1$: $m_1=(1-\beta_1)\hat g_1$, i.e. only $10\%$ of the true value $\hat g_1$ when $\beta_1=0.9$. We correct this by dividing by $(1-\beta^t)$, which for small $t$ is a small number (a strong correction) and approaches $1$ for large $t$ (the correction fades once the "warm-up" is over):
+**Bias correction.** Since $m_0=v_0=0$, the first estimates are systematically pulled toward zero. For $t=1$, $m_1=(1-\beta_1)\hat g_1$, which equals only $10\%$ of $\hat g_1$ when $\beta_1=0.9$. Division by $(1-\beta^t)$ corrects this bias. The denominator is small during the first steps, so the correction is strong, and approaches $1$ as $t$ grows.
 
 $$\hat m_t = \frac{m_t}{1-\beta_1^t}, \qquad \hat v_t = \frac{v_t}{1-\beta_2^t}$$
 
@@ -94,11 +92,11 @@ $$\hat m_t = \frac{m_t}{1-\beta_1^t}, \qquad \hat v_t = \frac{v_t}{1-\beta_2^t}$
 
 $$\theta_{t+1} = \theta_t - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t} + \varepsilon}$$
 
-$\varepsilon$ (default $10^{-8}$) prevents division by zero when $\hat v_t$ is close to zero. The effect of dividing by $\sqrt{\hat v_t}$: a parameter that historically had **large** gradients gets a **smaller** effective step (a large $\sqrt{\hat v_t}$ in the denominator); a parameter with **small** gradients gets a **larger** effective step. This is exactly the per-parameter adaptive scaling discussed in the *Intuition* section -- a mechanism SGD and momentum do not have at all.
+$\varepsilon$, which defaults to $10^{-8}$, prevents division by zero when $\hat v_t$ is close to zero. Division by $\sqrt{\hat v_t}$ reduces the effective step for a parameter with historically large gradients and increases it for one with small gradients. This is the per-parameter adaptive scaling introduced earlier. SGD and momentum do not provide this mechanism.
 
 ## Worked example
 
-Let's compute three update steps by hand for $f(\theta)=\frac12\theta^2$ (so $g(\theta)=\theta$), $\theta_0=5$, $\eta=0.5$ for all three algorithms (the same $\eta$ deliberately -- see how differently they react; in practice this is rarely a good choice for all of them at once, as we will show in the experiment), momentum $\beta=0.5$, Adam $\beta_1=0.9$, $\beta_2=0.999$, $\varepsilon=10^{-8}$.
+The following example computes three update steps for $f(\theta)=\frac12\theta^2$, so $g(\theta)=\theta$, with $\theta_0=5$. All three algorithms deliberately use $\eta=0.5$ to expose their different behavior. In practice, a shared value is rarely suitable for every optimizer, as the experiment will show. Momentum uses $\beta=0.5$, while Adam uses $\beta_1=0.9$, $\beta_2=0.999$, and $\varepsilon=10^{-8}$.
 
 **SGD:** $\theta_1 = 5 - 0.5\cdot5 = 2.5$; $\theta_2=2.5-0.5\cdot2.5=1.25$; $\theta_3=1.25-0.5\cdot1.25=0.625$.
 
@@ -110,7 +108,7 @@ Let's compute three update steps by hand for $f(\theta)=\frac12\theta^2$ (so $g(
 | 2 | $2.5$ | $0.5\cdot5+2.5=5.0$ | $2.5-0.5\cdot5.0=0.0$ |
 | 3 | $0$ | $0.5\cdot5.0+0=2.5$ | $0-0.5\cdot2.5=-1.25$ |
 
-Notice step 3: the gradient at $\theta_2=0$ is $0$ (we are exactly at the minimum!), and yet $\theta$ **keeps moving**, to $-1.25$ -- because $v_3$ still "remembers" the previous motion. This is a literal illustration of inertia: momentum can **overshoot** the minimum, even when the current gradient is silent.
+At step 3, the gradient at $\theta_2=0$ is zero because the parameter is exactly at the minimum. Nevertheless, $\theta$ **keeps moving** to $-1.25$ because $v_3$ retains the previous motion. This illustrates inertia directly. Momentum can **overshoot** a minimum even when the current gradient is zero.
 
 **Adam ($\beta_1=0.9$, $\beta_2=0.999$, $\varepsilon=10^{-8}$):**
 
@@ -120,85 +118,87 @@ Notice step 3: the gradient at $\theta_2=0$ is $0$ (we are exactly at the minimu
 | 2 | $4.500$ | $0.900$ | $0.045$ | $4.737$ | $22.624$ | $4.002$ |
 | 3 | $4.002$ | $1.210$ | $0.061$ | $4.466$ | $20.419$ | $3.508$ |
 
-(the full derivation of the numbers in this table -- in the notebook, verified to the sixth digit against `torch.optim.Adam`). Notice how slowly Adam descends at the same $\eta=0.5$ as SGD ($\theta$: $5\to4.5\to4.0\to3.5$) -- Adam's effective step is roughly on the order of $\eta$ (because $\hat m_t/\sqrt{\hat v_t}\approx \pm1$ once the estimates stabilize), **regardless of the gradient's actual scale** -- quite unlike SGD, where the step scales directly with the gradient's magnitude. This is not a flaw or a virtue in itself -- it is simply a **different** mechanism, which has a direct consequence: a good $\eta$ for Adam is usually **not** a good $\eta$ for SGD, and vice versa (see the experiment).
+The notebook contains the full derivation and matches `torch.optim.Adam` to six decimal places. At the same $\eta=0.5$, Adam follows $5\to4.5\to4.0\to3.5$ and descends more slowly than SGD. Once the estimates stabilize, $\hat m_t/\sqrt{\hat v_t}\approx \pm1$, so Adam's effective step remains close to $\eta$ regardless of the gradient's scale. In SGD, the step scales directly with the gradient magnitude. Neither behavior is inherently better. The mechanisms differ, so a suitable $\eta$ for Adam is usually not suitable for SGD, and vice versa.
 
 ## Experiment
 
-The notebook [`examples.ipynb`](examples.ipynb), two experiments:
+The notebook [`examples.ipynb`](examples.ipynb) contains two experiments.
 
-**1. Optimization geometry** -- the function $f(x,y)=\frac12(25x^2+y^2)$ (clearly different curvature: steep in $x$, flat in $y$), starting at $(1,1)$, minimum at $(0,0)$:
-- SGD at several $\eta$: shows the theoretical stability boundary ($\eta<2/25=0.08$ for this problem) -- stable-but-slow below it ($\eta=0.02$), oscillating-but-convergent near the boundary ($\eta=0.06$), clearly divergent above it ($\eta=0.1$),
-- Momentum at **the same** $\eta$ as the oscillating SGD: $\beta=0.3$ damps the oscillation and speeds up the flat direction; $\beta=0.9$ (a typical default choice) remains asymptotically stable but has a long, strongly oscillatory transient -- a smaller $\eta$ performs better within a short step budget,
-- Adam at several $\eta$: the $x$ and $y$ trajectories are (for this problem) almost identical, despite the 25-fold difference in curvature -- adaptive scaling in practice.
+**1. Optimization geometry.** The function $f(x,y)=\frac12(25x^2+y^2)$ is steep in the $x$ direction and flat in the $y$ direction. Each trajectory starts at $(1,1)$, and the minimum is at $(0,0)$.
 
-**2. Training a small MLP** on synthetic data (two interleaving half-moons, $N=2000$, generated locally, an 80/20 train/validation split, mini-batches of 64 examples, an explicit index-shuffling function with a fixed seed):
-- comparing SGD/momentum/Adam at a **shared** $\eta=0.01$ (a controlled experiment -- but we do **not** treat the result as a general verdict),
-- the same comparison with a **separately tuned**, reasonable $\eta$ for each algorithm,
-- a sweep of $\eta$ for SGD showing the transition from stable, through unstable, to divergent training.
+- SGD with several values of $\eta$ demonstrates the theoretical stability boundary $\eta<2/25=0.08$. It is stable but slow at $\eta=0.02$, oscillatory but convergent at $\eta=0.06$, and divergent at $\eta=0.1$.
+- Momentum receives the **same** $\eta$ as oscillatory SGD. A value of $\beta=0.3$ damps oscillation and accelerates movement along the flat direction. With $\beta=0.9$, the method remains asymptotically stable but has a long, strongly oscillatory transient. A smaller $\eta$ performs better under a short step budget.
+- Adam runs with several values of $\eta$. Its $x$ and $y$ trajectories are almost identical despite the 25-fold difference in curvature, illustrating adaptive scaling.
 
-## What we observe
+**2. Training a small MLP.** The synthetic dataset contains two interleaving half-moons and $N=2{,}000$ examples. It is generated locally, split 80/20 into training and validation sets, and arranged into mini-batches of 64. A dedicated function shuffles indices with a fixed seed.
 
-- Plain SGD's stability boundary on our bowl is exactly where theory predicts ($\eta=2/a=0.08$ for $f=\frac12 a x^2$, $a=25$): at $\eta=0.06$ (below the boundary) the $x$ trajectory oscillates, but the loss drops to $0.0035$ after 40 steps; at $\eta=0.1$ (above the boundary) the loss grows exponentially -- after 40 steps, on the order of $10^{15}$.
-- Momentum $\beta=0.3$ at $\eta=0.06$ (the same value that oscillates for SGD) damps the oscillation in $x$ **and** speeds up convergence in $y$ -- it beats SGD on both fronts at once.
-- Momentum $\beta=0.9$ at the **same** $\eta=0.06$ looks poor over the first 20 steps: the loss jumps between $\approx0.1$ and $\approx15$ and ends that interval at $\approx1.92$. A longer run, however, reaches a loss of $\approx0.0066$ after 40 steps and $\approx0.000025$ after 100. The update matrix has spectral radius $\sqrt{0.9}\approx0.9487<1$ for both curvatures, so the configuration is asymptotically stable. The smaller $\eta=0.02$ is faster within a 40-step budget (loss $0.003$), but it is not required for convergence. **A short, oscillatory run is not enough to establish instability.**
-- In this experiment, Adam gives $x$ and $y$ trajectories identical to the fourth decimal place at every step -- despite the 25-fold curvature difference. At too large an $\eta$ ($0.3$-$0.5$) it oscillates, but **in both directions at once** (isotropically), not just the steep one -- a different character of instability than SGD/momentum.
-- On the MLP, at a shared $\eta=0.01$: Adam clearly wins (train/validation loss $\approx0.13/0.15$ after 30 epochs) over momentum ($\approx0.25/0.30$) and SGD ($\approx0.33/0.37$). After separately tuning $\eta$ for each (SGD $0.5$, momentum $0.1$, Adam $0.01$), the gap **largely disappears** ($\approx0.14/0.17$, $\approx0.13/0.15$, $\approx0.13/0.15$ respectively -- momentum and Adam are practically tied, SGD close behind). Adam's edge at a shared $\eta$ was largely **robustness to the choice of $\eta$**, not an unconditional qualitative advantage.
-- Sweeping $\eta$ for SGD on the MLP: smooth convergence at $\eta\in\{1,3\}$, growing instability at $\eta=8$-$10$ (loss spikes), clear non-convergence at $\eta\ge15$.
+- SGD, momentum, and Adam are compared at a **shared** $\eta=0.01$. This is a controlled experiment, not a general ranking.
+- A second comparison uses a reasonable $\eta$ tuned **separately** for each optimizer.
+- An SGD sweep shows the transition from stable training through instability to divergence.
+
+## Observations
+
+- The SGD stability boundary agrees with theory, $\eta=2/a=0.08$ for $f=\frac12 a x^2$ and $a=25$. At $\eta=0.06$, the $x$ trajectory oscillates, but the loss falls to $0.0035$ after 40 steps. At $\eta=0.1$, the loss grows exponentially and reaches the order of $10^{15}$ after 40 steps.
+- Momentum with $\beta=0.3$ and $\eta=0.06$ damps oscillation in $x$ and accelerates convergence in $y$. It improves both aspects relative to SGD in this setting.
+- Momentum with $\beta=0.9$ and the same $\eta=0.06$ performs poorly during the first 20 steps. The loss jumps between $\approx0.1$ and $\approx15$ and ends this interval at $\approx1.92$. A longer run reaches $\approx0.0066$ after 40 steps and $\approx0.000025$ after 100. The update matrix has spectral radius $\sqrt{0.9}\approx0.9487<1$ for both curvatures, so the configuration is asymptotically stable. The smaller $\eta=0.02$ is faster within a 40-step budget and reaches a loss of $0.003$, but it is not required for convergence. **A short, oscillatory run is not enough to establish instability.**
+- Adam produces $x$ and $y$ trajectories that match to four decimal places despite the 25-fold curvature difference. With an excessively large $\eta$, from $0.3$ to $0.5$, it oscillates in both directions at once. This differs from the instability seen in SGD and momentum.
+- At the shared $\eta=0.01$, Adam reaches training and validation losses of about $0.13/0.15$ after 30 epochs, compared with $0.25/0.30$ for momentum and $0.33/0.37$ for SGD. After separate tuning to $0.5$ for SGD, $0.1$ for momentum, and $0.01$ for Adam, the gap **largely disappears**. The respective results are about $0.14/0.17$, $0.13/0.15$, and $0.13/0.15$. Adam's initial advantage mainly reflected robustness to the choice of $\eta$.
+- The SGD sweep on the MLP shows smooth convergence at $\eta\in\{1,3\}$, increasing instability at $\eta=8$-$10$, and clear non-convergence at $\eta\ge15$.
 
 ## Common misconceptions
 
 ❌ The gradient points to the best, finite step to take.
 
-✅ The gradient only points to the **direction** of steepest **local** increase (lecture 1) -- it says nothing about how *far* to go in that direction. How much and what to do with that direction is the entire content of this lecture: a fixed step (SGD), a step with memory (momentum), a per-parameter adaptive step (Adam).
+✅ The gradient indicates only the **direction** of the steepest **local** increase, as described in lecture 1. It does not determine the step length. SGD uses a fixed step, momentum adds memory, and Adam adapts the scale separately for each parameter.
 
 ❌ A larger learning rate always means faster effective learning.
 
-✅ Beyond a certain boundary (depending on the loss's curvature and the algorithm), a larger $\eta$ means oscillation or divergence, not faster learning -- demonstrated directly: SGD at $\eta=0.1$ on our bowl **diverges exponentially**, even though at $\eta=0.06$ it still converged (albeit oscillating).
+✅ Once a boundary determined by the loss curvature and the algorithm is crossed, a larger $\eta$ causes oscillation or divergence. In the example, SGD at $\eta=0.1$ **diverges exponentially**, while at $\eta=0.06$ it still converges despite oscillation.
 
 ❌ Adam guarantees better generalization (or even just a better result) than SGD.
 
-✅ In our geometric experiment, with separately tuned $\eta$, a well-tuned SGD/momentum matches Adam or slightly beats it. The advantage Adam showed at a **shared** $\eta$ on the MLP was largely robustness to a poorly chosen $\eta$, not a guarantee of a better minimum or better generalization -- and it concerns one specific problem, it is not a general law.
+✅ In the geometry experiment, well-tuned SGD and momentum match or slightly outperform Adam when $\eta$ is selected separately. Adam's advantage at a shared $\eta$ on the MLP mainly reflected robustness to a poor value, not a guarantee of a better minimum or generalization. The result concerns one specific problem and is not a general rule.
 
 ❌ `optimizer.step()` computes the gradients.
 
-✅ `backward()` (lecture 3) computes the gradients and stores them in `.grad`. `optimizer.step()` **reads** `.grad`, updates the optimizer's state (e.g. $v_t$, $m_t$), and applies the resulting update to the parameters -- these are two separate steps with different responsibilities.
+✅ `backward()` computes the gradients and stores them in `.grad`, as described in lecture 3. `optimizer.step()` **reads** `.grad`, updates optimizer state such as $v_t$ and $m_t$, and then modifies the parameters. These are separate operations with different responsibilities.
 
 ❌ Using mini-batches means every step uses the same gradient as the full dataset.
 
-✅ The mini-batch gradient $\hat g_t$ is a **random, unbiased estimator** of the full gradient $\nabla L(\theta_t)$ -- it points in the right direction *on average*, but a single step has variance depending on batch size. A larger batch means less noise, not a different direction.
+✅ The mini-batch gradient $\hat g_t$ is a **random, unbiased estimator** of the full gradient $\nabla L(\theta_t)$. It points in the correct direction on average, while an individual step has variance that depends on batch size. A larger batch means less noise, not a different direction.
 
 ❌ A drop in training loss guarantees a drop in validation loss.
 
-✅ These are two separate quantities, measured on different data. In our MLP experiment they happen to move together (with no overfitting in this short training run) -- but this is not a general guarantee; the mechanisms through which they diverge (overfitting) are the topic of lecture 5.
+✅ These are separate quantities measured on different data. In the MLP experiment they move together because this short training run does not overfit. This is not a general guarantee. The mechanisms that make the curves diverge are discussed in lecture 5.
 
 ## Engineering implications
 
-- **Optimizer state's memory cost**: SGD without momentum stores no state at all; SGD with momentum stores one tensor per parameter ($v_t$) -- doubling the memory taken by the model's parameters themselves; Adam stores **two** tensors per parameter ($m_t$, $v_t$) -- tripling it. For large models this is a real engineering cost, not a theoretical detail.
-- **Per-step compute cost**: Adam does more arithmetic per step (two moving averages, a division, a square root) than SGD -- with millions of parameters and millions of steps this difference accumulates, though the cost of the forward/backward pass itself usually still dominates over `optimizer.step()`.
-- **Stability as a design cost**: a narrow, "safe" range of $\eta$ for SGD on an ill-conditioned problem (you will see this in the lab too) means more time spent tuning the hyperparameter before actual training -- Adam's adaptivity is sometimes chosen for exactly this practical reason, not because of a better convergence theory.
-- **AdamW and learning-rate schedules -- a preview, not the topic**: in practice Adam is often used in its AdamW variant (which implements weight decay differently -- a full discussion when we cover regularization in lecture 5) and rarely with a constant $\eta$ for the whole training run -- it is typical to decrease $\eta$ over the course of training (a *learning rate scheduler*). These are directions for further study, not part of this lecture.
+- **Memory cost of optimizer state.** SGD without momentum stores no additional state. SGD with momentum stores one tensor per parameter, $v_t$, which doubles the memory occupied by model parameters alone. Adam stores two tensors per parameter, $m_t$ and $v_t$, so this memory triples. For large models, this is a meaningful engineering cost.
+- **Compute cost per step.** Adam performs more operations per step than SGD because it maintains two moving averages and computes a division and square root. The difference accumulates over millions of parameters and steps. The forward and backward passes usually remain more expensive than `optimizer.step()` itself.
+- **Stability as a design cost.** A narrow safe range of $\eta$ for SGD on an ill-conditioned problem requires more tuning before the main training run. The same effect appears in the lab. Adam is sometimes selected for this practical reason rather than for a stronger convergence theory.
+- **AdamW and learning-rate schedules.** Adam is often used in its AdamW variant, which implements weight decay differently. Lecture 5 returns to this subject during the discussion of regularization. A constant $\eta$ is also uncommon throughout an entire training run. It is typically reduced over time with a learning-rate scheduler. Both topics lie beyond this lecture's scope.
 
 ## What to remember
 
-- The gradient is a direction; the optimization algorithm decides what to do with it -- a fixed step (SGD), a step with memory (momentum), a per-parameter adaptive step (Adam).
-- A mini-batch gradient is an unbiased, but noisy, estimator of the full gradient -- not a different gradient.
-- PyTorch's momentum convention ($v_t=\beta v_{t-1}+\hat g_t$) differs from the moving average sometimes used in textbooks -- do not mix them up.
-- Adam normalizes the step separately for each parameter based on the history of its gradients' magnitude -- a different mechanism than momentum's damping of oscillations.
-- Adding momentum changes both the stability region and the rate at which oscillations decay -- assess a learning rate for the specific algorithm and over a sufficiently long horizon instead of treating poor progress after a few steps as instability.
-- Comparing optimizers at one, shared $\eta$ mainly tells you about robustness to the choice of $\eta$, not which algorithm is "generally better".
+- A gradient provides a direction, while the optimizer determines how to use it. SGD takes a fixed step, momentum adds memory, and Adam adapts the step for each parameter.
+- A mini-batch gradient is an unbiased but noisy estimator of the full gradient. It is not a different gradient.
+- PyTorch's momentum convention, $v_t=\beta v_{t-1}+\hat g_t$, differs from the moving average used in some textbooks. The definitions should not be combined.
+- Adam normalizes the step separately for each parameter using the history of gradient magnitudes. This mechanism differs from momentum's damping of oscillations.
+- Momentum changes both the stability region and the rate at which oscillations decay. A learning rate needs to be assessed for a particular algorithm and over a sufficiently long horizon. Poor progress after a few steps does not necessarily indicate instability.
+- Comparing optimizers at one shared $\eta$ mainly measures robustness to that choice, not which algorithm is generally better.
 
 ## Questions for students
 
 1. Why, in step 3 of the momentum worked example, does the parameter keep moving, even though the gradient at that point is zero?
-2. Explain why Adam's bias correction has the largest effect over the first few steps, and then practically fades away.
-3. Given an ill-conditioned problem (very different curvature in different directions), why does Adam handle it "automatically", while plain SGD requires a very carefully chosen $\eta$?
-4. You are given a training run where the loss grows exponentially from the first few steps. What is the most likely first hypothesis to check, and why that one specifically?
+2. Why does Adam's bias correction have the largest effect during the first few steps and then practically disappear?
+3. Why does Adam handle an ill-conditioned problem with very different curvature across directions, while plain SGD requires a carefully selected $\eta$?
+4. Which hypothesis should be checked first when the loss grows exponentially from the beginning of training? Why this one?
 
 ## References
 
 - Kingma, D. P., Ba, J. (2015). *Adam: A Method for Stochastic Optimization*. ICLR 2015 (arXiv:1412.6980).
 - Sutskever, I., Martens, J., Dahl, G., Hinton, G. (2013). *On the importance of initialization and momentum in deep learning*. ICML 2013.
-- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/ -- chapter 8 (Optimization for Training Deep Models).
+- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/, chapter 8 (Optimization for Training Deep Models).
 - PyTorch Contributors. *torch.optim* documentation. https://pytorch.org/docs/stable/optim.html
 
-Full bibliography entries: [`references/references.bib`](../../references/references.bib).
+Full bibliography entries are available in [`references/references.bib`](../../references/references.bib).

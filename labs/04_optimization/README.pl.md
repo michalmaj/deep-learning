@@ -1,120 +1,129 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 04: eksperymentalne porównanie strategii optymalizacji
+# Laboratorium 04. Eksperymentalne porównanie strategii optymalizacji
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/04_optimization/lecture.md`](../../lectures/04_optimization/lecture.md)
-(reguły aktualizacji SGD/momentum/Adam), ale na **innym problemie** niż
-wykład (regresja wielowymiarowa, nie 2D miska ani klasyfikacja na
-półksiężycach) i bez implementowania Adama od podstaw — matematykę
-algorytmów masz z wykładu, tu uczysz się **eksperymentalnie porównywać i
-diagnozować** optymalizację.
+Przewidywany czas pracy wynosi około 2 godzin. Laboratorium opiera się na
+regułach aktualizacji SGD, momentum i Adama opisanych w
+[`lectures/04_optimization/lecture.md`](../../lectures/04_optimization/lecture.md),
+ale wykorzystuje inny problem. Zamiast dwuwymiarowej funkcji kwadratowej lub
+klasyfikacji półksiężyców pojawia się regresja wielowymiarowa. Adam nie jest
+implementowany od podstaw. Celem jest eksperymentalne porównanie i
+diagnozowanie przebiegu optymalizacji.
 
-## 1. Problem i dane (gotowe)
+## 1. Problem i dane
 
-Regresja: trzy cechy wejściowe o **celowo różnych skalach** (jedna w
-zakresie $[-1,1]$, jedna w $[-40,40]$, jedna w $[-3,3]$), cel zależny od
-wszystkich trzech (nieliniowo od pierwszej). Dane generowane lokalnie,
-podzielone **trójstronnie**: trening (70%) / walidacja (15%) / test (15%).
+Zadanie dotyczy regresji z trzema cechami wejściowymi o celowo różnych
+skalach. Pierwsza należy do przedziału $[-1,1]$, druga do $[-40,40]$, a
+trzecia do $[-3,3]$. Wartość docelowa zależy od wszystkich trzech cech, w tym
+nieliniowo od pierwszej. Dane powstają lokalnie i są dzielone na zbiór
+treningowy (70%), walidacyjny (15%) i testowy (15%).
 
-**Role podziałów, których musisz przestrzegać przez całe laboratorium:**
-- **trening** — do uczenia parametrów modelu,
-- **walidacja** — do porównywania optymalizatorów i wyboru learning rate (możesz na niej "podglądać" wyniki tyle razy, ile chcesz),
-- **test** — dotykasz go **dokładnie raz**, na samym końcu, dla już wybranej konfiguracji. Jeśli użyjesz testu do podejmowania decyzji po drodze, przestaje być uczciwą miarą tego, jak model radzi sobie z nowymi danymi.
+Każdy podział ma inną rolę.
 
-Różne skale cech nie są przypadkiem — zobaczysz, dlaczego mają znaczenie.
+- **Zbiór treningowy** służy do uczenia parametrów modelu.
+- **Zbiór walidacyjny** służy do porównywania optymalizatorów i wyboru learning
+  rate. Można korzystać z niego wielokrotnie.
+- **Zbiór testowy** służy do jednokrotnej oceny wybranych konfiguracji na końcu
+  laboratorium. Użycie go podczas podejmowania wcześniejszych decyzji
+  pozbawiłoby wynik roli niezależnej miary jakości na nowych danych.
 
-## 2. Pętla treningowa — Twoje zadanie
+Różne skale cech są celowym elementem eksperymentu i wpływają na przebieg
+optymalizacji.
 
-Zaimplementuj `train_model(opt_name, lr, epochs, batch_size, model_seed, data_seed, momentum)`:
-tworzy model (gotowa funkcja `make_model(seed)`), odpowiedni optymalizator
-(`torch.optim.SGD` z/bez `momentum`, `torch.optim.Adam` — **nie**
-implementujesz Adama od zera), i trenuje go, iterując po mini-batchach
-(gotowa funkcja `iterate_minibatches`) z poprawną kolejnością: `zero_grad()
-→ forward → strata (MSE) → backward() → step()`. Po każdej epoce zapisz
-stratę treningową i walidacyjną (bez `torch.no_grad()` w tym miejscu
-niepotrzebnie zużyjesz pamięć na graf, którego nie potrzebujesz).
-Funkcja ma zwrócić `(model, train_losses, val_losses)`.
+## 2. Pętla treningowa
 
-To jest **kontrolowany eksperyment**: ten sam `model_seed` i ten sam
-`data_seed` przy każdym wywołaniu oznaczają tę samą inicjalizację wag i tę
-samą kolejność mini-batchy — różnice w wynikach między wywołaniami będą
-więc wynikać wyłącznie z wyboru optymalizatora/learning rate, nie z
-przypadku. Baseline "przewiduj średnią z treningu" jest gotowy — to Twój
-punkt odniesienia.
+Należy zaimplementować funkcję
+`train_model(opt_name, lr, epochs, batch_size, model_seed, data_seed, momentum)`.
+Funkcja tworzy model za pomocą przygotowanego `make_model(seed)` oraz wybiera
+odpowiedni optymalizator. Dostępne są `torch.optim.SGD` z momentum lub bez
+niego oraz `torch.optim.Adam`. Adam nie powinien być implementowany od zera.
 
-## 3. Porównanie przy wspólnym learning rate — Twoje zadanie
+Trening korzysta z mini-batchy zwracanych przez `iterate_minibatches` i
+zachowuje kolejność `zero_grad() -> forward -> strata (MSE) -> backward() ->
+step()`. Po każdej epoce zapisywana jest strata treningowa i walidacyjna.
+Obliczenie obu wartości powinno odbywać się w `torch.no_grad()`, aby nie
+tworzyć niepotrzebnego grafu. Wynikiem funkcji jest
+`(model, train_losses, val_losses)`.
 
-Wywołaj `train_model` dla `"sgd"`, `"momentum"` (domyślne `momentum=0.9`)
-i `"adam"`, wszystkie z `lr=0.01`, `epochs=20`. Narysuj krzywe straty
-treningowej i walidacyjnej dla wszystkich trzech na jednym wykresie
-(każda metoda osobną linią).
+Eksperyment pozostaje kontrolowany dzięki takim samym wartościom `model_seed`
+i `data_seed` w każdym wywołaniu. Zapewniają one tę samą inicjalizację wag i
+kolejność mini-batchy. Różnice między przebiegami wynikają więc z wyboru
+optymalizatora i learning rate, a nie z losowości. Przygotowany baseline,
+który zawsze przewiduje średnią ze zbioru treningowego, stanowi punkt
+odniesienia.
 
-**Zanim przejdziesz dalej:** przyjrzyj się wynikom. Czy wszystkie trzy
-się nauczyły czegokolwiek?
+## 3. Porównanie przy wspólnym learning rate
 
-## 4. Przegląd learning rate — Twoje zadanie
+Funkcję `train_model` należy uruchomić dla `"sgd"`, `"momentum"` z domyślnym
+`momentum=0.9` oraz `"adam"`. Każda konfiguracja korzysta z `lr=0.01` i
+`epochs=20`. Krzywe straty treningowej i walidacyjnej dla wszystkich trzech
+metod powinny znaleźć się na jednym wykresie, z osobną linią dla każdej
+metody.
 
-Dla **SGD** (bez momentum) przetestuj `lr` z listy `[0.0001, 0.001, 0.01]`
-(`epochs=20` każdy), zbierz stratę walidacyjną końcową dla każdego.
-Zrób to samo dla **momentum** (`momentum=0.9`) z listą
-`[0.00005, 0.0005, 0.005]`. Przedstaw wyniki w prostej tabeli/wydruku.
+Przed przejściem dalej warto sprawdzić, czy każdy z optymalizatorów nauczył się
+czegokolwiek użytecznego.
 
-## 5. Diagnoza — Twoje zadanie
+## 4. Przegląd learning rate
 
-**Zadanie (Markdown, 4–6 zdań):** w sekcji 3 przynajmniej jeden z
-optymalizatorów (poza Adamem) prawdopodobnie nie nauczył się niczego
-sensownego przy `lr=0,01` — strata mogła nawet wybuchnąć do `nan`.
-Na podstawie wyników z sekcji 4 (przegląd `lr`) i tego, co wiesz z wykładu
-o różnych skalach cech i krzywiźnie straty: zdiagnozuj, **dlaczego**
-akurat `lr=0,01` zawiódł dla tego optymalizatora, podczas gdy Adam dał
-sobie z nim radę bez problemu. Nie wystarczy napisać "lr było za duże" —
-wyjaśnij **dlaczego** akurat ten problem (te konkretne dane) sprawia, że
-SGD/momentum są tak wrażliwe na dobór `lr`, a Adam znacznie mniej.
+Dla SGD bez momentum należy przetestować `lr` z listy `[0.0001, 0.001, 0.01]`,
+za każdym razem przez 20 epok. Dla momentum z `momentum=0.9` obowiązuje lista
+`[0.00005, 0.0005, 0.005]`. Końcowe straty walidacyjne należy zebrać w prostej
+tabeli lub czytelnym wydruku.
 
-## 6. Finalna ewaluacja — Twoje zadanie
+## 5. Diagnoza
 
-Na podstawie przeglądu z sekcji 4 (i Twojej wiedzy o Adamie z wykładu)
-wybierz **jeden, najlepszy wg straty walidacyjnej** `lr` dla każdego z
-trzech optymalizatorów. Wytrenuj każdy z wybranym `lr` (`epochs=25`), a
-następnie — **dopiero teraz, raz** — oceń każdy z trzech wytrenowanych
-modeli na zbiorze **testowym**. Przedstaw wynik w tabeli: optymalizator,
-wybrany `lr`, strata testowa.
+W komórce Markdown należy zapisać diagnozę o długości 4–6 zdań. W sekcji 3
+przynajmniej jeden optymalizator poza Adamem prawdopodobnie nie nauczy się
+niczego sensownego przy `lr=0.01`, a strata może nawet osiągnąć `nan`.
 
-## 7. Wnioski — Twoje zadanie
+Wyjaśnienie powinno łączyć wyniki przeglądu z sekcji 4 z różnymi skalami cech
+i krzywizną funkcji straty omówioną na wykładzie. Samo stwierdzenie, że
+learning rate był za duży, nie wystarcza. Potrzebne jest uzasadnienie, dlaczego
+te dane powodują dużą wrażliwość SGD i momentum na wybór `lr`, podczas gdy
+Adam jest znacznie mniej wrażliwy.
 
-Odpowiedz (Markdown, uzasadnione realnymi liczbami z sekcji 6, nie
-ogólnikami):
+## 6. Finalna ewaluacja
 
-1. Który optymalizator osiągnął najniższą stratę testową? Czy ten wynik
-   pasuje do tego, czego nauczył Cię wykład o tym konkretnym typie
-   problemu (źle uwarunkowanym przez różne skale cech)?
-2. Gdybyś miał/miała porównać te same trzy optymalizatory na problemie
-   **bez** różnicy skal cech (wszystkie cechy znormalizowane do podobnego
-   zakresu) — czy spodziewasz się podobnie dużej różnicy między nimi? Na
-   czym opierasz tę przewidywanie?
+Na podstawie straty walidacyjnej z sekcji 4 oraz wiedzy o Adamie należy wybrać
+po jednej wartości `lr` dla każdego z trzech optymalizatorów. Każda wybrana
+konfiguracja jest następnie trenowana przez 25 epok.
 
-## Zakres rdzeniowy vs. rozszerzenie (wskazówka czasowa)
+Dopiero po zakończeniu wyboru wszystkie trzy modele są oceniane na zbiorze
+testowym, dokładnie raz. Tabela wyników powinna zawierać nazwę optymalizatora,
+wybrany `lr` i stratę testową.
 
-Sekcje 1–6 (ok. 100 min: wprowadzenie i sekcja 2 ~30 min, sekcje 3–4
-~35 min, sekcja 5 ~15 min, sekcja 6 ~20 min) to rdzeń — w pełni realizują
-cel laboratorium. Sekcja 7 (~15–20 min) to krótka, ale obowiązkowa
-interpretacja — **nie** jest rozszerzeniem do pominięcia, w przeciwieństwie
-do ewentualnego dalszego poszerzania przeglądu `lr` o więcej wartości czy
-o `momentum` inny niż `0,9`, co zostawiamy jako opcjonalne, jeśli zostanie
-czas.
+## 7. Wnioski
+
+Odpowiedzi należy zapisać w komórce Markdown i uzasadnić wartościami z sekcji
+6.
+
+1. Który optymalizator osiągnął najniższą stratę testową? Czy wynik odpowiada
+   wnioskom z wykładu dla problemu źle uwarunkowanego przez różne skale cech?
+2. Czy po znormalizowaniu wszystkich cech do podobnego zakresu należałoby
+   oczekiwać równie dużych różnic między optymalizatorami? Na czym opiera się
+   ta prognoza?
+
+## Zakres rdzeniowy i rozszerzenie
+
+Sekcje 1–6 zajmują około 100 minut i tworzą rdzeń laboratorium. Orientacyjnie
+wprowadzenie wraz z sekcją 2 wymaga około 30 minut, sekcje 3–4 około 35 minut,
+sekcja 5 około 15 minut, a sekcja 6 około 20 minut. Sekcja 7 wymaga kolejnych
+15–20 minut i stanowi obowiązkową interpretację wyników.
+
+Opcjonalnym rozszerzeniem jest dodanie kolejnych wartości do przeglądu `lr`
+albo sprawdzenie wartości `momentum` innej niż `0.9`.
 
 ## Kryteria oceny
 
-- `train_model` działa poprawnie (właściwa kolejność
-  `zero_grad/backward/step`, poprawne mini-batche, zwraca historię).
-- Porównanie przy wspólnym `lr` i przegląd `lr` z sekcji 4 faktycznie
-  pokazują różnicę w zachowaniu (nie trzy identyczne, płaskie krzywe).
-- Diagnoza w sekcji 5 odwołuje się do konkretnej przyczyny (skala cech /
-  krzywizna straty), nie tylko do objawu ("było za duże").
-- Finalna ewaluacja w sekcji 6 dotyka zbioru testowego dokładnie raz, po
-  wyborze `lr` na podstawie walidacji — nie na odwrót.
-- Wnioski w sekcji 7 odwołują się do rzeczywistych liczb z sekcji 6.
+- `train_model` zachowuje właściwą kolejność `zero_grad/backward/step`,
+  poprawnie obsługuje mini-batche i zwraca historię strat.
+- Porównanie przy wspólnym `lr` oraz przegląd z sekcji 4 pokazują różnice w
+  zachowaniu metod, a nie trzy identyczne płaskie krzywe.
+- Diagnoza z sekcji 5 wskazuje konkretną przyczynę związaną ze skalą cech i
+  krzywizną straty, a nie tylko objaw w postaci zbyt dużego `lr`.
+- Zbiór testowy jest używany dokładnie raz, po wyborze `lr` na podstawie
+  walidacji.
+- Wnioski z sekcji 7 odwołują się do rzeczywistych wartości z sekcji 6.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/04_optimization/`) i nie jest częścią tego
-repozytorium.
+Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego w
+`decisions/solutions/04_optimization/` i nie jest częścią repozytorium.

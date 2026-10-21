@@ -30,6 +30,14 @@ REVIEWED_PROSE_PATHS = (
     "labs/03_backprop/README.pl.md",
     "labs/03_backprop/lab.ipynb",
     "labs/03_backprop/lab.en.ipynb",
+    "lectures/04_optimization/lecture.md",
+    "lectures/04_optimization/lecture.en.md",
+    "lectures/04_optimization/examples.ipynb",
+    "lectures/04_optimization/examples.en.ipynb",
+    "labs/04_optimization/README.md",
+    "labs/04_optimization/README.pl.md",
+    "labs/04_optimization/lab.ipynb",
+    "labs/04_optimization/lab.en.ipynb",
 )
 
 FORBIDDEN_DASHES = {
