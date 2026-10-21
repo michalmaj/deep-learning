@@ -38,6 +38,14 @@ REVIEWED_PROSE_PATHS = (
     "labs/04_optimization/README.pl.md",
     "labs/04_optimization/lab.ipynb",
     "labs/04_optimization/lab.en.ipynb",
+    "lectures/05_generalization/lecture.md",
+    "lectures/05_generalization/lecture.en.md",
+    "lectures/05_generalization/examples.ipynb",
+    "lectures/05_generalization/examples.en.ipynb",
+    "labs/05_generalization/README.md",
+    "labs/05_generalization/README.pl.md",
+    "labs/05_generalization/lab.ipynb",
+    "labs/05_generalization/lab.en.ipynb",
 )
 
 FORBIDDEN_DASHES = {
