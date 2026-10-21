@@ -144,7 +144,7 @@ Answer (Markdown, justified with actual numbers from sections 7-8):
 | Section 8 (confusion matrix + error analysis) | 15 min |
 | Section 9 (conclusions) | 10 min |
 
-Sections 0-8 are the mandatory core. Training each variant on the reduced
+Sections 0-9 are the mandatory core. Training each variant on the reduced
 data subset takes a few seconds on CPU -- the time budget should go into
 design and analysis, not waiting for training.
 

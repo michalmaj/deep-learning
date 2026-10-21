@@ -109,15 +109,15 @@ cosine similarity i normie wektora?
 
 ## 8. Wizualizacja i analiza błędów — Twoje zadanie
 
-Wybierz $2$-$3$ zapytania: przynajmniej jedno z **wysokim** Precision@5 i przynajmniej
-jedno z **niskim**. Narysuj zapytanie razem z jego top-5 wynikami (gotowa funkcja do
-wizualizacji czeka na dane — obrazy + ich etykiety).
+Wybierz dokładnie dwa zapytania: jedno z **wysokim** Precision@5 i jedno z **niskim**.
+Narysuj każde zapytanie razem z jego top-5 wynikami (gotowa funkcja do wizualizacji
+czeka na dane — obrazy + ich etykiety).
 
 **Zadanie (Markdown, 3-5 zdań):** dla przykładu z niskim Precision@5 — spójrz na
 zwrócone obrazy. Czy błędne wyniki wyglądają "sensownie podobne" (np. podobna tekstura
-terenu, mylona klasa) czy wyglądają na przypadkowe trafienia? Które klasy EuroSAT są
-najczęściej mylone w wynikach wyszukiwania (możesz policzyć to systematycznie po
-wszystkich zapytaniach, nie tylko po wybranych przykładach)?
+terenu, mylona klasa) czy wyglądają na przypadkowe trafienia? Nazwij konkretne klasy
+widoczne w tym przykładzie; systematyczne liczenie po wszystkich zapytaniach
+zostawiamy jako rozszerzenie opcjonalne.
 
 ## 9. Wnioski — Twoje zadanie
 
@@ -146,18 +146,17 @@ Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 5-8:
 | Sekcja 5 (Precision@k + weryfikacja na przykładzie) | 20 min |
 | Sekcja 6 (baseline pikseli) | 10 min |
 | Sekcja 7 (wpływ metryki/normalizacji) | 15 min |
-| Sekcja 8 (wizualizacja + analiza błędów) | 15 min |
+| Sekcja 8 (wizualizacja dwóch zapytań + analiza błędów) | 10 min |
 | Sekcja 9 (wnioski) | 10 min |
 
-Sekcje 0-8 to rdzeń obowiązkowy. Ekstrakcja całej bazy trwa pojedyncze sekundy na
+Sekcje 0-9 to rdzeń obowiązkowy. Ekstrakcja całej bazy trwa pojedyncze sekundy na
 CPU — budżet czasowy ma iść w implementację rankingu/metryk i analizę wyników, nie w
 czekanie na obliczenia.
 
-**Rozszerzenie (opcjonalne, jeśli zostanie czas):** zaimplementuj rzeczywisty cache na
-dysku (`torch.save`/`torch.load`) z jawnym tagiem ważności (nazwa wersji wag,
-reprezentacja preprocessingu, lista indeksów obrazów, nazwa warstwy) — spójnie z
-odpowiedzią z sekcji 2. Albo: sprawdź wpływ rozmiaru gallery (np. połowa obrazów) na
-Precision@k.
+**Rozszerzenia (opcjonalne, jeśli zostanie czas):** policz systematycznie po wszystkich
+zapytaniach najczęstsze błędne pary `(klasa query, klasa wyniku)`; zaimplementuj
+rzeczywisty cache na dysku (`torch.save`/`torch.load`) z jawnym tagiem ważności; albo
+sprawdź wpływ rozmiaru gallery (np. połowa obrazów) na Precision@k.
 
 ## Kryteria oceny
 

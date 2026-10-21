@@ -118,7 +118,7 @@ Answer (Markdown, justified with real numbers from sections 4-6):
 | Section 6 (comparison + test) | 15 min |
 | Section 7 (conclusions) | 10 min |
 
-Sections 1-6 are the required core. If time remains: widen the sweep from
+Sections 1-7 are the required core. If time remains: widen the sweep from
 section 4 with additional `weight_decay`/`p` values, or try combining
 dropout + weight decay at once -- this is already an extension, not the
 core.

@@ -116,7 +116,7 @@ Odpowiedz (Markdown, uzasadnione rzeczywistymi liczbami z sekcji 4–6):
 | Sekcja 6 (porównanie + test) | 15 min |
 | Sekcja 7 (wnioski) | 10 min |
 
-Sekcje 1–6 to rdzeń obowiązkowy. Jeśli zostanie czas: rozszerz sweep z
+Sekcje 1–7 to rdzeń obowiązkowy. Jeśli zostanie czas: rozszerz sweep z
 sekcji 4 o dodatkowe wartości `weight_decay`/`p`, albo spróbuj kombinacji
 dropout + weight decay jednocześnie — to już rozszerzenie, nie rdzeń.
 

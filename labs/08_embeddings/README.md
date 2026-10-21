@@ -124,17 +124,16 @@ in the lecture about cosine similarity and vector norm?
 
 ## 8. Visualization and error analysis -- your task
 
-Choose $2$-$3$ queries: at least one with **high** Precision@5 and at
-least one with **low** Precision@5. Draw the query together with its
+Choose exactly two queries: one with **high** Precision@5 and one with
+**low** Precision@5. Draw each query together with its
 top-5 results (a provided function is waiting for the data -- images +
 their labels).
 
 **Task (Markdown, 3-5 sentences):** for the low-Precision@5 example --
 look at the returned images. Do the wrong results look "sensibly
 similar" (e.g. similar terrain texture, a confused class) or do they look
-like random hits? Which EuroSAT classes are most often confused in the
-search results (you can count this systematically across all queries,
-not just the selected examples)?
+like random hits? Name the specific classes visible in this example;
+systematic counting across all queries is left as an optional extension.
 
 ## 9. Conclusions -- your task
 
@@ -166,18 +165,18 @@ Answer, justified with actual numbers from sections 5-8:
 | Section 5 (Precision@k + verification on an example) | 20 min |
 | Section 6 (pixel baseline) | 10 min |
 | Section 7 (effect of metric/normalization) | 15 min |
-| Section 8 (visualization + error analysis) | 15 min |
+| Section 8 (two-query visualization + error analysis) | 10 min |
 | Section 9 (conclusions) | 10 min |
 
-Sections 0-8 are the mandatory core. Extracting the whole database takes
+Sections 0-9 are the mandatory core. Extracting the whole database takes
 a few seconds on CPU -- the time budget should go into implementing the
 ranking/metrics and analyzing the results, not waiting for computation.
 
-**Extension (optional, if time remains):** implement a real on-disk cache
-(`torch.save`/`torch.load`) with an explicit validity tag (weights
-version name, preprocessing representation, list of image indices, layer
-name) -- consistent with your answer from section 2. Or: check the effect
-of gallery size (e.g. half the images) on Precision@k.
+**Extensions (optional, if time remains):** count the most frequent
+`(query class, retrieved class)` error pairs systematically across all
+queries; implement a real on-disk cache (`torch.save`/`torch.load`) with
+an explicit validity tag; or check the effect of gallery size (e.g. half
+the images) on Precision@k.
 
 ## Grading criteria
 

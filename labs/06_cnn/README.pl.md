@@ -146,7 +146,7 @@ Odpowiedz (Markdown, uzasadnione rzeczywistymi liczbami z sekcji 7-8):
 | Sekcja 8 (confusion matrix + analiza błędów) | 15 min |
 | Sekcja 9 (wnioski) | 10 min |
 
-Sekcje 0-8 to rdzeń obowiązkowy. Trening każdego wariantu na
+Sekcje 0-9 to rdzeń obowiązkowy. Trening każdego wariantu na
 zredukowanym podzbiorze danych trwa pojedyncze sekundy na CPU — budżet
 czasowy ma iść w projektowanie i analizę, nie w czekanie na trening.
 
