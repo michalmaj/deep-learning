@@ -4,26 +4,24 @@ Język: [English](lecture.en.md) | **Polski**
 
 ## Cele wykładu
 
-Po tym wykładzie powinieneś/powinnaś umieć:
-
 1. wskazać, czym *deep learning* (DL) różni się od klasycznego uczenia maszynowego (ML), i podać konkretny przykład tej różnicy,
 2. zdefiniować **tensor** przez cztery jego faktyczne własności (rangę, kształt, typ danych, urządzenie), a nie tylko jako "uogólnioną macierz",
-3. wyprowadzić gradient funkcji straty MSE względem parametrów modelu liniowego — krok po kroku, z regułą łańcuchową — i zweryfikować go numerycznie za pomocą automatycznego różniczkowania (*autograd*) w PyTorch,
+3. wyprowadzić gradient funkcji straty MSE względem parametrów modelu liniowego za pomocą reguły łańcuchowej i zweryfikować go numerycznie przy użyciu automatycznego różniczkowania (*autograd*) w PyTorch,
 4. zbudować od zera pętlę treningową (*forward → strata → backward → aktualizacja parametrów*), która działa tak samo na CPU, jak i na GPU.
 
 ## Dlaczego to jest ważne
 
-Każdy kolejny wykład tego kursu — MLP, backpropagation, optymalizatory, CNN, transformery — jest wariantem tego samego szkieletu: mamy dane, model z parametrami, miarę błędu i procedurę, która iteracyjnie poprawia parametry. Jeśli ten szkielet zrozumiesz tutaj, na przykładzie tak prostym, że można go policzyć na kartce, każdy kolejny, bardziej złożony model będzie tej samej historii ciągiem, a nie nową magią.
+Każdy kolejny temat, od MLP i propagacji wstecznej po CNN i transformery, opiera się na tym samym schemacie. Potrzebne są dane, model z parametrami, miara błędu oraz procedura, która stopniowo poprawia parametry. Tutaj ten schemat przedstawiono na przykładzie, który można policzyć na kartce. Bardziej złożone modele rozwijają tę samą ideę.
 
-Jest to też ważne inżynierskie rozstrzygnięcie: deep learning nie jest "lepszym ML we wszystkich przypadkach" — to konkretny zestaw kompromisów (ilość danych, czas treningu, koszt obliczeniowy, interpretowalność), który czasem wygrywa, a czasem przegrywa z prostszym modelem. Umiejętność rozpoznania, kiedy sięgnąć po który, jest częścią warsztatu inżyniera, nie tylko akademicką ciekawostką.
+Ma to również znaczenie przy wyborze rozwiązania. Deep learning nie jest lepszy od klasycznego ML w każdym przypadku. Wymaga uwzględnienia ilości danych, czasu treningu, kosztu obliczeń i interpretowalności. Czasem te wymagania są uzasadnione, a czasem lepiej sprawdzi się prostszy model. Taka ocena należy do podstawowych decyzji inżynierskich.
 
 ## Intuicja
 
 ### Czym różni się deep learning od klasycznego ML
 
-W klasycznym uczeniu maszynowym typowy proces wygląda tak: ekspert domenowy analizuje dane i **ręcznie projektuje cechy** (*features*) — np. dla rozpoznawania cyfr pisanych ręcznie mogą to być: liczba zamkniętych pętli, krzywizna linii, liczba punktów przecięcia. Te cechy trafiają do relatywnie prostego modelu (regresja liniowa/logistyczna, SVM, drzewo decyzyjne), który uczy się, jak je kombinować, by dobrze przewidywać etykietę.
+W klasycznym uczeniu maszynowym ekspert dziedzinowy analizuje dane i **ręcznie projektuje cechy** (*features*). Przy rozpoznawaniu cyfr pisanych ręcznie mogą to być liczba zamkniętych pętli, krzywizna linii lub liczba punktów przecięcia. Cechy trafiają następnie do stosunkowo prostego modelu, na przykład regresji liniowej, regresji logistycznej, SVM albo drzewa decyzyjnego. Model uczy się łączyć je tak, aby poprawnie przewidywać etykietę.
 
-W deep learning ten podział na "ręczne cechy" i "prosty model" zanika. Model składa się z wielu warstw różniczkowalnych przekształceń, które **same uczą się własnych reprezentacji danych** — a cały ten stos warstw jest trenowany *end-to-end* tą samą procedurą gradientową, od surowych (lub mało przetworzonych) danych wejściowych aż do predykcji.
+W deep learningu podział na ręcznie przygotowane cechy i prosty model zanika. Model składa się z wielu warstw różniczkowalnych przekształceń, które **uczą się reprezentacji danych**. Cały układ jest trenowany *end-to-end* tą samą procedurą gradientową, od surowych lub wstępnie przetworzonych danych aż do predykcji.
 
 ```mermaid
 flowchart LR
@@ -40,32 +38,32 @@ flowchart LR
     end
 ```
 
-Ważne: **obie rodziny metod łączy ten sam mechanizm** — zdefiniuj miarę błędu, dostosowuj parametry, żeby ten błąd zmniejszyć. Różnica jest w tym, *co* jest dostosowywane: w ML zwykle niewielka liczba parametrów prostego modelu działającego na z góry ustalonych cechach; w DL — zwykle bardzo wiele parametrów, rozmieszczonych w wielu warstwach, które same wypracowują sobie użyteczną reprezentację danych w trakcie treningu.
+**Obie rodziny metod wykorzystują ten sam mechanizm**. Najpierw definiuje się miarę błędu, a następnie dostosowuje parametry, aby ten błąd zmniejszyć. Różnica dotyczy tego, *co* podlega dostosowaniu. W klasycznym ML jest to zwykle niewielka liczba parametrów modelu działającego na wcześniej ustalonych cechach. W DL parametrów jest znacznie więcej i są rozmieszczone w wielu warstwach, które podczas treningu tworzą użyteczną reprezentację danych.
 
-Konsekwencja praktyczna: deep learning potrzebuje zwykle więcej danych i więcej obliczeń niż klasyczne ML dla tego samego zadania, bo model musi "wymyślić" cechy sam, a nie dostać je gotowe od eksperta. W zamian, przy wystarczającej ilości danych, często radzi sobie z problemami, w których ręczne zaprojektowanie cech jest w praktyce niewykonalne (surowy obraz, surowy dźwięk, surowy tekst).
+W praktyce deep learning potrzebuje zwykle więcej danych i obliczeń niż klasyczne ML dla tego samego zadania. Model musi nauczyć się cech, zamiast otrzymać je od eksperta. Przy odpowiedniej ilości danych pozwala to rozwiązywać problemy, w których ręczne projektowanie cech byłoby niewykonalne, na przykład podczas pracy z surowym obrazem, dźwiękiem lub tekstem.
 
 ### Czym jest tensor
 
-W matematyce i fizyce tensor to obiekt, który uogólnia skalar, wektor i macierz na dowolną liczbę wymiarów (*rang*, ang. *rank*). W bibliotekach do deep learningu (PyTorch, ale też NumPy dla tablic) słowo "tensor" oznacza praktycznie: **wielowymiarową tablicę liczb o jednym typie danych**, opisaną przez:
+W matematyce i fizyce tensor uogólnia skalar, wektor i macierz na dowolną liczbę wymiarów (*rank*). W bibliotekach używanych w deep learningu tensor oznacza zwykle **wielowymiarową tablicę liczb o jednym typie danych**. Opisują ją cztery właściwości.
 
-- **rangę** (*rank*) — liczbę wymiarów (skalar: ranga 0, wektor: ranga 1, macierz: ranga 2, np. batch obrazów RGB: ranga 4),
-- **kształt** (*shape*) — rozmiar każdego wymiaru, np. `(32, 3, 28, 28)` dla 32 obrazów RGB 28×28,
-- **typ danych** (*dtype*) — np. `float32`, `int64`,
-- **urządzenie** (*device*) — gdzie fizycznie leżą dane w pamięci: `cpu` albo `cuda` (GPU).
+- **ranga** (*rank*), czyli liczba wymiarów. Skalar ma rangę 0, wektor 1, macierz 2, a partia obrazów RGB zwykle 4;
+- **kształt** (*shape*), czyli rozmiar każdego wymiaru, na przykład `(32, 3, 28, 28)` dla 32 obrazów RGB o rozmiarze 28×28;
+- **typ danych** (*dtype*), na przykład `float32` albo `int64`;
+- **urządzenie** (*device*), czyli miejsce przechowywania danych, takie jak `cpu` lub `cuda` (GPU).
 
-To ostatnie — urządzenie — jest czymś, czego nie ma zwykła tablica NumPy, i to jest praktyczna różnica, która będzie nam towarzyszyć przez cały kurs: `torch.Tensor` wie, na jakim urządzeniu "żyje", i operacja między dwoma tensorami wymaga, by były na tym samym urządzeniu.
+Informacja o urządzeniu odróżnia `torch.Tensor` od zwykłej tablicy NumPy. Operacja na dwóch tensorach wymaga, aby oba znajdowały się na tym samym urządzeniu.
 
 ## Formalny model
 
-Zadanie uczenia nadzorowanego formalizujemy tak:
+Uczenie nadzorowane można opisać za pomocą następujących elementów.
 
-- mamy zbiór danych $\{(x_i, y_i)\}_{i=1}^{N}$ — $N$ przykładów, każdy to para (wejście, cel),
-- mamy **model** $f(x; \theta)$ — funkcję parametryzowaną wektorem parametrów $\theta$, która dla wejścia $x$ zwraca predykcję $\hat{y} = f(x; \theta)$,
-- mamy **funkcję straty** $\ell(\hat{y}, y)$ — liczbę mówiącą, jak bardzo predykcja różni się od celu dla jednego przykładu,
-- **strata na zbiorze danych** to zwykle średnia: $L(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell\big(f(x_i; \theta), y_i\big)$,
-- **trening** to znalezienie $\theta^\*$, które minimalizuje $L(\theta)$ — w praktyce nie "rozwiązujemy" tego od razu, ale **iteracyjnie** poprawiamy $\theta$, krok po kroku, w kierunku, który zmniejsza $L$.
+- Zbiór danych $\{(x_i, y_i)\}_{i=1}^{N}$ zawiera $N$ przykładów. Każdy przykład jest parą złożoną z wejścia i wartości docelowej.
+- **Model** $f(x; \theta)$ jest funkcją parametryzowaną wektorem $\theta$. Dla wejścia $x$ zwraca predykcję $\hat{y} = f(x; \theta)$.
+- **Funkcja straty** $\ell(\hat{y}, y)$ określa, jak bardzo predykcja różni się od wartości docelowej dla jednego przykładu.
+- **Strata na zbiorze danych** jest zwykle średnią $L(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell\big(f(x_i; \theta), y_i\big)$.
+- **Trening** służy znalezieniu $\theta^\*$ minimalizującego $L(\theta)$. W praktyce parametry $\theta$ poprawia się iteracyjnie, wybierając kierunek zmniejszający stratę.
 
-Ten ostatni punkt to cały "mechanizm uczenia": powtarzaj (*forward* → policz stratę → policz gradient straty względem parametrów → zaktualizuj parametry), aż strata przestanie się istotnie zmniejszać.
+Mechanizm uczenia powtarza cztery kroki: przejście w przód, obliczenie straty, obliczenie gradientu względem parametrów oraz aktualizację parametrów. Proces trwa do chwili, gdy strata przestaje się istotnie zmniejszać.
 
 ```mermaid
 flowchart LR
@@ -76,7 +74,7 @@ flowchart LR
     U -.kolejna iteracja.-> F
 ```
 
-W tym wykładzie $f$ będzie najprostszym możliwym modelem — **regresją liniową jednej zmiennej** — właśnie żeby cały ten schemat dało się policzyć na kartce, zanim w wykładzie 2 i 3 $f$ stanie się siecią wielowarstwową, a procedura liczenia gradientu — backpropagation.
+W tym wykładzie funkcję $f$ stanowi **regresja liniowa jednej zmiennej**. Prosty model pozwala policzyć cały proces na kartce. W wykładach 2 i 3 funkcję tę zastąpi sieć wielowarstwowa, a gradient będzie obliczany za pomocą propagacji wstecznej.
 
 ## Matematyka
 
@@ -88,48 +86,48 @@ $$\hat{y}_i = w \cdot x_i + b$$
 
 gdzie:
 
-- $x_i$ — wartość cechy wejściowej dla przykładu $i$,
-- $w$ — **waga** (*weight*), parametr opisujący nachylenie,
-- $b$ — **bias** (wyraz wolny), parametr opisujący przesunięcie,
-- $\hat{y}_i$ — predykcja modelu dla przykładu $i$.
+- $x_i$ oznacza wartość cechy wejściowej dla przykładu $i$;
+- $w$ to **waga** (*weight*), czyli parametr opisujący nachylenie;
+- $b$ to **bias** (wyraz wolny), czyli parametr opisujący przesunięcie;
+- $\hat{y}_i$ oznacza predykcję modelu dla przykładu $i$.
 
-Jako funkcję straty bierzemy **błąd średniokwadratowy** (*Mean Squared Error*, MSE):
+Funkcją straty jest **błąd średniokwadratowy** (*Mean Squared Error*, MSE):
 
 $$L(w, b) = \frac{1}{N}\sum_{i=1}^{N} (\hat{y}_i - y_i)^2 = \frac{1}{N}\sum_{i=1}^{N} (w x_i + b - y_i)^2$$
 
-gdzie $y_i$ to prawdziwa (obserwowana) wartość celu dla przykładu $i$, a $N$ — liczba przykładów. Podnoszenie do kwadratu ma dwa zadania: usuwa znak błędu (nie obchodzi nas, czy pomyliliśmy się w górę czy w dół) i silniej karze duże błędy niż małe.
+Wartość $y_i$ jest obserwowaną wartością docelową dla przykładu $i$, a $N$ oznacza liczbę przykładów. Podniesienie błędu do kwadratu usuwa jego znak i mocniej karze duże odchylenia niż małe.
 
-### Gradient — krok po kroku z regułą łańcuchową
+### Gradient obliczony za pomocą reguły łańcuchowej
 
-Żeby zmniejszać $L$, potrzebujemy wiedzieć, jak $L$ zmienia się przy małej zmianie $w$ i przy małej zmianie $b$ — to są pochodne cząstkowe $\partial L / \partial w$ i $\partial L / \partial b$.
+Aby zmniejszyć $L$, trzeba określić wpływ niewielkich zmian $w$ i $b$ na wartość funkcji. Opisują go pochodne cząstkowe $\partial L / \partial w$ oraz $\partial L / \partial b$.
 
-$L$ jest **złożeniem dwóch funkcji**: funkcji zewnętrznej "podnieś do kwadratu" i funkcji wewnętrznej "policz predykcję liniową". To jest dokładnie sytuacja, w której działa **reguła łańcuchowa** (*chain rule*) znana z rachunku różniczkowego: jeśli $L = g(h(w))$, to $\frac{dL}{dw} = g'(h(w)) \cdot h'(w)$.
+Funkcja $L$ jest **złożeniem dwóch funkcji**. Funkcja wewnętrzna oblicza predykcję liniową, a zewnętrzna podnosi wynikający z niej błąd do kwadratu. Stosuje się więc **regułę łańcuchową** (*chain rule*). Jeśli $L = g(h(w))$, wówczas $\frac{dL}{dw} = g'(h(w)) \cdot h'(w)$.
 
-Dla jednego przykładu $i$, niech $e_i = \hat{y}_i - y_i$ (błąd, czyli predykcja minus cel) będzie funkcją wewnętrzną w sensie "podnoszenia do kwadratu": składnik straty to $e_i^2$.
+Dla przykładu $i$ błąd wynosi $e_i = \hat{y}_i - y_i$, czyli predykcja minus wartość docelowa. Odpowiadający mu składnik straty ma postać $e_i^2$.
 
-- Pochodna zewnętrzna (po $e_i$): $\frac{\partial (e_i^2)}{\partial e_i} = 2 e_i$.
-- Pochodna wewnętrzna (po $w$): $e_i = w x_i + b - y_i$, więc $\frac{\partial e_i}{\partial w} = x_i$ (bo $b$ i $y_i$ nie zależą od $w$, a $w x_i$ różniczkujemy po $w$).
-- Pochodna wewnętrzna (po $b$): $\frac{\partial e_i}{\partial b} = 1$.
+- Pochodna zewnętrzna po $e_i$ wynosi $\frac{\partial (e_i^2)}{\partial e_i} = 2 e_i$.
+- Dla $e_i = w x_i + b - y_i$ pochodna wewnętrzna po $w$ wynosi $\frac{\partial e_i}{\partial w} = x_i$. Wartości $b$ i $y_i$ nie zależą od $w$.
+- Pochodna wewnętrzna po $b$ wynosi $\frac{\partial e_i}{\partial b} = 1$.
 
-Łącząc regułą łańcuchową i uśredniając po $N$ przykładach (stała $\frac{1}{N}$ wychodzi przed sumę):
+Po zastosowaniu reguły łańcuchowej i uśrednieniu wyniku dla $N$ przykładów otrzymuje się:
 
 $$\frac{\partial L}{\partial w} = \frac{1}{N}\sum_{i=1}^{N} 2 e_i \cdot x_i = \frac{2}{N}\sum_{i=1}^{N} (\hat{y}_i - y_i)\, x_i$$
 
 $$\frac{\partial L}{\partial b} = \frac{1}{N}\sum_{i=1}^{N} 2 e_i \cdot 1 = \frac{2}{N}\sum_{i=1}^{N} (\hat{y}_i - y_i)$$
 
-To dwuetapowe rozumowanie — "policz lokalną pochodną każdego kroku, pomnóż je przez siebie" — jest w miniaturze dokładnie tym, co w wykładzie 3 nazwiemy *backpropagation* na grafie obliczeniowym z wieloma warstwami. Tu mamy tylko dwa kroki (kwadrat, potem liniowa funkcja), tam będzie ich znacznie więcej, ale zasada się nie zmienia.
+W każdym kroku obliczana jest lokalna pochodna, a kolejne wyniki są przez siebie mnożone. Ta sama zasada stanowi podstawę *backpropagation* w wielowarstwowym grafie obliczeniowym, omówionego w wykładzie 3. Zwiększa się liczba operacji, ale sposób obliczania pozostaje ten sam.
 
 ### Reguła aktualizacji (spadek gradientu)
 
-Gradient $\big(\frac{\partial L}{\partial w}, \frac{\partial L}{\partial b}\big)$ wskazuje kierunek **najszybszego wzrostu** $L$ w okolicy aktualnego $(w, b)$. Żeby zmniejszać stratę, robimy krok w kierunku *przeciwnym* do gradientu:
+Gradient $\big(\frac{\partial L}{\partial w}, \frac{\partial L}{\partial b}\big)$ wskazuje kierunek **najszybszego wzrostu** $L$ w pobliżu aktualnego punktu $(w, b)$. Zmniejszenie straty wymaga kroku w kierunku *przeciwnym* do gradientu.
 
 $$w \leftarrow w - \eta \frac{\partial L}{\partial w}, \qquad b \leftarrow b - \eta \frac{\partial L}{\partial b}$$
 
-gdzie $\eta$ (*learning rate*, współczynnik uczenia) to mały dodatni skalar kontrolujący długość kroku. Zbyt duże $\eta$ może sprawić, że kroki "przeskoczą" minimum i strata zacznie rosnąć; zbyt małe — że trening będzie zbieżny, ale bardzo wolno. To zagadnienie w pełni rozwiniemy w wykładzie 4 (optymalizatory); tutaj wystarczy nam intuicja i jedna krótka demonstracja w notebooku.
+Współczynnik uczenia $\eta$ (*learning rate*) jest małym dodatnim skalarem, który określa długość kroku. Zbyt duża wartość może powodować przeskakiwanie minimum i wzrost straty. Zbyt mała prowadzi do wolnej zbieżności. Temat ten zostanie rozwinięty w wykładzie 4 poświęconym optymalizatorom. Tutaj wystarczy intuicja oraz krótka demonstracja w notebooku.
 
 ## Przykład rozwiązany
 
-Policzmy jeden krok spadku gradientu ręcznie, żeby można było zweryfikować notebook "na kartce". Dane (bez szumu, dokładnie z relacji $y = 2x + 1$):
+Poniższe obliczenie przedstawia jeden ręczny krok spadku gradientu. Umożliwia ono sprawdzenie wyniku notebooka na kartce. Dane są pozbawione szumu i pochodzą dokładnie z zależności $y = 2x + 1$.
 
 | $i$ | $x_i$ | $y_i$ |
 |---|---|---|
@@ -137,96 +135,96 @@ Policzmy jeden krok spadku gradientu ręcznie, żeby można było zweryfikować 
 | 2 | 2 | 5 |
 | 3 | 3 | 7 |
 
-Start: $w = 0$, $b = 0$, $N = 3$, $\eta = 0.1$.
+Wartości początkowe to $w = 0$, $b = 0$, $N = 3$ oraz $\eta = 0.1$.
 
-**Predykcje i błędy** ($\hat{y}_i = 0 \cdot x_i + 0 = 0$ dla wszystkich): $e_1 = 0 - 3 = -3$, $e_2 = 0 - 5 = -5$, $e_3 = 0 - 7 = -7$.
+**Predykcje i błędy.** Dla wszystkich przykładów $\hat{y}_i = 0 \cdot x_i + 0 = 0$. Stąd $e_1 = 0 - 3 = -3$, $e_2 = 0 - 5 = -5$ oraz $e_3 = 0 - 7 = -7$.
 
-**Strata początkowa:**
+**Strata początkowa**
 
 $$L = \frac{1}{3}\big((-3)^2 + (-5)^2 + (-7)^2\big) = \frac{9 + 25 + 49}{3} = \frac{83}{3} \approx 27{,}667$$
 
-**Gradienty:**
+**Gradienty**
 
 $$\frac{\partial L}{\partial w} = \frac{2}{3}\big((-3)(1) + (-5)(2) + (-7)(3)\big) = \frac{2}{3}(-34) \approx -22{,}667$$
 
 $$\frac{\partial L}{\partial b} = \frac{2}{3}(-3 - 5 - 7) = \frac{2}{3}(-15) = -10$$
 
-**Aktualizacja:**
+**Aktualizacja**
 
 $$w \leftarrow 0 - 0{,}1 \cdot (-22{,}667) = 2{,}2667, \qquad b \leftarrow 0 - 0{,}1 \cdot (-10) = 1{,}0$$
 
-**Strata po jednym kroku** (z nowymi $w = 2{,}2667$, $b = 1{,}0$): predykcje to $3{,}2667$, $5{,}5333$, $7{,}8$, błędy to $0{,}2667$, $0{,}5333$, $0{,}8$, więc
+**Strata po jednym kroku.** Dla nowych wartości $w = 2{,}2667$ i $b = 1{,}0$ predykcje wynoszą $3{,}2667$, $5{,}5333$ i $7{,}8$. Odpowiadające im błędy to $0{,}2667$, $0{,}5333$ oraz $0{,}8$. Zatem
 
 $$L_{\text{nowa}} = \frac{0{,}0711 + 0{,}2844 + 0{,}64}{3} \approx 0{,}332$$
 
-Jeden krok zmniejszył stratę z $\approx 27{,}667$ do $\approx 0{,}332$ — bo dane są bez szumu i dobrze "skalowane". W notebooku zobaczysz, że PyTorch (`.backward()`) da te same wartości gradientu co powyższe wzory, i że dla danych z szumem strata nie spadnie do zera, tylko do poziomu wyznaczonego przez wariancję szumu.
+Jeden krok zmniejszył stratę z $\approx 27{,}667$ do $\approx 0{,}332$. Tak duży spadek wynika z braku szumu i odpowiedniej skali danych. Notebook potwierdza, że metoda `.backward()` w PyTorch daje te same wartości gradientu co powyższe wzory. Dla danych z szumem strata nie spada do zera, lecz zatrzymuje się na poziomie zależnym od wariancji szumu.
 
 ## Eksperyment
 
-Notebook [`examples.ipynb`](examples.ipynb) implementuje dokładnie ten mechanizm na syntetycznych danych z szumem ($y = a_{\text{true}} x + b_{\text{true}} + \varepsilon$):
+Notebook [`examples.ipynb`](examples.ipynb) przedstawia ten sam mechanizm na syntetycznych danych z szumem, opisanych zależnością $y = a_{\text{true}} x + b_{\text{true}} + \varepsilon$.
 
 1. generuje dane syntetyczne z ustalonym ziarnem losowości (reprodukowalność),
 2. tworzy parametry `w`, `b` jako tensory z `requires_grad=True`,
-3. w pętli treningowej: liczy predykcję (*forward*), stratę MSE, wywołuje `loss.backward()`, a następnie **ręcznie** (bez `optim`) aktualizuje `w` i `b` pod `torch.no_grad()`,
-4. **weryfikuje gradient z autograd względem wzoru wyprowadzonego wyżej** — różnica powinna być rzędu błędu numerycznego float32,
-5. rysuje: (a) dopasowaną linię na tle danych w kilku punktach treningu, (b) krzywą straty w funkcji iteracji,
+3. w pętli treningowej oblicza predykcję (*forward*) i stratę MSE, wywołuje `loss.backward()`, a następnie **ręcznie**, bez `optim`, aktualizuje `w` i `b` wewnątrz `torch.no_grad()`,
+4. **porównuje gradient z autograd ze wzorem wyprowadzonym wyżej**. Różnica powinna odpowiadać błędowi numerycznemu typu float32,
+5. rysuje dopasowaną linię na tle danych w kilku punktach treningu oraz krzywą straty w funkcji iteracji,
 6. demonstruje krótko, co się dzieje, gdy $\eta$ jest zbyt duże (strata rośnie/oscyluje, zamiast spadać).
 
-Cały notebook działa na CPU; urządzenie wybierane jest automatycznie (`torch.device("cuda" if torch.cuda.is_available() else "cpu")`), więc ten sam kod zadziała bez zmian na maszynie z GPU.
+Notebook działa na CPU, a urządzenie jest wybierane automatycznie przez `torch.device("cuda" if torch.cuda.is_available() else "cpu")`. Ten sam kod można więc uruchomić bez zmian na maszynie z GPU.
 
-## Co obserwujemy
+## Obserwacje
 
-- Strata spada najszybciej na początku treningu, a potem coraz wolniej (krzywa straty jest wypukła i "wypłaszcza się" w okolicy minimum) — to typowy przebieg dla problemu wypukłego, jakim jest regresja liniowa z MSE.
-- Wyuczone $w$, $b$ zbliżają się do $a_{\text{true}}$, $b_{\text{true}}$, ale **nie dokładnie** do nich — bo dane zawierają szum, a model nie ma dostępu do "prawdziwej" funkcji, tylko do jej zaszumionej próbki.
-- Strata nie spada do zera nawet po bardzo wielu iteracjach — to nie błąd, to **nieredukowalny błąd** (*irreducible error*) wynikający z szumu w danych: nawet idealny model nie przewidzi szumu, który z definicji jest nieprzewidywalny.
-- Gradient policzony ręcznie ze wzoru i gradient z `autograd` są (do błędu numerycznego) identyczne — to jest **dowód empiryczny**, że autograd robi "to samo", co wyprowadziliśmy na papierze, a nie coś magicznego.
-- Przy zbyt dużym $\eta$ strata w kolejnych iteracjach rośnie albo oscyluje, zamiast konsekwentnie spadać — kroki aktualizacji "przestrzeliwują" minimum.
+- Strata spada najszybciej na początku treningu, a następnie coraz wolniej. Wypukła krzywa straty wypłaszcza się w pobliżu minimum. Taki przebieg jest typowy dla regresji liniowej z MSE.
+- Wyuczone $w$ i $b$ zbliżają się do $a_{\text{true}}$ i $b_{\text{true}}$, ale nie osiągają ich dokładnie. Dane zawierają szum, a model ma dostęp jedynie do zaszumionej próbki funkcji.
+- Strata nie spada do zera nawet po wielu iteracjach. Jest to **błąd nieredukowalny** (*irreducible error*) wynikający z szumu. Nawet idealny model nie przewidzi wartości, która z definicji jest losowa.
+- Gradient obliczony ręcznie i gradient zwrócony przez `autograd` są identyczne z dokładnością do błędu numerycznego. Wynik potwierdza zgodność automatycznego różniczkowania z wyprowadzonym wzorem.
+- Przy zbyt dużym $\eta$ strata rośnie lub oscyluje. Kroki aktualizacji przekraczają wówczas minimum.
 
 ## Częste błędne przekonania
 
-❌ Gradient $\partial L/\partial \theta$ mówi nam, "jak bardzo się pomyliliśmy" dla każdego parametru.
+❌ Gradient $\partial L/\partial \theta$ określa wielkość błędu przypisanego do każdego parametru.
 
-✅ Gradient mówi, w którą stronę i jak silnie *lokalnie* rośnie strata, jeśli dany parametr nieznacznie zwiększymy. To kierunek najszybszego wzrostu funkcji w danym punkcie — nic więcej. Dlatego aktualizujemy ze znakiem minus: idziemy w stronę przeciwną do gradientu.
+✅ Gradient określa kierunek i tempo *lokalnego* wzrostu straty przy niewielkiej zmianie parametru. Wskazuje kierunek najszybszego wzrostu funkcji w danym punkcie. Znak minus w regule aktualizacji kieruje krok w przeciwną stronę.
 
 ❌ Deep learning to po prostu "ML z większą liczbą warstw".
 
-✅ Kluczowa różnica to **uczenie reprezentacji**: w DL model sam wypracowuje użyteczne cechy danych w trakcie treningu end-to-end, zamiast dostawać je od eksperta. Liczba warstw jest konsekwencją tego podejścia, nie jego definicją — jednowarstwowy model też może być "deep learningowy" w duchu (choć w praktyce DL kojarzy się z modelami wielowarstwowymi).
+✅ Różnicę stanowi **uczenie reprezentacji**. W DL model tworzy użyteczne cechy podczas treningu *end-to-end*, zamiast otrzymać je od eksperta. Wiele warstw jest konsekwencją tego podejścia, a nie jego pełną definicją.
 
 ❌ Tensor w PyTorch to po prostu inna nazwa macierzy albo tablicy NumPy.
 
-✅ Tensor uogólnia skalar/wektor/macierz na dowolną rangę i — co ważne praktycznie — niesie ze sobą informację o urządzeniu (`device`) i (opcjonalnie) o grafie obliczeniowym do automatycznego różniczkowania (`requires_grad`). Matematycznie macierz jest tensorem rangi 2; różnica jest w tym, co framework dodatkowo "wie" o tym obiekcie.
+✅ Tensor uogólnia skalar, wektor i macierz na dowolną rangę. Zawiera też informację o urządzeniu (`device`) oraz opcjonalnie o grafie obliczeniowym używanym przez automatyczne różniczkowanie (`requires_grad`). Matematycznie macierz jest tensorem rangi 2. Różnica dotyczy dodatkowych informacji przechowywanych przez framework.
 
 ❌ Więcej iteracji/epok treningu to zawsze lepszy model.
 
-✅ W tym wykładzie, na wypukłym problemie bez nadmiarowych parametrów, dłuższy trening zwykle pomaga (do granicy nieredukowalnego błędu z szumu). Ale już w wykładzie 5 zobaczysz, że dla modeli z dużą liczbą parametrów zbyt długi trening prowadzi do *przeuczenia* (overfitting) — model zaczyna "zapamiętywać" szum danych treningowych, a jego jakość na nowych danych spada.
+✅ W wypukłym problemie bez nadmiarowych parametrów dłuższy trening zwykle pomaga aż do granicy błędu nieredukowalnego. W modelach z dużą liczbą parametrów może jednak prowadzić do *przeuczenia* (*overfitting*). Model zaczyna dopasowywać się do szumu danych treningowych, a jego jakość na nowych danych spada. Zjawisko to opisano w wykładzie 5.
 
 ## Implikacje inżynierskie
 
-- **Kod niezależny od urządzenia** (*device-agnostic*) nie jest tu "na wszelki wypadek" — to ten sam wzorzec (`torch.device(...)`, `.to(device)`), którym będziemy trenować dużo większe modele na GPU w dalszych wykładach. Lepiej przyzwyczaić się do niego na przykładzie, który i tak działa błyskawicznie na CPU.
-- **Reprodukowalność** przez ustawienie ziarna losowości (`torch.manual_seed`) pozwala innym (i nam samym za tydzień) odtworzyć ten sam wynik. To nie gwarantuje pełnego determinizmu na każdej platformie/sprzęcie (np. niektóre operacje na GPU mogą się różnić), ale dla CPU i tej skali problemu wynik będzie stabilny.
-- **Learning rate jako hiperparametr inżynierski**: ta sama pętla treningowa z różnym $\eta$ daje zupełnie inne zachowanie (zbieżność vs. rozbieżność). W praktyce dobór $\eta$ (i innych hiperparametrów) to jedna z głównych osi pracy inżyniera ML — wrócimy do tego systematycznie w wykładzie 4.
-- **Precyzja numeryczna**: domyślny typ danych w PyTorch to `float32` (32-bitowy), nie `float64` jak domyślnie w NumPy — to świadomy kompromis między precyzją a zużyciem pamięci/szybkością, który staje się istotny, gdy model ma miliony parametrów.
-- **Skala**: ta pętla treningowa operuje na całym zbiorze danych naraz (tzw. *full-batch* gradient descent). Przy większych zbiorach danych tak się nie robi z powodów pamięciowych — stąd *mini-batche* i `DataLoader`, które poznamy, gdy zbiory danych w laboratoriach przestaną się mieścić w pojedynczym tensorze "za darmo".
+- **Kod niezależny od urządzenia** (*device-agnostic*) wykorzystuje `torch.device(...)` oraz `.to(device)`. Ten sam wzorzec służy do trenowania większych modeli na GPU. W tym przykładzie można go sprawdzić bez kosztownego treningu.
+- **Reprodukowalność** wymaga między innymi ustawienia ziarna losowości przez `torch.manual_seed`. Pozwala to ponownie uzyskać ten sam wynik. Nie gwarantuje jednak pełnego determinizmu na każdym sprzęcie, ponieważ niektóre operacje GPU mogą zachowywać się inaczej. Dla CPU i tak małego problemu wynik pozostaje stabilny.
+- **Współczynnik uczenia jako hiperparametr** zmienia zachowanie tej samej pętli treningowej. W zależności od $\eta$ trening może być zbieżny lub rozbieżny. Dobór współczynnika uczenia i pozostałych hiperparametrów jest stałym elementem pracy nad modelem. Temat wraca w wykładzie 4.
+- **Precyzja numeryczna** wpływa na szybkość obliczeń i zużycie pamięci. Domyślnym typem danych w PyTorch jest 32-bitowy `float32`, podczas gdy NumPy domyślnie używa `float64`. Znaczenie tego kompromisu rośnie wraz z liczbą parametrów modelu.
+- **Skala danych** decyduje o sposobie prowadzenia treningu. Tutaj cała próbka jest przetwarzana jednocześnie za pomocą *full-batch gradient descent*. Większe zbiory dzieli się na *mini-batche* i wczytuje za pomocą `DataLoader`, ponieważ nie mieszczą się w pamięci jako pojedynczy tensor.
 
 ## Co warto zapamiętać
 
-- ML i DL rozwiązują to samo zadanie (zmniejsz miarę błędu, dostosowując parametry); DL różni się tym, że sam uczy się reprezentacji danych, zamiast dostawać ręcznie zaprojektowane cechy.
-- Tensor = tablica wielowymiarowa + ranga/kształt/dtype + **urządzenie** (+ opcjonalnie historia operacji do autograd).
-- Gradient straty MSE dla regresji liniowej wyprowadza się dwuetapową regułą łańcuchową — to miniaturowa wersja backpropagation z wykładu 3.
-- `autograd` liczy dokładnie to, co można wyprowadzić ręcznie — notebook to pokazuje liczbowo, nie tylko deklaratywnie.
-- Pętla treningowa to zawsze: forward → strata → gradient → aktualizacja, niezależnie od tego, jak skomplikowany jest model.
+- ML i DL zmniejszają miarę błędu przez dostosowanie parametrów. DL dodatkowo uczy się reprezentacji danych, zamiast korzystać wyłącznie z ręcznie zaprojektowanych cech.
+- Tensor jest wielowymiarową tablicą opisaną przez rangę, kształt, typ danych i urządzenie. Może też przechowywać historię operacji potrzebną do automatycznego różniczkowania.
+- Gradient straty MSE dla regresji liniowej można wyprowadzić za pomocą dwuetapowej reguły łańcuchowej. Jest to uproszczona wersja propagacji wstecznej z wykładu 3.
+- `autograd` oblicza te same wartości, które wynikają z ręcznego wyprowadzenia. Notebook potwierdza to numerycznie.
+- Pętla treningowa zawsze obejmuje przejście w przód, obliczenie straty i gradientu oraz aktualizację parametrów.
 
 ## Pytania dla studentów
 
-1. Dlaczego przy zbyt dużym współczynniku uczenia $\eta$ strata może zacząć rosnąć, a nie spadać? Odwołaj się do interpretacji gradientu jako kierunku najszybszego wzrostu.
+1. Dlaczego przy zbyt dużym współczynniku uczenia $\eta$ strata może zacząć rosnąć, zamiast spadać? Jak wyjaśnia to interpretacja gradientu jako kierunku najszybszego wzrostu?
 2. Czym tensor w PyTorch *faktycznie* różni się od tablicy NumPy, a czym się nie różni matematycznie?
-3. Dane w eksperymencie zawierają szum, dlatego strata nie spada do zera. Czy to oznacza, że model jest "słaby"? Uzasadnij.
-4. Podaj przykład zadania, w którym klasyczne ML z ręcznie zaprojektowanymi cechami może być lepszym wyborem inżynierskim niż deep learning — i uzasadnij to argumentem innym niż "mało danych".
+3. Dane w eksperymencie zawierają szum, dlatego strata nie spada do zera. Czy oznacza to słabość modelu? Dlaczego?
+4. W jakim zadaniu klasyczne ML z ręcznie zaprojektowanymi cechami może być lepszym wyborem inżynierskim niż deep learning? Jaki argument, poza małą ilością danych, przemawia za takim wyborem?
 
 ## Bibliografia
 
-- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/ — rozdział 1 dla szerszego kontekstu historycznego i definicyjnego ML vs. DL.
-- PyTorch Contributors. *torch.Tensor* — dokumentacja. https://pytorch.org/docs/stable/tensors.html
-- PyTorch Contributors. *Autograd mechanics* — dokumentacja. https://pytorch.org/docs/stable/notes/autograd.html
+- Goodfellow, I., Bengio, Y., Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/. Rozdział 1 przedstawia szerszy kontekst historyczny oraz różnice między ML i DL.
+- PyTorch Contributors. Dokumentacja *torch.Tensor*. https://pytorch.org/docs/stable/tensors.html
+- PyTorch Contributors. Dokumentacja *Autograd mechanics*. https://pytorch.org/docs/stable/notes/autograd.html
 
-Pełne wpisy bibliograficzne: [`references/references.bib`](../../references/references.bib).
+Pełne wpisy znajdują się w pliku [`references/references.bib`](../../references/references.bib).
