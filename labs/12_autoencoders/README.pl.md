@@ -1,297 +1,202 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 12: wykrywanie anomalii za pomocą autoenkodera i analiza ograniczeń rekonstrukcji
+# Laboratorium 12. Detekcja anomalii za pomocą autoenkodera
 
-Czas: ok. 120 minut. Bazuje na
-[`lectures/12_autoencoders/lecture.md`](../../lectures/12_autoencoders/lecture.md)
-(AE, VAE, przestrzeń latentna), ale to **inny problem** niż eksperyment
-wykładowy: nie generowanie nowych obrazów, a **detekcja anomalii** przez
-błąd rekonstrukcji — z naciskiem na to, **kiedy ta metoda zawodzi**, nie
-tylko na to, kiedy działa.
+Laboratorium trwa około 120 minut i korzysta z pojęć opisanych w
+[`lecture.md`](../../lectures/12_autoencoders/lecture.md). Tym razem
+rekonstrukcja służy do wykrywania anomalii, a nie do generowania obrazów.
+Analiza obejmuje zarówno skuteczność metody, jak i przypadki, w których zawodzi.
 
-**Dane**: Fashion-MNIST (MIT License — zobacz
-[`data/registry.yml`](../../data/registry.yml)). **Klasa normalna**:
-*Sneaker* (klasa 7) — wybrana, bo to spójna, jednoznaczna kategoria wizualna
-(konkretny typ obuwia). **Anomalie**: pozostałe 9 klas Fashion-MNIST
-(T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Bag, Ankle
-boot) — traktowane jako "wszystko, co nie jest sneakerem", pedagogicznie
-uzasadnione: w praktycznych zastosowaniach (np. kontrola jakości na linii
-produkcyjnej) "anomalia" często oznacza "coś spoza wąsko zdefiniowanej
-kategorii normalnej", nie jedną konkretną, znaną z góry klasę defektu.
+Używany jest Fashion-MNIST na licencji MIT, zarejestrowany w
+[`data/registry.yml`](../../data/registry.yml). Klasą normalną jest *Sneaker*
+(7), a pozostałe dziewięć klas tworzy anomalie. Odpowiada to sytuacji, w której
+normalność jest wąsko zdefiniowana, a anomalią jest wszystko spoza tej grupy.
 
-❌ "To zadanie klasyfikacji na 10 klas, tylko inaczej nazwane."
+Nie jest to klasyfikacja dziesięciu klas. Autoenkoder podczas treningu nie
+otrzymuje etykiet ani przykładów anomalii. Uczy się wyłącznie rekonstrukcji
+obrazów klasy normalnej.
 
-✅ **Nie** — model (autoenkoder) **nigdy** nie widzi etykiet klas podczas
-treningu, i **nigdy** nie widzi **żadnego** przykładu anomalii podczas
-treningu. Trenujemy wyłącznie na obrazach klasy normalnej, bez etykiet —
-sam fakt "wykrywania anomalii" musi wynikać z tego, jak dobrze model
-rekonstruuje to, czego się nauczył, vs to, czego nie widział.
+## 0. Konfiguracja
 
-## 0. Konfiguracja (gotowe)
+Gotowa część obejmuje importy, wybór urządzenia, ziarno losowości i wczytanie
+Fashion-MNIST przez `torchvision.datasets.FashionMNIST`.
 
-Import bibliotek, urządzenie, ziarno losowości, wczytanie Fashion-MNIST
-(`torchvision.datasets.FashionMNIST`).
+## 1. Dane i podział
 
-## 1. Dane i podział — Twoje zadanie
+Należy przygotować rozłączne podzbiory:
 
-To jest **najważniejszy** krok metodologiczny tego laboratorium — błąd tutaj
-podważa wszystko, co następuje.
+1. **`ae_train`** zawiera tylko obrazy klasy Sneaker z oryginalnego zbioru
+   treningowego. Wyłącznie ten podzbiór trafia do treningu autoenkodera.
+2. **`val_normal`** zawiera inne obrazy klasy Sneaker z oryginalnego zbioru
+   treningowego. Można użyć `torch.randperm` i podziału indeksów klasy 7.
+3. **`val_anomaly`** zawiera próbkę pozostałych klas z oryginalnego zbioru
+   treningowego, najlepiej z równą liczbą obrazów na klasę.
+4. **`test_normal`** i **`test_anomaly`** pochodzą z oryginalnego zbioru
+   testowego. Pierwszy zawiera klasę 7, a drugi próbkę pozostałych klas.
 
-Zbuduj **cztery** rozłączne podzbiory, **bez** przecieku informacji między
-nimi:
+Podzbiory `test_*` służą wyłącznie do jednorazowej oceny końcowej. Nie mogą
+wpływać na architekturę, hiperparametry ani próg detekcji. W notebooku trzeba
+wyświetlić rozmiary wszystkich podzbiorów i programowo potwierdzić rozłączność
+ich indeksów.
 
-1. **`ae_train`** — obrazy **wyłącznie** klasy normalnej (Sneaker), z
-   oryginalnego zbioru treningowego Fashion-MNIST. Autoenkoder widzi
-   **tylko to**.
-2. **`val_normal`** — **inne** obrazy klasy normalnej, z tego samego
-   oryginalnego zbioru treningowego (rozłączne z `ae_train` — podziel zbiór
-   treningowy klasy 7 na dwie części, np. `torch.randperm` + slicing).
-3. **`val_anomaly`** — próbka obrazów **innych** klas, też z oryginalnego
-   zbioru treningowego Fashion-MNIST (np. po równej liczbie z każdej z 9
-   klas).
-4. **`test_normal`**/**`test_anomaly`** — z **oryginalnego zbioru
-   testowego** Fashion-MNIST (osobny, nigdy nie dotykany do tego momentu),
-   odpowiednio: wszystkie obrazy klasy 7, i próbka obrazów innych klas.
+## 2. Autoenkoder
 
-**Zasada, której nie można złamać w żadnym późniejszym kroku:** `test_*`
-**nie może** wpływać na żadną decyzję (architektura, hiperparametry, próg
-detekcji) — używamy go **wyłącznie** do końcowej oceny, raz.
+Należy zaimplementować klasę `AE(nn.Module)` z enkoderem MLP, bottleneckiem i
+dekoderem do obrazu $28\times28$. Funkcja treningowa używa MSE i wyłącznie
+`ae_train`. Główny model dla sekcji 3-7 ma $d_e=16$.
 
-❌ "Mogę potem 'douczyć' albo dostosować próg na podstawie wyników na
-zbiorze testowym, skoro i tak już go mam."
+Trening trwa od ułamka sekundy do kilku sekund na CPU. Większość czasu jest
+przeznaczona na przygotowanie danych i analizę wyników.
 
-✅ To jest **dokładnie** błąd metodologiczny, który badamy w zadaniu
-diagnostycznym (sekcja 7). Jeśli test wpłynie na jakąkolwiek decyzję, zmierzony
-wynik przestaje być wiarygodnym oszacowaniem działania na nowych danych.
+## 3. Błąd rekonstrukcji
 
-**Zadanie (kod):** wypisz rozmiary wszystkich czterech/pięciu podzbiorów i
-**sprawdź programowo** (nie "na oko"), że żadne dwa z nich się nie
-nakładają (np. przez porównanie indeksów, nie tylko rozmiarów).
+Funkcja `per_image_error(model, X)` ma zwracać osobny błąd dla każdego obrazu:
 
-## 2. Autoenkoder — architektura i trening — Twoje zadanie
+```python
+((x_hat - x) ** 2).flatten(1).mean(dim=1)
+```
 
-Zbuduj mały AE (MLP, wzorem wykładu): `encoder` do wymiaru latentnego $d_e$,
-`decoder` z powrotem do $28\times 28$, strata MSE.
+Błąd należy policzyć dla `val_normal` i `val_anomaly`. Oba rozkłady powinny
+znaleźć się na wspólnym histogramie lub wykresie gęstości. Dla każdego trzeba
+również podać średnią, odchylenie standardowe i medianę.
 
-**Zadanie:** zaimplementuj klasę `AE(nn.Module)` i funkcję treningową.
-Wytrenuj **wyłącznie** na `ae_train` (nigdy na `val_*` czy `test_*`).
-Zacznij od $d_e=16$ — to jest Twój **główny** model dla sekcji 3-7.
+Częściowe nakładanie rozkładów jest oczekiwane. O użyteczności metody decyduje
+separacja przy wybranym progu oraz charakter przykładów w obszarze nakładania.
 
-**Uwaga o koszcie**: ten trening jest **bardzo** szybki na CPU (ułamek
-sekundy do kilku sekund, zależnie od liczby epok/rozmiaru zbioru) — budżet
-czasowy tego laboratorium idzie w **analizę**, nie w czekanie na trening.
+## 4. Wybór progu
 
-## 3. Błąd rekonstrukcji i rozkłady normalne vs anomalie — Twoje zadanie
+Próg powstaje **wyłącznie** z rozkładu `val_normal`. Można użyć średniej
+powiększonej o $k$ odchyleń standardowych, pod warunkiem uzasadnienia wartości
+$k$. `val_anomaly` nie może wpływać na konkretną wartość progu.
 
-Zaimplementuj `per_image_error(model, X)` — błąd rekonstrukcji **per obraz**
-(nie zagregowany po całym zbiorze): `((x_hat - x)**2).flatten(1).mean(dim=1)`.
+Procedura nie jest w pełni nienadzorowana. Etykiety służą do utworzenia zbioru
+normalnego oraz ogólnych decyzji walidacyjnych. Sam próg opiera się jednak tylko
+na przykładach normalnych, co odpowiada sytuacji bez dostępnych anomalii podczas
+konfiguracji systemu.
 
-Policz ten błąd dla `val_normal` i `val_anomaly`. **Zwizualizuj** oba
-rozkłady (histogram albo nakładające się wykresy gęstości) na jednym
-wykresie. Policz średnią/odchylenie standardowe/medianę dla każdego z nich.
+## 5. Metryki testowe
 
-❌ "Jeśli oba rozkłady się w ogóle nakładają, metoda jest bezużyteczna."
+Implementację metryk trzeba najpierw sprawdzić na znanym przykładzie:
 
-✅ Częściowe nakładanie się jest **normalne** i oczekiwane — pytanie nie
-jest "czy rozkłady się nakładają", ale "jak dobrze **rozdzielają** się przy
-**konkretnym** wyborze progu" (sekcja 4) i "co się dzieje w regionie
-nakładania" (sekcja 6, analiza błędów).
+```text
+scores = [0.1, 0.2, 0.3, 0.4, 0.9, 0.5, 0.6, 0.7, 0.8, 1.0]
+labels = [0,   0,   0,   0,   0,   1,   1,   1,   1,   1]
+threshold = 0.45
+```
 
-## 4. Wybór progu — Twoje zadanie
+Najpierw należy ręcznie wyznaczyć TP, FP, TN, FN, precision, recall i F1, a
+potem potwierdzić wynik kodem. Oczekiwane wartości to:
 
-Ustaw próg detekcji **wyłącznie** na podstawie rozkładu błędu `val_normal`
-(np. średnia + $k\times$ odchylenie standardowe, dla wybranego przez Ciebie
-$k$ — uzasadnij wybór). **Nie** używaj `val_anomaly` do wyboru progu — to
-jest jawnie **walidacyjnie nadzorowana** procedura (masz etykiety w
-walidacji i decydujesz na ich podstawie o architekturze/hiperparametrach
-ogólnie), ale wybór **konkretnej wartości progu** oparty tylko na
-rozkładzie klasy normalnej jest bliższy praktycznemu scenariuszowi, w
-którym anomalii nie masz w ogóle podczas konfiguracji systemu.
+- TP = 5, FP = 1, TN = 4, FN = 0,
+- precision $\approx0{,}833$,
+- recall $=1{,}0$,
+- F1 $\approx0{,}909$.
 
-❌ "To jest w pełni nienadzorowana (*unsupervised*) detekcja anomalii."
+Repozytorium nie zawiera `scikit-learn`, dlatego ROC-AUC i PR-AUC trzeba
+zaimplementować samodzielnie.
 
-✅ **Nieprawda, nazwij to precyzyjnie.** Masz dostęp do etykiet w całym
-procesie przygotowania danych (wiesz, które obrazy są "normalne") — to
-**walidacyjnie nadzorowana** procedura, nie w pełni nienadzorowana. Prawdziwie
-nienadzorowana detekcja anomalii (bez żadnych etykiet, nawet dla "normalnych"
-danych) to inne, trudniejsze zadanie, poza zakresem tego laboratorium.
+- **ROC-AUC** można policzyć jako
+  $P(\text{score}_{\text{anomalia}}>\text{score}_{\text{normalny}})$ dla par
+  anomalia-normalny. W małym teście dopuszczalne są dwie pętle.
+- **PR-AUC**, tutaj average precision, wymaga sortowania wyników malejąco i
+  uśrednienia precision w pozycjach zajętych przez prawdziwie dodatnie przykłady.
 
-## 5. Metryki na zbiorze testowym — Twoje zadanie
+Na zbiorze testowym należy podać precision, recall, F1, macierz pomyłek $2\times2$,
+ROC-AUC i PR-AUC. Metryki AUC oceniają ranking niezależnie od progu. Metryki
+precision, recall i F1 opisują działanie przy progu wybranym w sekcji 4. Obie
+grupy są potrzebne.
 
-**Najpierw, na małym przykładzie z znanym wynikiem** (zanim użyjesz
-prawdziwych danych): dla `scores = [0.1,0.2,0.3,0.4,0.9, 0.5,0.6,0.7,0.8,1.0]`,
-`labels = [0,0,0,0,0, 1,1,1,1,1]` (pierwsza piątka normalna, druga anomalia),
-próg $=0{,}45$ — **policz ręcznie** (na papierze albo w komentarzu) TP/FP/
-TN/FN, precision/recall/F1, **potem** zweryfikuj swoim kodem, że wynik się
-zgadza (oczekiwane: TP=5, FP=1, TN=4, FN=0, precision$\approx 0{,}833$,
-recall$=1{,}0$, F1$\approx 0{,}909$).
+## 6. Baseline i analiza błędów
 
-**Uwaga**: w tym repozytorium `scikit-learn` **nie jest** zainstalowany —
-zaimplementuj ROC-AUC i PR-AUC (*average precision*) ręcznie:
+Baseline bez treningu używa odległości od średniego obrazu klasy normalnej:
 
-- **ROC-AUC** przez porównanie par (ranking): $P(\text{score}_{\text{anomalia}}
-  > \text{score}_{\text{normalny}})$ po wszystkich parach (możesz użyć
-  rangowania, nie musi być $O(n^2)$ dla dużych zbiorów — ale dla
-  **weryfikacji** na małym przykładzie, $O(n^2)$ przez dwie pętle jest ok i
-  pomaga sprawdzić poprawność szybszej wersji).
-- **PR-AUC** (*average precision*): sortuj przykłady po score malejąco,
-  dla każdego **prawdziwie pozytywnego** (anomalia) policz precision w tym
-  miejscu rankingu, policz średnią tych precyzji.
+```python
+mean_normal_image = ae_train.mean(dim=0)
+((x - mean_normal_image) ** 2).mean()
+```
 
-Policz **na prawdziwych danych testowych** (sekcja 1): precision, recall,
-F1, macierz pomyłek (2×2), ROC-AUC, PR-AUC.
+Dla baseline'u należy policzyć te same metryki testowe i porównać je z AE.
+Słaby wynik autoenkodera względem prostego punktu odniesienia jest wartościową
+informacją. Może oznaczać, że klasy różnią się głównie prostymi własnościami
+obrazu, które nie wymagają uczonej reprezentacji.
 
-❌ "ROC-AUC/PR-AUC to ostateczna miara jakości modelu detekcji anomalii —
-nie potrzebuję nic więcej."
+Analiza błędów musi zawierać dwa konkretne przypadki:
 
-✅ ROC-AUC/PR-AUC oceniają **ranking** (czy anomalie generalnie mają wyższy
-błąd niż normalne przykłady, niezależnie od konkretnego progu) — ale
-**decyzja** "czy TEN konkretny obraz jest anomalią" wymaga **konkretnego
-progu** (sekcja 4). Wysoki AUC nie mówi, jak dobrze wypadniesz przy
-**wybranym** progu — stąd potrzebujesz **obu** rodzajów metryk, nie
-jednego.
+1. anomalię z niskim błędem rekonstrukcji, czyli false negative, wraz z klasą i
+   wizualnym komentarzem,
+2. obraz klasy Sneaker z wysokim błędem, czyli false positive, również pokazany
+   i opisany.
 
-## 6. Analiza błędów i prosty baseline — Twoje zadanie
+Autoenkoder może dobrze odtworzyć anomalię podobną do klasy normalnej, na
+przykład inny typ obuwia. Jest to ograniczenie sygnału rekonstrukcji, a nie
+automatycznie błąd implementacji.
 
-**Baseline bez uczenia**: policz błąd jako odległość do **średniego obrazu
-klasy normalnej** (`ae_train.mean(dim=0)`), bez żadnego treningu —
-`((x - mean_normal_image)**2).mean()`. Policz dla tego baseline te same
-metryki (sekcja 5) na zbiorze testowym.
+## 7. Diagnostyka przecieku danych
 
-**Porównaj** AE vs ten trywialny baseline.
+Dostarczony kod przeszukuje progi i wybiera najwyższe F1 na etykietach ze
+zbioru testowego. Działa technicznie, ale łamie metodologię oceny.
 
-❌ "Wytrenowany autoenkoder musi radykalnie pobić trywialny baseline, bo
-jest 'mądrzejszy'."
+Należy:
 
-✅ **Niekoniecznie** — sprawdź to **empirycznie na swoich danych**, zamiast
-zakładać. Jeśli autoenkoder nie bije wyraźnie trywialnego baseline'u, to
-**ważny, wartościowy wniosek**, nie porażka eksperymentu: oznacza, że
-separacja normalne/anomalie w tym konkretnym zadaniu w dużej mierze wynika
-z prostych różnic pikselowych między klasami (kształt sneakera vs inne
-ubrania), nie z czegoś subtelnego, czego nauczył się dopiero autoenkoder.
-Krytyczna ocena metody wymaga takiego porównania **zawsze**, nie tylko gdy
-oczekujemy, że "sprawdzi się".
+1. uruchomić przeszukiwanie na `test_normal` i `test_anomaly`,
+2. porównać znaleziony próg z progiem opartym na `val_normal`,
+3. porównać F1 po przecieku z uczciwym wynikiem testowym,
+4. wyjaśnić, dlaczego użycie testu do podjęcia decyzji jest błędne niezależnie
+   od wielkości różnicy w tym przebiegu,
+5. wskazać poprawkę zastosowaną w sekcji 4.
 
-**Analiza błędów (wymagane):** znajdź **przynajmniej jeden konkretny**
-przypadek:
-1. Anomalia (obraz spoza klasy normalnej) z **niskim** błędem rekonstrukcji
-   (false negative) — sprawdź, z jakiej klasy pochodzi, i czy ma sens
-   wizualny (np. czy przypomina sneakera).
-2. Przykład normalny (sneaker) z **wysokim** błędem rekonstrukcji (false
-   positive) — sprawdź wizualnie, czy jest nietypowy w ramach swojej klasy.
+Niewielka różnica wyników nie unieważnia problemu. Ten sam przeciek na innym
+zbiorze lub modelu może silnie zawyżyć rezultat. Zbiór testowy musi pozostać
+niezależny od wszystkich decyzji modelowania.
 
-❌ "Autoenkoder, który generalnie dobrze rozdziela normalne/anomalie, musi
-rekonstruować **każdy** przykład anomalii źle."
+## 8. Wnioski
 
-✅ **Nie jest to prawda w ogólności** — anomalia wizualnie/strukturalnie
-podobna do klasy normalnej (np. inny typ obuwia, jeśli normalna klasa to
-konkretny typ obuwia) może zostać zrekonstruowana **całkiem dobrze**, mimo
-że formalnie jest anomalią. To **nie** jest błąd implementacji — to
-rzeczywiste ograniczenie metody, które musisz **zademonstrować konkretnym
-przykładem**, nie tylko zacytować z wykładu.
+Odpowiedzi powinny odwoływać się do liczb i przykładów z sekcji 3-7:
 
-## 7. Zadanie diagnostyczne: przeciek danych w wyborze progu
+1. Jakie precision, recall, F1 i ROC-AUC osiągnął autoenkoder?
+2. Jak wynik wypada na tle baseline'u i co mówi o źródle separacji klas?
+3. Który konkretny false negative lub false positive najlepiej pokazuje
+   ograniczenie metody?
+4. Na czym polegał przeciek danych i jaka ogólna zasada z niego wynika?
+5. Czego brakuje do praktycznego wdrożenia, w tym do określenia akceptowalnych
+   kosztów FP i FN?
 
-Poniższy kod (w notebooku) **wygląda** rozsądnie — przeszukuje wiele
-wartości progu i wybiera tę, która daje **najlepsze F1** — ale ma błąd:
-przeszukiwanie i wybór odbywają się **na etykietach ze zbioru testowego**.
+## Rozszerzenie opcjonalne
 
-**Zadanie:**
-1. Uruchom dostarczony kod: przeszukaj siatkę progów, dla każdego policz F1
-   **na `test_normal`/`test_anomaly`** (z ich prawdziwymi etykietami), wybierz
-   próg o najwyższym F1.
-2. Porównaj wybrany w ten sposób próg z **Twoim** progiem z sekcji 4
-   (wybranym tylko na podstawie `val_normal`). Czy są identyczne?
-3. Porównaj zgłoszone F1: "przeciekowe" (wybrane i oceniane na tym samym
-   zbiorze testowym) vs Twoje honest (próg z sekcji 4, F1 zmierzone na
-   teście). **Nawet jeśli różnica jest niewielka** — wyjaśnij, **dlaczego
-   sama wielkość różnicy nie jest tym, co czyni tę procedurę błędną**.
-4. Napisz, dlaczego ta procedura jest metodologicznie błędna, **niezależnie**
-   od tego, czy w Twoim konkretnym przebiegu różnica wyszła duża czy mała.
-5. Zaproponuj poprawkę (dokładnie to, co zrobiłeś/aś w sekcji 4) i zweryfikuj,
-   że jest zgodna z zasadą z sekcji 1 (próg nigdy nie widzi etykiet testowych).
+Można wybrać jedno z dwóch zadań:
 
-❌ "Jeśli przeciek danych nie zmienił wyniku istotnie, to nie był prawdziwym
-błędem."
+- powtórzyć sekcje 2-5 dla $d_e\in\{4,32\}$ i porównać wpływ bottlenecku na
+  separację klas,
+- zbudować analogiczny VAE i użyć błędu rekonstrukcji lub $-$ELBO jako wyniku
+  anomalii, bez zakładania z góry przewagi nad AE.
 
-✅ **To nieprawda.** Błąd metodologiczny (użycie etykiet testowych do podjęcia
-decyzji modelowania) jest błędem **niezależnie** od tego, jak duży efekt
-wywołał w konkretnym przebiegu — przy innym zbiorze danych, innym modelu,
-czy mniejszym/mniej rozdzielonym zbiorze testowym, ten sam błąd mógłby dać
-dramatycznie zawyżony wynik. Nie możesz tego wiedzieć z góry, patrząc tylko
-na jeden przebieg — stąd zasada "nigdy nie dotykaj testu przy wyborze progu"
-musi być **bezwzględna**, nie zależna od tego, czy "tym razem akurat nie
-zaszkodziło".
-
-## 8. Wnioski — Twoje zadanie
-
-Odpowiedz, uzasadniając rzeczywistymi liczbami/przykładami z sekcji 3-7:
-
-1. Jak dobrze (konkretne liczby: precision/recall/F1/ROC-AUC) Twój
-   autoenkoder rozdziela klasę normalną od anomalii na zbiorze testowym?
-2. Jak wypada w porównaniu z trywialnym baseline'em (sekcja 6)? Co to mówi o
-   tym, **skąd** bierze się zdolność rozróżniania w tym zadaniu?
-3. Jaki jest Twój najbardziej przekonujący **konkretny przykład** ograniczenia
-   metody (false negative albo false positive z sekcji 6)? Czy ma sens
-   wizualny?
-4. Jaki błąd wprowadził przeciek danych w sekcji 7, i jaka jest **ogólna**
-   (nie tylko dla tego zbioru danych) zasada, którą z tego wyciągasz?
-5. Czy uznałbyś/uznałabyś ten system za gotowy do praktycznego zastosowania?
-   Czego by jeszcze potrzebował (np. jaki koszt błędu FP/FN jest akceptowalny
-   w jakim zastosowaniu)?
-
-## Rozszerzenie (opcjonalne, jeśli zostanie czas)
-
-Wybierz **jedno** z poniższych:
-
-- **Wpływ wymiaru latentnego**: powtórz sekcje 2-5 dla $d_e \in \{4, 32\}$
-  (oprócz głównego $d_e=16$) i porównaj metryki. Czy większy/mniejszy
-  bottleneck zmienia separację normalne/anomalie — i czy ten efekt jest
-  taki, jakiego intuicyjnie oczekujesz?
-- **VAE jako alternatywa**: zaimplementuj analogiczny VAE (wzorem wykładu),
-  użyj błędu rekonstrukcji (albo $-$ELBO) jako sygnału anomalii. Porównaj z
-  AE **bez** zakładania z góry, który "musi" wypaść lepiej (zobacz wykład:
-  VAE nie jest automatycznie lepszym detektorem anomalii).
-
-## Podział czasu (realistyczny, zweryfikowany względem rzeczywistego kosztu treningu)
+## Podział czasu
 
 | Blok | Czas |
-|---|---|
-| Sekcja 0 (konfiguracja) | 5 min |
-| Sekcja 1 (dane i podział, bez przecieku) | 15 min |
-| Sekcja 2 (AE: architektura i trening) | 15 min |
-| Sekcja 3 (błąd rekonstrukcji, rozkłady) | 10 min |
-| Sekcja 4 (wybór progu walidacyjnego) | 10 min |
-| Sekcja 5 (metryki: znany przykład + test) | 15 min |
-| Sekcja 6 (analiza błędów + baseline) | 15 min |
-| Sekcja 7 (zadanie diagnostyczne: przeciek) | 20 min |
-| Sekcja 8 (wnioski) | 10 min |
+|---|---:|
+| Konfiguracja | 5 min |
+| Dane i podział | 15 min |
+| Architektura i trening AE | 15 min |
+| Błąd rekonstrukcji i rozkłady | 10 min |
+| Próg walidacyjny | 10 min |
+| Metryki | 15 min |
+| Analiza błędów i baseline | 15 min |
+| Diagnostyka przecieku | 20 min |
+| Wnioski | 10 min |
 
-Suma: **115 min**, z 5-minutowym buforem. Trening AE na tym zbiorze trwa
-ułamek sekundy do kilku sekund na CPU — budżet czasowy idzie w projektowanie
-podziału danych, analizę błędów i zadanie diagnostyczne, nie w czekanie na
-model. Rozszerzenie (wyżej) jest **opcjonalne** i **nie** wliczone w te
-115 minut.
+Rdzeń zajmuje 115 minut, a pozostałe 5 minut stanowi bufor. Rozszerzenie nie
+wchodzi do tego limitu.
 
 ## Kryteria oceny
 
-- Podział danych (sekcja 1) jest programowo zweryfikowany jako rozłączny;
-  autoenkoder trenowany **wyłącznie** na danych normalnych.
-- Próg detekcji (sekcja 4) wybrany **wyłącznie** na podstawie `val_normal`,
-  nigdy na podstawie `val_anomaly` czy jakiegokolwiek `test_*`.
-- Metryki (sekcja 5) zweryfikowane na podanym przykładzie z znanym wynikiem,
-  **przed** użyciem na prawdziwych danych.
-- Porównanie z trywialnym baseline'em (sekcja 6) jest **rzeczywiście
-  wykonane i opisane** — niezależnie od tego, czy AE wypadł lepiej, podobnie,
-  czy gorzej.
-- Analiza błędów (sekcja 6) wskazuje **konkretny** przypadek (nie ogólnik)
-  false negative lub false positive, z sensownym wizualnym komentarzem.
-- Zadanie diagnostyczne (sekcja 7) prawidłowo identyfikuje przeciek danych i
-  wyjaśnia, dlaczego błąd jest realny niezależnie od wielkości zaobserwowanej
-  różnicy.
-- Wnioski odwołują się do konkretnych liczb/przykładów z Twojego przebiegu,
-  nie do ogólników z wykładu.
+- Rozłączność podzbiorów jest potwierdzona programowo.
+- Autoenkoder jest trenowany wyłącznie na danych normalnych.
+- Próg zależy wyłącznie od `val_normal`.
+- Metryki przechodzą test na znanym przykładzie przed użyciem na danych.
+- Porównanie z baseline'em zostało wykonane niezależnie od wyniku.
+- Analiza pokazuje i omawia konkretne false negative oraz false positive.
+- Diagnostyka poprawnie wskazuje przeciek i wyjaśnia jego konsekwencje.
+- Wnioski opierają się na wynikach danego przebiegu.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/12_autoencoders/`) i nie jest częścią tego
-repozytorium.
+Pełne rozwiązanie wzorcowe znajduje się lokalnie u prowadzącego w
+`decisions/solutions/12_autoencoders/` i nie jest częścią repozytorium.
