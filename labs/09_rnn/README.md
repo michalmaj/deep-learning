@@ -1,212 +1,135 @@
-Language: **English (default)** | [Polski](README.pl.md)
+Language: **English** | [Polski](README.pl.md)
 
-# Lab 09: SMS message classification (spam/ham) with RNN/LSTM/GRU
+# Lab 09. SMS classification with RNN, LSTM, and GRU
 
-Time: about 2 hours. Builds on [`lectures/09_rnn/lecture.en.md`](../../lectures/09_rnn/lecture.en.md)
-(recurrence, $h_t$, LSTM/GRU, padding), but uses **a different problem**
-than the lecture -- real text classification (SMS Spam Collection), not
-synthetic sequences.
+The estimated time is about 2 hours. This lab uses recurrence, hidden states, LSTM, GRU, and padding from [`lecture.en.md`](../../lectures/09_rnn/lecture.en.md). The experiments use the real SMS Spam Collection instead of synthetic data.
 
-## 0. Setup (provided)
+## 0. Setup
 
-Library imports, device, random seed, `torch.set_num_threads(4)`.
+Imports, device selection, the random seed, and `torch.set_num_threads(4)` are provided.
 
-## 1. Data: SMS Spam Collection (provided + short task)
+## 1. SMS Spam Collection data
 
-5574 SMS messages, labeled `ham`/`spam`, downloaded directly (a text file
-with `label\ttext` per line, a ~200KB zip -- see
-[`data/registry.yml`](../../data/registry.yml)). The provided cache helper
-writes downloads and extraction results to temporary files, verifies the
-archive SHA-256 and extracted member, and only then replaces the final
-files atomically. A failed or interrupted operation therefore cannot turn
-a valid cache entry into a partial file.
+The dataset contains 5574 messages labeled `ham` or `spam`. It is downloaded as an archive of about 200 KB. Each line in the text file has the form `label\ttext`. Details are available in [`data/registry.yml`](../../data/registry.yml).
 
-**Task:** count and print the class distribution (`ham`/`spam`). Is the
-set balanced or not? Note this down -- it matters for the choice of
-metrics in section 10.
+The provided cache writes downloaded and extracted data to temporary files. It verifies the SHA-256 of the archive and extracted member before atomically replacing the final files. An interrupted download therefore cannot replace a valid cache entry with a partial file.
 
-## 2. Tokenization -- your task
+**Task.** Count the `ham` and `spam` classes and determine whether the dataset is balanced. The result will guide metric selection in section 10.
 
-Implement `tokenize(text)`: a simple split into tokens (words +
-punctuation as separate tokens, lowercase). A provided regular-expression
-pattern is waiting to be finished.
+## 2. Tokenization
 
-**Task (Markdown, 2-3 sentences):** what are the limitations of such
-simple tokenization? Think about word forms (e.g. "free" vs. "freee" in
-deliberately distorted spam), punctuation glued to words, and what you
-will only learn about subword tokenization in module 11.
+Complete `tokenize(text)`. The simple tokenizer should convert text to lowercase and separate words from punctuation. The notebook contains an unfinished regular-expression pattern.
 
-## 3. Train/val/test split (provided)
+**Markdown task, 2 to 3 sentences.** Describe the limitations of this tokenization. Relevant cases include inflection, deliberately distorted words such as `free` and `freee`, punctuation attached to words, and the lack of subword tokenization introduced in module 11.
 
-70/15/15, a fixed seed -- so results are comparable across your
-experiments.
+## 3. Train, validation, and test split
 
-## 4. Vocabulary: only from the training set -- your task
+The provided split uses a 70/15/15 ratio and a fixed seed. Results remain comparable across experiments.
 
-Build a vocabulary **exclusively** from `train_texts` (never from
-val/test -- exactly the same principle as the normalization in modules
-05-07, just applied here to a set of tokens instead of numerical
-statistics). Add two special tokens:
+## 4. Vocabulary from training data
 
-- `<PAD>` (id $0$) -- padding to a common length within a batch, **not**
-  content,
-- `<UNK>` (id $1$) -- the unknown token (a word outside the training
-  vocabulary, e.g. a rare word seen only in val/test).
+Build the vocabulary exclusively from `train_texts`. Including validation or test data would cause data leakage. This is the token-set equivalent of the normalization rule used in modules 05-07.
 
-Drop tokens that occur in training fewer than `MIN_FREQ` times (shrinks
-the vocabulary, reduces overfitting to rare words).
+Two special tokens are required.
 
-**Task (code):** verify that no token from the validation/test set that
-did not occur in training causes an error (it should be mapped to
-`<UNK>`, not raise an exception or be silently dropped).
+- `<PAD>` with identifier $0$ extends a batch to a common length and is not content.
+- `<UNK>` with identifier $1$ replaces tokens outside the training vocabulary.
 
-## 5. Text -> sequence of identifiers and variable-length batches (provided)
+Tokens occurring fewer than `MIN_FREQ` times in training should be removed. This reduces vocabulary size and overfitting to rare words.
 
-The `encode()` and `make_batch_tensors()` functions turn a list of tokens
-into identifiers and build a padded batch **together with a tensor of
-the real lengths** `lengths` -- this tensor is critical for correctly
-handling padding in section 7.
+**Code task.** A token unseen during training must map to `<UNK>`. It must not raise an exception or disappear silently.
 
-Check: two messages of different length in the same batch -- what is the
-shape of the resulting tensor? What happened to the shorter message?
+## 5. Encoding and variable-length batches
 
-Right after this section, the notebook defines `train_eval(model_cls,
-vocab_size, epochs, lr, seed, **model_kwargs)` (provided, used by every
-model in the rest of the lab) -- it tracks the training and validation
-loss after every epoch and returns the trained model.
+The provided `encode()` and `make_batch_tensors()` functions convert tokens to identifiers. They also create a padded batch and a tensor of real lengths called `lengths`, which is required for correct padding handling in section 7.
 
-## 6. An order-blind baseline -- your task
+Check the tensor shape for two messages of different lengths and explain what happened to the shorter message.
 
-Build a classifier based on **averaging token embeddings** (with no
-recurrent layer at all) -- exactly as in the lecture, experiment C, but
-here the averaging must skip padding (see the lecture: padding is not
-content). Hint: you need a mask `x != PAD_ID` when computing the mean,
-otherwise padding artificially "dilutes" the representation of shorter
-messages. Train it right away (`train_eval`, a provided call) -- this
-number will be your reference point in section 13.
+The function `train_eval(model_cls, vocab_size, epochs, lr, seed, **model_kwargs)` is defined after this section. It tracks training and validation loss after each epoch and returns the trained model. Every later model uses the same function.
 
-## 7. An `nn.Embedding` + `nn.GRU`/`nn.LSTM` classifier -- your task
+## 6. Order-insensitive baseline
 
-Build a model: `nn.Embedding` -> `nn.GRU` (or `nn.LSTM`) -> a
-classification layer.
+Build a classifier that averages token embeddings without a recurrent layer. Padding must not contribute to the mean. A mask such as `x != PAD_ID` is required because padding would otherwise dilute shorter-message representations.
 
-**This is the single most important design decision in this lab:** the
-representation of the whole sequence for classification must be the
-state **after the last real token**, not after the last position of the
-tensor (which may be padding). Use
-`torch.nn.utils.rnn.pack_padded_sequence` before passing to the recurrent
-layer -- this is the mechanism that tells PyTorch the real lengths, so
-the layer does not process the padding at all.
+The provided `train_eval` call trains the baseline. Its result will be the reference point in section 13.
 
-Verify your implementation (a provided assertion is waiting): **the same
-text**, encoded on its own and batched together with a longer message
-(and so padded differently), must give an **identical** representation
-in both cases. If the assertion does not pass -- you have exactly the
-bug that is the topic of the diagnostic section (section 11) -- but here
-we expect your implementation to already be correct.
+## 7. `nn.Embedding` with `nn.GRU` or `nn.LSTM`
 
-## 8. Training the classifier from section 7 (the loop from section 5 -- a provided call)
+The model should contain `nn.Embedding`, either `nn.GRU` or `nn.LSTM`, and a classification layer.
 
-Train your classifier from section 7 via `train_eval` (the same function
-as in section 6 for the baseline).
+The full-sequence representation must be the state after the last real token, not the state at the last tensor position, which may contain padding. Apply `torch.nn.utils.rnn.pack_padded_sequence` before the recurrent layer. It supplies the real lengths and prevents the layer from processing padding.
 
-## 9. Comparing >=2 configurations -- your task
+A provided assertion compares the same text encoded on its own and in a batch with a longer message. Both representations must be identical. A failure usually indicates the problem examined again in section 11.
 
-Compare **at least two** configurations -- choose (and justify in 2-3
-sentences why these specifically): GRU vs. LSTM, a different hidden-state
-dimension, presence/absence of dropout, a different number of epochs.
-Use **the same** data split and the same metrics for each.
+## 8. Classifier training
 
-## 10. Evaluation on the test set -- your task
+Train the classifier from section 7 with the provided `train_eval` call used earlier for the baseline.
 
-Choose the better (by validation) configuration from section 9. Evaluate
-it on the test set (**the first time** in this lab) using:
+## 9. Comparing at least two configurations
+
+Compare at least two configurations. Options include GRU versus LSTM, different hidden-state dimensions, dropout, or different epoch counts. Justify the selection in 2 to 3 sentences. Every configuration must use the same data split and metrics.
+
+## 10. Test-set evaluation
+
+Select the better configuration using validation results. Only then should the test set be evaluated for the first time in this lab. Three results are required.
 
 - accuracy,
-- **macro-F1** (the set is imbalanced -- section 1 -- accuracy alone is
-  misleading: a model that always predicts `ham` would have high
-  accuracy and zero usefulness),
+- macro-F1,
 - a confusion matrix.
+
+Macro-F1 matters for an imbalanced dataset. A model that always predicts `ham` could achieve high accuracy while remaining useless.
 
 ## 11. Diagnostic task
 
-The following code (in the notebook) **looks** correct -- it raises no
-exception, it trains, it gives some accuracy -- but it has a bug related
-to padding handling.
+The notebook code does not raise an exception and may train successfully, but it handles padding incorrectly.
 
-**Task:**
-1. Diagnose the bug -- exactly what it is, on which line.
-2. Explain why it matters (when it shows up, and when it does not --
-   hint: check for batch_size=1 and for a batch with sequences of
-   different lengths).
-3. Fix the code.
-4. Check the behavior on sequences of different lengths (the provided
-   assertion from section 7 should now pass).
+The task requires:
 
-## 12. Error analysis -- your task
+1. identifying the exact bug and the line where it occurs,
+2. explaining when it appears by comparing `batch_size=1` with a batch of different sequence lengths,
+3. fixing the code,
+4. checking different sequence lengths with the assertion from section 7.
 
-For the model from section 10: print 5-8 misclassified messages (text +
-true/predicted label). Do the errors concentrate on one side (more
-`ham`->`spam` or `spam`->`ham`)? Comparing error rates by message length
-is left as an optional extension.
+## 12. Error analysis
 
-## 13. Conclusions -- your task
+For the model from section 10, print 5 to 8 misclassified messages with their true and predicted labels. Determine whether `ham` to `spam` or `spam` to `ham` errors are more common. A comparison with message length is optional.
 
-Answer, justified with actual numbers from sections 6-12:
+## 13. Conclusions
 
-1. By how much does the sequential model (GRU/LSTM) beat the order-blind
-   baseline? Is this difference large or modest -- and what does that say
-   about how much this **specific** problem (spam classification) actually
-   requires understanding word order, compared to the lecture's task
-   (experiment C), which was specifically constructed so that order was the
-   only decisive information?
-2. Which of the two compared configurations (section 9) did better on
-   validation? Is the difference large enough to trust on a single run?
-3. What is at least one limitation of this experiment (data size, simple
-   tokenization, a single seed) that prevents you from generalizing the
-   conclusions?
+Answers should use the measured values from sections 6-12.
 
-## Time budget (approximate, not verified in class)
+1. By how much does GRU or LSTM outperform the order-insensitive baseline? Relate the size of the difference to the role of order in spam classification and compare it with experiment C from the lecture.
+2. Which configuration from section 9 performed better on validation? Is the difference from one run large enough to support a strong conclusion?
+3. Which limitation, such as dataset size, simple tokenization, or a single seed, prevents broad generalization?
+
+## Estimated time allocation
 
 | Block | Time |
 |---|---|
-| Sections 0-1 (setup, exploration) | 10 min |
-| Section 2 (tokenization + limitations) | 10 min |
-| Sections 3-5 (vocabulary, PAD/UNK, provided encoding) | 10 min |
-| Section 6 (order-blind baseline) | 15 min |
-| Section 7 (GRU/LSTM classifier + correct padding) | 25 min |
-| Section 8 (training) | 5 min |
-| Section 9 (comparing >=2 configurations) | 10 min |
-| Section 10 (test evaluation) | 10 min |
-| Section 11 (focused padding diagnostic) | 10 min |
-| Section 12 (focused error analysis) | 5 min |
-| Section 13 (conclusions) | 10 min |
+| Sections 0-1, setup and exploration | 10 min |
+| Section 2, tokenization and limitations | 10 min |
+| Sections 3-5, vocabulary, PAD/UNK, and encoding | 10 min |
+| Section 6, order-insensitive baseline | 15 min |
+| Section 7, classifier and padding | 25 min |
+| Section 8, training | 5 min |
+| Section 9, configuration comparison | 10 min |
+| Section 10, test evaluation | 10 min |
+| Section 11, padding diagnostic | 10 min |
+| Section 12, error analysis | 5 min |
+| Section 13, conclusions | 10 min |
 
-Sections 0-13 are the mandatory core. Training on this dataset takes a
-few seconds on CPU -- the time budget should go into correctly
-implementing sequence handling and analysis, not waiting for training.
+Sections 0-13 form the mandatory core. CPU training takes only a few seconds, so most of the time should be spent on correct sequence handling and analysis.
 
-**Extensions (optional, if time remains):** compare the average length or
-error rate of correctly and incorrectly classified messages; try a
-bidirectional GRU/LSTM (`bidirectional=True`); or report accuracy
-separately for short (<10 tokens) and long (>30 tokens) messages.
+Optional extensions include comparing the lengths of correctly and incorrectly classified messages, using a bidirectional GRU or LSTM with `bidirectional=True`, and reporting separate accuracy for short messages below 10 tokens and long messages above 30 tokens.
 
 ## Grading criteria
 
-- The vocabulary is built exclusively from `train_texts`; `<UNK>`
-  correctly handles out-of-vocabulary tokens without an error.
-- The classifier from section 7 uses `pack_padded_sequence` (or an
-  equivalent correct mechanism) -- the "same text, same representation
-  regardless of padding" assertion passes.
-- The baseline from section 6 correctly skips padding when averaging (not
-  only the recurrent classifier).
-- Test evaluation (section 10) uses accuracy **and** macro-F1 **and** a
-  confusion matrix, not accuracy alone.
-- The test set appears only in section 10, after a configuration choice
-  based on validation.
-- The diagnostic task (section 11) points to a specific cause, not a
-  generality.
-- The conclusions refer to specific numbers from your own run.
+- The vocabulary is built exclusively from `train_texts`, and `<UNK>` handles out-of-vocabulary tokens correctly.
+- The classifier from section 7 uses `pack_padded_sequence` or an equivalent mechanism. The assertion that representation is independent of padding passes.
+- The baseline from section 6 excludes padding from the average.
+- Test evaluation includes accuracy, macro-F1, and a confusion matrix.
+- The test set is used only after selecting a configuration from validation results.
+- The section 11 diagnosis identifies a specific cause.
+- Conclusions refer to values measured during the experiment.
 
-A full reference solution exists locally with the instructor
-(`decisions/solutions/09_rnn/`) and is not part of this repository.
+A complete reference solution is stored locally by the instructor in `decisions/solutions/09_rnn/` and is not part of this repository.

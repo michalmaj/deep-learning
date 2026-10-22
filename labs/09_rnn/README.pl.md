@@ -1,197 +1,135 @@
 Język: [English](README.md) | **Polski**
 
-# Laboratorium 09: klasyfikacja wiadomości SMS (spam/ham) z RNN/LSTM/GRU
+# Laboratorium 09. Klasyfikacja wiadomości SMS za pomocą RNN, LSTM i GRU
 
-Czas: ok. 2 godziny. Bazuje na [`lectures/09_rnn/lecture.md`](../../lectures/09_rnn/lecture.md)
-(rekurencja, $h_t$, LSTM/GRU, padding), ale na **innym problemie** niż wykład —
-prawdziwa klasyfikacja tekstu (SMS Spam Collection), nie syntetyczne sekwencje.
+Przewidywany czas wynosi około 2 godzin. Laboratorium korzysta z rekurencji, stanów ukrytych, LSTM, GRU i paddingu opisanych w [`lecture.md`](../../lectures/09_rnn/lecture.md). Zamiast danych syntetycznych analizowany jest rzeczywisty zbiór SMS Spam Collection.
 
-## 0. Konfiguracja (gotowe)
+## 0. Konfiguracja
 
-Import bibliotek, urządzenie, ziarno losowości, `torch.set_num_threads(4)`.
+Importy, wybór urządzenia, ziarno losowości i `torch.set_num_threads(4)` są gotowe.
 
-## 1. Dane: SMS Spam Collection (gotowe + krótkie zadanie)
+## 1. Dane SMS Spam Collection
 
-5574 wiadomości SMS, etykieta `ham`/`spam`, pobierane bezpośrednio (plik
-tekstowy `label\ttext` na linię, zip ~200KB — zobacz
-[`data/registry.yml`](../../data/registry.yml)). Gotowy helper cache zapisuje
-pobierane i rozpakowywane dane do plików tymczasowych, weryfikuje SHA-256
-archiwum oraz wypakowany element i dopiero wtedy atomowo podmienia pliki
-docelowe. Nieudana lub przerwana operacja nie może więc zamienić poprawnego
-cache w częściowy plik.
+Zbiór zawiera 5574 wiadomości z etykietami `ham` i `spam`. Dane są pobierane jako archiwum o rozmiarze około 200 KB. Każdy wiersz pliku tekstowego ma postać `label\ttext`. Szczegóły znajdują się w [`data/registry.yml`](../../data/registry.yml).
 
-**Zadanie:** policz i wypisz rozkład klas (`ham`/`spam`). Zbiór jest zbalansowany czy
-nie? Zanotuj — to ma znaczenie dla wyboru metryk w sekcji 10.
+Gotowy mechanizm cache zapisuje pobrane i rozpakowane dane w plikach tymczasowych. Weryfikuje SHA-256 archiwum oraz wypakowanego elementu, a następnie atomowo podmienia pliki docelowe. Przerwane pobieranie nie zastępuje więc poprawnego cache częściowym plikiem.
 
-## 2. Tokenizacja — Twoje zadanie
+**Zadanie.** Należy policzyć rozkład klas `ham` i `spam` oraz określić, czy zbiór jest zbalansowany. Wynik będzie potrzebny przy wyborze metryk w sekcji 10.
 
-Zaimplementuj `tokenize(text)`: prosty podział na tokeny (słowa + interpunkcja jako
-osobne tokeny, małe litery). Gotowy wzorzec wyrażenia regularnego czeka na
-dokończenie.
+## 2. Tokenizacja
 
-**Zadanie (Markdown, 2-3 zdania):** jakie są ograniczenia tak prostej tokenizacji?
-Pomyśl o odmianie słów (np. "free" vs "freee" w spamie celowo zniekształconym), o
-interpunkcji sklejonej ze słowami, i o tym, czego nauczymy się o tokenizacji
-podslownej (*subword*) dopiero w module 11.
+Należy dokończyć `tokenize(text)`. Prosty tokenizer powinien zamieniać tekst na małe litery oraz rozdzielać słowa i interpunkcję. W notebooku znajduje się rozpoczęty wzorzec wyrażenia regularnego.
 
-## 3. Podział train/val/test (gotowe)
+**Zadanie w Markdown, 2 do 3 zdań.** Trzeba opisać ograniczenia takiej tokenizacji. Warto uwzględnić odmianę i celowo zniekształcone słowa, na przykład `free` oraz `freee`, interpunkcję połączoną ze słowami i brak tokenizacji podwyrazowej omawianej w module 11.
 
-70/15/15, ziarno ustalone — żeby wyniki były porównywalne między Twoimi
-eksperymentami.
+## 3. Podział train, validation i test
 
-## 4. Słownik: tylko ze zbioru treningowego — Twoje zadanie
+Gotowy podział ma proporcje 70/15/15 i stałe ziarno. Dzięki temu wyniki kolejnych eksperymentów pozostają porównywalne.
 
-Zbuduj słownik **wyłącznie** z `train_texts` (nigdy z val/test — dokładnie ta sama
-zasada co normalizacja w modułach 05-07, tylko tu dotyczy zbioru tokenów, nie
-statystyk liczbowych). Dodaj dwa specjalne tokeny:
+## 4. Słownik z danych treningowych
 
-- `<PAD>` (id $0$) — wypełnienie do wspólnej długości w batchu, **nie** treść,
-- `<UNK>` (id $1$) — token nieznany (słowo spoza słownika treningowego, np. rzadkie
-  słowo widziane tylko w val/test).
+Słownik należy zbudować wyłącznie z `train_texts`. Włączenie zbioru walidacyjnego lub testowego spowodowałoby przeciek danych. Jest to odpowiednik zasady stosowanej przy normalizacji w modułach 05-07, lecz dotyczy zbioru tokenów zamiast statystyk liczbowych.
 
-Odrzuć tokeny występujące w treningu rzadziej niż `MIN_FREQ` razy (zmniejsza
-słownik, zmniejsza przeuczenie na rzadkich słowach).
+Wymagane są dwa tokeny specjalne.
 
-**Zadanie (kod):** zweryfikuj, że żaden token ze zbioru walidacyjnego/testowego, który
-nie wystąpił w treningu, nie powoduje błędu (powinien zostać zamieniony na `<UNK>`,
-nie rzucić wyjątkiem ani zostać pominięty po cichu).
+- `<PAD>` o identyfikatorze $0$ wypełnia batch do wspólnej długości i nie jest treścią.
+- `<UNK>` o identyfikatorze $1$ zastępuje token spoza słownika treningowego.
 
-## 5. Tekst → sekwencja identyfikatorów i batche o zmiennej długości (gotowe)
+Tokeny występujące w treningu rzadziej niż `MIN_FREQ` razy należy odrzucić. Ogranicza to rozmiar słownika i przeuczenie na rzadkich słowach.
 
-Funkcje `encode()` i `make_batch_tensors()` zamieniają listę tokenów na identyfikatory
-i budują padded batch **razem z tensorem rzeczywistych długości** `lengths` — ten
-tensor jest kluczowy dla poprawnej obsługi paddingu w sekcji 7.
+**Zadanie w kodzie.** Token niewidziany podczas treningu ma zostać zamieniony na `<UNK>`. Nie może powodować wyjątku ani zostać pominięty bez informacji.
 
-Sprawdź: dwie wiadomości o różnej długości w tym samym batchu — jaki jest kształt
-wynikowego tensora? Co się stało z krótszą wiadomością?
+## 5. Kodowanie i batche o zmiennej długości
 
-Tuż za tą sekcją notebook definiuje `train_eval(model_cls, vocab_size, epochs, lr,
-seed, **model_kwargs)` (gotowe, używane przez wszystkie modele w dalszej części
-laboratorium) — monitoruje stratę treningową i walidacyjną po każdej epoce i zwraca
-wytrenowany model.
+Gotowe funkcje `encode()` i `make_batch_tensors()` zamieniają tokeny na identyfikatory. Tworzą również dopełniony batch oraz tensor rzeczywistych długości `lengths`, potrzebny do poprawnej obsługi paddingu w sekcji 7.
 
-## 6. Baseline bez kolejności — Twoje zadanie
+Należy sprawdzić kształt tensora dla dwóch wiadomości o różnej długości i wyjaśnić, co stało się z krótszą wiadomością.
 
-Zbuduj klasyfikator oparty na **uśrednieniu embeddingów tokenów** (bez żadnej
-warstwy rekurencyjnej) — dokładnie jak w wykładzie, eksperyment C, ale tu uśrednienie
-musi pomijać padding (zobacz wykład: padding to nie treść). Podpowiedź: potrzebujesz
-maski `x != PAD_ID` przy liczeniu średniej, inaczej padding sztucznie "rozwadnia"
-reprezentację krótszych wiadomości. Wytrenuj go od razu (`train_eval`, gotowe
-wywołanie) — ta liczba będzie Twoim punktem odniesienia w sekcji 13.
+Po tej sekcji zdefiniowana jest funkcja `train_eval(model_cls, vocab_size, epochs, lr, seed, **model_kwargs)`. Monitoruje stratę treningową i walidacyjną po każdej epoce, a następnie zwraca wytrenowany model. Wszystkie dalsze modele korzystają z tej samej funkcji.
 
-## 7. Klasyfikator `nn.Embedding` + `nn.GRU`/`nn.LSTM` — Twoje zadanie
+## 6. Baseline bez kolejności
 
-Zbuduj model: `nn.Embedding` → `nn.GRU` (lub `nn.LSTM`) → warstwa klasyfikacyjna.
+Należy zbudować klasyfikator uśredniający embeddingi tokenów, bez warstwy rekurencyjnej. Padding nie może uczestniczyć w średniej. Potrzebna jest maska `x != PAD_ID`, ponieważ padding sztucznie osłabia reprezentację krótszych wiadomości.
 
-**To jest najważniejsza decyzja projektowa w tym laboratorium:** reprezentacją całej
-sekwencji do klasyfikacji musi być stan **po ostatnim rzeczywistym tokenie**, nie po
-ostatniej pozycji tensora (która może być paddingiem). Użyj
-`torch.nn.utils.rnn.pack_padded_sequence` przed przekazaniem do warstwy rekurencyjnej
-— to mechanizm, który informuje PyTorch o rzeczywistych długościach, żeby warstwa nie
-przetwarzała paddingu w ogóle.
+Gotowe wywołanie `train_eval` trenuje baseline. Jego wynik będzie punktem odniesienia w sekcji 13.
 
-Zweryfikuj swoją implementację (gotowa asercja czeka): **ten sam tekst**, zakodowany
-osobno i zbatchowany razem z dłuższą wiadomością (więc inaczej dopełniony paddingiem),
-musi dać **identyczną** reprezentację w obu przypadkach. Jeśli asercja nie przechodzi —
-masz dokładnie ten błąd, który jest tematem sekcji diagnostycznej (sekcja 11) — ale tu
-oczekujemy, że Twoja implementacja jest już poprawna.
+## 7. Klasyfikator `nn.Embedding` z `nn.GRU` lub `nn.LSTM`
 
-## 8. Trening klasyfikatora z sekcji 7 (pętla z sekcji 5 — gotowe wywołanie)
+Model powinien zawierać `nn.Embedding`, warstwę `nn.GRU` albo `nn.LSTM` oraz warstwę klasyfikacyjną.
 
-Wytrenuj swój klasyfikator z sekcji 7 przez `train_eval` (ta sama funkcja, co w
-sekcji 6 dla baseline'u).
+Reprezentacją całej sekwencji ma być stan po ostatnim rzeczywistym tokenie, a nie po ostatniej pozycji tensora, która może zawierać padding. Przed warstwą rekurencyjną należy zastosować `torch.nn.utils.rnn.pack_padded_sequence`. Mechanizm przekazuje rzeczywiste długości i zapobiega przetwarzaniu paddingu.
 
-## 9. Porównanie ≥2 konfiguracji — Twoje zadanie
+Gotowa asercja porównuje ten sam tekst zakodowany osobno oraz w batchu z dłuższą wiadomością. Obie reprezentacje muszą być identyczne. Błąd w tej asercji zwykle oznacza problem analizowany ponownie w sekcji 11.
 
-Porównaj **co najmniej dwie** konfiguracje — do wyboru (uzasadnij w 2-3 zdaniach,
-dlaczego akurat te): GRU vs LSTM, różny wymiar stanu ukrytego, obecność/brak
-dropoutu, różna liczba epok. Użyj **tego samego** podziału danych i tych samych
-metryk dla każdej.
+## 8. Trening klasyfikatora
 
-## 10. Ewaluacja na zbiorze testowym — Twoje zadanie
+Klasyfikator z sekcji 7 należy wytrenować za pomocą gotowego wywołania `train_eval`, używanego wcześniej dla baseline'u.
 
-Wybierz lepszą (według walidacji) konfigurację z sekcji 9. Oceń ją na zbiorze
-testowym (**pierwszy raz** w tym laboratorium) przy użyciu:
+## 9. Porównanie co najmniej dwóch konfiguracji
+
+Należy porównać przynajmniej dwie konfiguracje. Możliwe warianty obejmują GRU i LSTM, różne wymiary stanu ukrytego, obecność dropoutu lub różną liczbę epok. Wybór wymaga uzasadnienia w 2 do 3 zdaniach. Wszystkie konfiguracje muszą korzystać z tego samego podziału danych i tych samych metryk.
+
+## 10. Ewaluacja na zbiorze testowym
+
+Lepszą konfigurację wybiera się na podstawie walidacji. Dopiero potem, pierwszy raz w laboratorium, wykonywana jest ewaluacja na zbiorze testowym. Wymagane są trzy wyniki.
 
 - accuracy,
-- **macro-F1** (zbiór jest niezbalansowany — sekcja 1 — accuracy sama w sobie myli:
-  model, który zawsze przewiduje `ham`, miałby wysoką accuracy i zero użyteczności),
-- macierzy pomyłek.
+- macro-F1,
+- macierz pomyłek.
+
+Macro-F1 jest istotne przy niezbalansowanym zbiorze. Model przewidujący zawsze `ham` mógłby uzyskać wysoką accuracy, choć nie byłby użyteczny.
 
 ## 11. Zadanie diagnostyczne
 
-Poniższy kod (w notebooku) **wygląda** na poprawny — nie rzuca wyjątku, trenuje się,
-daje jakąś accuracy — ale ma błąd związany z obsługą paddingu.
+Kod w notebooku nie zgłasza wyjątku i może się trenować, ale błędnie obsługuje padding.
 
-**Zadanie:**
-1. Zdiagnozuj błąd — na czym dokładnie polega, w której linii.
-2. Wyjaśnij, dlaczego jest istotny (kiedy się ujawnia, a kiedy nie — podpowiedź:
-   sprawdź dla batch_size=1 i dla batcha z sekwencjami o różnej długości).
-3. Popraw kod.
-4. Sprawdź zachowanie na sekwencjach różnej długości (gotowa asercja z sekcji 7
-   powinna teraz przechodzić).
+Należy:
 
-## 12. Analiza błędów — Twoje zadanie
+1. wskazać konkretny błąd i linię, w której występuje,
+2. wyjaśnić, kiedy błąd się ujawnia, porównując `batch_size=1` z batchem sekwencji o różnych długościach,
+3. poprawić kod,
+4. sprawdzić sekwencje o różnych długościach za pomocą asercji z sekcji 7.
 
-Dla modelu z sekcji 10: wypisz 5-8 błędnie sklasyfikowanych wiadomości (tekst +
-prawdziwa/przewidziana etykieta). Czy błędy koncentrują się po jednej stronie (więcej
-`ham`→`spam` czy `spam`→`ham`)? Porównanie błędów względem długości wiadomości
-zostawiamy jako rozszerzenie opcjonalne.
+## 12. Analiza błędów
 
-## 13. Wnioski — Twoje zadanie
+Dla modelu z sekcji 10 należy wypisać od 5 do 8 błędnie sklasyfikowanych wiadomości wraz z prawdziwą i przewidzianą etykietą. Analiza powinna określić, czy częściej występują błędy `ham` na `spam`, czy `spam` na `ham`. Porównanie z długością wiadomości jest rozszerzeniem opcjonalnym.
 
-Odpowiedz, uzasadniając rzeczywistymi liczbami z sekcji 6-12:
+## 13. Wnioski
 
-1. O ile model sekwencyjny (GRU/LSTM) przebija baseline bez kolejności? Czy ta
-   różnica jest duża, czy skromna — i co to mówi o tym, na ile ten **konkretny**
-   problem (klasyfikacja spamu) faktycznie wymaga rozumienia kolejności słów, w
-   porównaniu z zadaniem z wykładu (eksperyment C), które było tak skonstruowane,
-   żeby kolejność była jedyną rozstrzygającą informacją?
-2. Która z dwóch porównanych konfiguracji (sekcja 9) wypadła lepiej na walidacji?
-   Czy różnica jest wystarczająco duża, żeby zaufać jej na pojedynczym przebiegu?
-3. Jakie jest co najmniej jedno ograniczenie tego eksperymentu (rozmiar danych,
-   prosta tokenizacja, pojedyncze ziarno), które nie pozwala uogólnić wniosków?
+Odpowiedzi powinny opierać się na liczbach z sekcji 6-12.
 
-## Podział czasu (orientacyjny, nie zweryfikowany na zajęciach)
+1. O ile GRU lub LSTM przewyższa baseline bez kolejności? Wielkość różnicy należy odnieść do roli kolejności w klasyfikacji spamu i porównać z eksperymentem C z wykładu.
+2. Która konfiguracja z sekcji 9 wypadła lepiej na walidacji? Czy różnica z pojedynczego przebiegu jest wystarczająca do sformułowania mocnego wniosku?
+3. Jakie ograniczenie, na przykład rozmiar danych, prosta tokenizacja lub pojedyncze ziarno, utrudnia uogólnienie wyników?
+
+## Orientacyjny podział czasu
 
 | Blok | Czas |
 |---|---|
-| Sekcje 0-1 (konfiguracja, eksploracja) | 10 min |
-| Sekcja 2 (tokenizacja + ograniczenia) | 10 min |
-| Sekcje 3-5 (słownik, PAD/UNK, gotowe kodowanie) | 10 min |
-| Sekcja 6 (baseline bez kolejności) | 15 min |
-| Sekcja 7 (klasyfikator GRU/LSTM + poprawny padding) | 25 min |
-| Sekcja 8 (trening) | 5 min |
-| Sekcja 9 (porównanie ≥2 konfiguracji) | 10 min |
-| Sekcja 10 (ewaluacja testowa) | 10 min |
-| Sekcja 11 (ukierunkowana diagnostyka paddingu) | 10 min |
-| Sekcja 12 (ukierunkowana analiza błędów) | 5 min |
-| Sekcja 13 (wnioski) | 10 min |
+| Sekcje 0-1, konfiguracja i eksploracja | 10 min |
+| Sekcja 2, tokenizacja i ograniczenia | 10 min |
+| Sekcje 3-5, słownik, PAD/UNK i kodowanie | 10 min |
+| Sekcja 6, baseline bez kolejności | 15 min |
+| Sekcja 7, klasyfikator i padding | 25 min |
+| Sekcja 8, trening | 5 min |
+| Sekcja 9, porównanie konfiguracji | 10 min |
+| Sekcja 10, ewaluacja testowa | 10 min |
+| Sekcja 11, diagnostyka paddingu | 10 min |
+| Sekcja 12, analiza błędów | 5 min |
+| Sekcja 13, wnioski | 10 min |
 
-Sekcje 0-13 to rdzeń obowiązkowy. Trening na tym zbiorze trwa pojedyncze sekundy na
-CPU — budżet czasowy ma iść w poprawną implementację obsługi sekwencji i analizę, nie
-w czekanie na trening.
+Sekcje 0-13 stanowią obowiązkowy rdzeń. Trening na CPU trwa pojedyncze sekundy, więc większość czasu powinna zostać przeznaczona na poprawną obsługę sekwencji i analizę.
 
-**Rozszerzenia (opcjonalne, jeśli zostanie czas):** porównaj średnią długość lub odsetek
-błędów dla poprawnie i błędnie sklasyfikowanych wiadomości; wypróbuj dwukierunkowy
-GRU/LSTM (`bidirectional=True`); albo pokaż accuracy osobno dla krótkich (<10 tokenów)
-i długich (>30 tokenów) wiadomości.
+Opcjonalne rozszerzenia obejmują porównanie długości poprawnie i błędnie sklasyfikowanych wiadomości, dwukierunkowy GRU lub LSTM z `bidirectional=True` oraz osobne accuracy dla krótkich, poniżej 10 tokenów, i długich, powyżej 30 tokenów, wiadomości.
 
 ## Kryteria oceny
 
-- Słownik zbudowany wyłącznie z `train_texts`; `<UNK>` poprawnie obsługuje tokeny
-  spoza słownika bez błędu.
-- Klasyfikator z sekcji 7 używa `pack_padded_sequence` (albo równoważnego poprawnego
-  mechanizmu) — asercja "ten sam tekst, ta sama reprezentacja niezależnie od
-  paddingu" przechodzi.
-- Baseline z sekcji 6 poprawnie pomija padding przy uśrednianiu (nie tylko przy
-  klasyfikatorze rekurencyjnym).
-- Ewaluacja testowa (sekcja 10) używa accuracy **i** macro-F1 **i** confusion matrix,
-  nie samej accuracy.
-- Zbiór testowy pojawia się dopiero w sekcji 10, po wyborze konfiguracji na
-  podstawie walidacji.
-- Zadanie diagnostyczne (sekcja 11) wskazuje konkretną przyczynę, nie ogólnik.
-- Wnioski odwołują się do konkretnych liczb z Twojego przebiegu.
+- Słownik powstaje wyłącznie z `train_texts`, a `<UNK>` poprawnie obsługuje tokeny spoza słownika.
+- Klasyfikator z sekcji 7 używa `pack_padded_sequence` albo równoważnego mechanizmu. Asercja niezależności reprezentacji od paddingu przechodzi.
+- Baseline z sekcji 6 pomija padding podczas uśredniania.
+- Ewaluacja testowa zawiera accuracy, macro-F1 i macierz pomyłek.
+- Zbiór testowy jest używany dopiero po wyborze konfiguracji na podstawie walidacji.
+- Diagnoza z sekcji 11 wskazuje konkretną przyczynę błędu.
+- Wnioski odwołują się do liczb uzyskanych podczas eksperymentu.
 
-Pełne rozwiązanie wzorcowe istnieje lokalnie u prowadzącego
-(`decisions/solutions/09_rnn/`) i nie jest częścią tego repozytorium.
+Pełne rozwiązanie wzorcowe znajduje się lokalnie u prowadzącego w `decisions/solutions/09_rnn/` i nie jest częścią repozytorium.
