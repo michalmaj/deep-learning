@@ -1,530 +1,288 @@
-Language: **English (default)** | [Polski](lecture.md)
+Language: **English** | [Polski](lecture.md)
 
-# Lecture 10 — Attention and the Transformer architecture
+# Lecture 10. Attention and the Transformer architecture
 
 ## Learning goals
 
-1. Understand attention as a weighted aggregation of information from different
-   sequence positions — direct access, without pushing information through a chain
-   of hidden states.
-2. Be able to compute scaled dot-product attention by hand and explain the roles of
-   $Q$, $K$, $V$.
-3. Understand multi-head attention as several independent projections operating in
-   parallel, not as one bigger mechanism.
-4. Correctly apply masking (padding and causal) — including understanding that
-   different PyTorch APIs interpret boolean masks **differently**, not
-   interchangeably.
-5. Understand why self-attention without positional information cannot distinguish
-   token order, and how positional encoding fixes this.
-6. Know the structure of a Transformer block (attention + FFN + residual + LayerNorm)
-   and distinguish: a single head, a multi-head layer, a block, the whole model.
+1. describe attention as weighted aggregation across sequence positions,
+2. calculate scaled dot-product attention and explain the roles of $Q$, $K$, and $V$,
+3. distinguish a single head, multi-head attention, a Transformer block, and a complete model,
+4. apply padding and causal masks correctly,
+5. explain why position information is required,
+6. present attention, FFN, residual connections, and LayerNorm as parts of a Transformer block.
 
 ## Why this matters
 
-In module 9, the hidden state $h_t$ had to compress the entire sequence seen so far
-into a fixed-size vector — information from the distant past only reached the
-current step after passing through many intermediate updates (and, as we measured,
-could vanish along the way). Attention inverts this principle: instead of relying
-solely on a compressed state, every position can **directly** "look up" the
-representation of any other position, weighting it by how relevant it is. We will see
-this literally in the comparative experiment with a GRU: on a task where two relevant
-tokens are $64$ positions apart, the GRU loses most of its accuracy (dropping close
-to chance level), while a small Transformer does noticeably better (though not
-perfectly either).
+In module 9, the state $h_t$ compressed the sequence history into a fixed-size vector. Information from a distant position had to cross many updates and could vanish along the way.
+
+Attention gives every position direct access to representations at other positions. Their contribution depends on learned weights. One experiment compares this mechanism with GRU on a task where a long sequence of distractors separates the relevant information from the output.
 
 ## Intuition
 
-Imagine that for every position in the sequence you ask: "which other positions
-matter to me, and how much information should I take from them?". Attention
-formalizes this question: every position emits a **query**, every position
-(including itself) provides a **key** ("what I am about") and a **value** ("what
-information I carry"). The similarity between a query and a key determines the
-weight with which the corresponding value enters the result.
+Every position asks which elements of the sequence matter. A query describes the information being sought. A key allows the model to assess how well a position matches the query. A value contains the information passed to the result.
 
-❌ "Attention and the Transformer are the same thing."
+The similarity between a query and a key determines the weight of the corresponding value.
 
-✅ Attention is a **mechanism** (a way of weighting and aggregating information) —
-the Transformer is an **architecture** built from this mechanism plus a feed-forward
-network, residual connections, and normalization, arranged into repeatable blocks.
-The attention mechanism itself existed and was used (e.g. in RNN encoder-decoder
-models) before the Transformer was invented — we will see below that the Transformer
-is a specific way of combining attention with other, equally important components.
+❌ Attention and Transformer mean the same thing.
 
-## Formal model: Query, Key, Value
+✅ Attention is an aggregation mechanism. Transformer is an architecture that combines attention with an FFN, residual connections, and normalization.
 
-For a sequence of input representations $x_1,\ldots,x_T \in \mathbb R^{d_{\text{model}}}$
-(e.g. token embeddings from module 8, possibly plus positional encoding — below), we
-build three matrices via linear projections:
+## Query, Key, and Value
 
-$$Q = XW^Q, \qquad K = XW^K, \qquad V = XW^V$$
+For $X\in\mathbb R^{T\times d_{\text{model}}}$, whose rows correspond to positions, three linear projections are created.
 
-where $X\in\mathbb R^{T\times d_{\text{model}}}$ (rows = positions), $W^Q, W^K \in
-\mathbb R^{d_{\text{model}}\times d_k}$, $W^V\in\mathbb R^{d_{\text{model}}\times d_v}$
-(in the basic version $d_k=d_v=d_{\text{model}}$; smaller in multi-head — below).
+$$Q=XW^Q,\qquad K=XW^K,\qquad V=XW^V$$
 
-**A note on notation.** $Q$, $K$, $V$ is **standardized notation across the entire
-literature** (query/key/value) — we keep it, even though $K$ in this course also
-means "number of layers" (module 2) and "kernel size" (module 6). This is **a
-different entity**: $K$ here is always a **matrix** (appearing together with $Q$ and
-$V$), never a single number — context unambiguously distinguishes them, just as in
-module 8 we distinguished two meanings of $k$ (k-NN vs. kernel size). We denote
-attention weights $\alpha$ (unused earlier in the course) — **not** $A$, which in
-module 3 denotes a layer's batched activations ($A^{(l)}$).
+The matrices $W^Q,W^K\in\mathbb R^{d_{\text{model}}\times d_k}$ and $W^V\in\mathbb R^{d_{\text{model}}\times d_v}$. Inputs may be token embeddings from module 8 with positional encoding added.
 
-## Mathematics: scaled dot-product attention
+$Q$, $K$, and $V$ are the standard symbols for query, key, and value. Here, $K$ is a matrix rather than the number of layers or kernel size. Attention weights are denoted by $\alpha$ to avoid a collision with the activations $A^{(l)}$ from module 3.
 
-$$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+## Scaled dot-product attention
 
-Let's break this down step by step:
+$$\operatorname{Attention}(Q,K,V)=\operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
 
-1. **$QK^\top$** $\in\mathbb R^{T\times T}$ — the dot product of every query with
-   every key: row $i$, column $j$ is $q_i\cdot k_j$, a measure of "how well query $i$
-   matches key $j$" (a larger dot product = more aligned directions, for comparable
-   norms — exactly the intuition from module 8, cosine similarity, just without
-   explicit L2 normalization here).
-2. **Scaling by $\sqrt{d_k}$**: for random $q,k$ with independent coordinates, the
-   variance of $q\cdot k$ grows **linearly** with $d_k$ (a sum of $d_k$ independent
-   products) — without scaling, for large $d_k$, the values of $QK^\top$ have high
-   variance, which pushes softmax into a region of very small gradients (saturation,
-   module 2). Dividing by $\sqrt{d_k}$ brings the variance back to order $1$,
-   regardless of $d_k$.
-3. **Softmax along the last dimension** (over columns, separately for each
-   row/query) — turns every row into a probability distribution over the available
-   keys: $\alpha_{ij}\geq 0$, $\sum_j \alpha_{ij}=1$. These are exactly the
-   **attention weights**: how much attention query $i$ pays to key (and hence value)
-   $j$.
-4. **$\cdot V$**: every output position is a weighted (weights $\alpha_{i\cdot}$) sum
-   of all values — aggregation of information from the whole sequence, in one step,
-   without passing through intermediate states.
+The calculation has four stages.
 
-**Dimensions — spelled out.** For a single sequence: $Q,K\in\mathbb R^{T\times d_k}$,
-$V\in\mathbb R^{T\times d_v}$, $QK^\top\in\mathbb R^{T\times T}$, output
-$\in\mathbb R^{T\times d_v}$. For a batch of size $B$: we add a leading dimension,
-$Q,K\in\mathbb R^{B\times T\times d_k}$ etc., $QK^\top\in\mathbb R^{B\times T\times T}$
-— the attention-weight matrix is **separate for every example in the batch**.
+1. $QK^\top$ contains dot products between every query and key. Entry $(i,j)$ measures the match between $q_i$ and $k_j$.
+2. Division by $\sqrt{d_k}$ stabilizes the variance of the scores. Without scaling, larger $d_k$ encourages softmax saturation and small gradients.
+3. Softmax is applied independently to each row. The resulting $\alpha_{ij}$ are nonnegative and satisfy $\sum_j\alpha_{ij}=1$.
+4. Multiplication by $V$ forms a weighted sum of values for each query.
 
-**A note on notation.** We denote batch size here as $B$, not $N$ as in modules
-1-3/6-7 — deliberately, because in this module $N$ is already taken (below: the
-number of Transformer blocks stacked one after another). $B$ is the only symbol here
-for "number of examples at once", with no collision within this document.
+For one sequence, $Q,K\in\mathbb R^{T\times d_k}$, $V\in\mathbb R^{T\times d_v}$, $QK^\top\in\mathbb R^{T\times T}$, and the output belongs to $\mathbb R^{T\times d_v}$. For a batch of size $B$, the leading dimension has size $B$, and every example has its own $T\times T$ weight matrix.
 
-## Worked example: 3 positions, $d_k=4$
+The symbol $B$ denotes batch size. $N$ is reserved for the number of Transformer blocks.
 
-$$Q=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&0&0\end{pmatrix}\quad K=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&1&1\end{pmatrix}\quad V=\begin{pmatrix}1&2\\3&4\\5&6\end{pmatrix}$$
+## Three-position example
 
-**1. $QK^\top$:**
-$$QK^\top=\begin{pmatrix}2&0&2\\0&2&2\\1&1&2\end{pmatrix}$$
+For $d_k=4$, let
 
-**2. After scaling ($\div\sqrt4=\div2$):**
-$$\begin{pmatrix}1.0&0.0&1.0\\0.0&1.0&1.0\\0.5&0.5&1.0\end{pmatrix}$$
+$$Q=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&0&0\end{pmatrix},\quad K=\begin{pmatrix}1&0&1&0\\0&1&0&1\\1&1&1&1\end{pmatrix},\quad V=\begin{pmatrix}1&2\\3&4\\5&6\end{pmatrix}.$$
 
-**3. Weights after softmax (every row sums to $1$):**
-$$\begin{pmatrix}0.4223&0.1554&0.4223\\0.1554&0.4223&0.4223\\0.2741&0.2741&0.4519\end{pmatrix}$$
+The query-key products are
 
-**4-5. Weighted combination of $V$ = final representation:**
-$$\begin{pmatrix}3.000&4.000\\3.534&4.534\\3.356&4.356\end{pmatrix}$$
+$$QK^\top=\begin{pmatrix}2&0&2\\0&2&2\\1&1&2\end{pmatrix}.$$
 
-Verified within numerical tolerance (`atol=1e-6`) against
-`F.scaled_dot_product_attention` in the notebook.
+Division by $\sqrt4=2$ gives
+
+$$\begin{pmatrix}1.0&0.0&1.0\\0.0&1.0&1.0\\0.5&0.5&1.0\end{pmatrix}.$$
+
+Softmax produces the weights
+
+$$\begin{pmatrix}0.4223&0.1554&0.4223\\0.1554&0.4223&0.4223\\0.2741&0.2741&0.4519\end{pmatrix}.$$
+
+The final weighted combination of $V$ is
+
+$$\begin{pmatrix}3.000&4.000\\3.534&4.534\\3.356&4.356\end{pmatrix}.$$
+
+The notebook confirms agreement with `F.scaled_dot_product_attention` at `atol=1e-6`.
 
 ## Multi-head attention
 
-Instead of a single $Q,K,V$ projection at full dimension $d_{\text{model}}$,
-multi-head attention splits into $H$ **independent** heads, each of smaller
-dimension $d_k = d_{\text{model}}/H$. **A note on notation:** $H$ here is the number
-of attention heads — **a different meaning** than $H$ in module 6 (image height in
-the NCHW convention). The same symbol, a completely different domain (sequences vs.
-images) — context disambiguates it, just like $k$ in module 6 (kernel size) and $k$
-in module 8 (k-NN):
+Multi-head attention uses $H$ independent heads. With $d_k=d_{\text{model}}/H$, each head operates in a smaller space.
 
-$$\text{head}_i = \text{Attention}(XW^Q_i, XW^K_i, XW^V_i), \qquad i=1,\ldots,H$$
-$$\text{MultiHead}(X) = \text{Concat}(\text{head}_1,\ldots,\text{head}_H)\,W^O$$
+$$\operatorname{head}_i=\operatorname{Attention}(XW_i^Q,XW_i^K,XW_i^V),\qquad i=1,\ldots,H$$
 
-Every head has **its own** $W^Q_i, W^K_i, W^V_i$ (different matrices, not the same
-projection replicated $H$ times) — the results are concatenated along the feature
-dimension and passed through one shared output projection $W^O\in\mathbb
-R^{d_{\text{model}}\times d_{\text{model}}}$. In practice (and in
-`nn.MultiheadAttention`), the $Q,K,V$ projections for all heads are computed with a
-**single**, **concatenated** matrix $W^{QKV}\in\mathbb R^{d_{\text{model}}\times 3d_{\text{model}}}$,
-and only then is the result split into $H$ heads — mathematically
-equivalent to $H$ separate projections, verified within numerical tolerance
-(`atol=1e-5`) in the notebook by manually slicing `in_proj_weight`.
+$$\operatorname{MultiHead}(X)=\operatorname{Concat}(\operatorname{head}_1,\ldots,\operatorname{head}_H)W^O$$
 
-❌ "Each head learns a different, recognizable relation (e.g. a 'syntactic head', a
-'semantic head')."
+Every head has its own projections. Their results are concatenated and passed through a shared matrix $W^O\in\mathbb R^{d_{\text{model}}\times d_{\text{model}}}$. Here, $H$ denotes the number of heads rather than image height from module 6.
 
-✅ Different heads **can** specialize in different patterns — this is a real,
-documented observation in large, trained models — but it is **not a guarantee** of
-the architecture, only a possible (and ambiguous to interpret) effect of training.
-Randomly initialized heads have no pre-determined specialization at all — in
-Experiment B we will see that the shapes and independent weight matrices alone do not
-settle anything about content.
+`nn.MultiheadAttention` combines the projections for all heads in one matrix $W^{QKV}\in\mathbb R^{d_{\text{model}}\times3d_{\text{model}}}$. This is equivalent to separate projections. Manually splitting `in_proj_weight` matches the PyTorch implementation at `atol=1e-5`.
+
+❌ Every head must learn a separate relationship with an obvious interpretation.
+
+✅ Specialization may emerge during training, but the architecture does not guarantee it. Random heads have no predefined roles.
 
 ## Masking
 
-**Padding mask**: queries should not "look at" padding positions (module 9: padding
-is not content). **Causal mask**: in autoregressive models (generating text token by
-token), position $i$ must not use position $j>i$ — otherwise the model would "see the
-future" during training, which it does not have during actual generation.
+A padding mask blocks access to filler positions. A causal mask blocks positions $j>i$ so that an autoregressive model cannot use future tokens.
 
-❌ "The causal mask also handles padding, or vice versa — they're basically the same
-thing."
+❌ One mask can replace the other.
 
-✅ These are **two independent** constraints that **combine** (logical AND), not
-substitute for each other: the causal mask restricts based on **position relative to
-the query** (always the same triangular pattern, independent of the specific
-sequence), the padding mask restricts based on **the content of a given example**
-(which positions are real depends on the actual length of a specific sequence in the
-batch). A decoder model with variable sequence length in a batch needs **both at
-once** — verified in the notebook: the combined mask is the (logical AND) product of
-the two masks taken separately.
+✅ They impose independent constraints. A causal mask depends on relative position, while a padding mask depends on the real length of a particular sequence. A decoder processing variable-length batches needs both.
 
-### Padding in an RNN vs. padding in attention — not the same mechanism
+### Padding in RNN and attention
 
-Module 9 teaches `pack_padded_sequence` as a way to ignore padding in an
-RNN/LSTM/GRU — it is tempting to conclude from this that the padding mask in
-attention "does the same thing". **It does not.** These are two different
-mechanisms, not two names for one thing:
+`pack_padded_sequence` from module 9 and `key_padding_mask` serve a similar purpose but operate differently.
 
-| | `pack_padded_sequence` (RNN, module 9) | `key_padding_mask` (attention) |
+| Mechanism | Treatment of a padding position | Padding as a query |
 |---|---|---|
-| What happens to a padding position | **Is not processed at all** — the recurrent layer physically skips this step | **Is processed normally** by the embedding, FFN, LayerNorm — only its **weight in the attention sum** is zeroed out |
-| A padding position as a query | Does not exist (the sequence has already ended) | **Still produces some output** — it is not skipped as a computational step, only ignored afterward |
+| `pack_padded_sequence` | the RNN does not process the step | it does not exist after the sequence ends |
+| `key_padding_mask` | the position still passes through the embedding, FFN, and LayerNorm; only its attention weight is blocked | it still produces an output |
 
-Consequence: masking attention alone **is not enough** to make padding fully
-without effect on the result — if the representation of the whole sequence is built
-by averaging *all* positions (not only the real ones), padding will affect the
-result even when attention correctly ignored it when weighting. **Also** needed is
-correct aggregation at the end — see the diagnostic task in this module's lab.
+An attention mask alone does not remove every effect of padding. The final aggregation must also exclude filler positions. Otherwise, a mean representation still depends on the number of `PAD` positions.
 
-### Boolean mask vs. additive mask
+### Boolean and additive masks
 
-A mask can be encoded two ways: as a **boolean** (where one value means "allowed",
-the other "blocked" — but **which is which depends on the API!**, see below) or as an
-**additive** mask (a tensor of real numbers added to the $QK^\top$ result before
-softmax: $0$ for allowed positions, $-\infty$ for blocked ones — after adding
-$-\infty$, `softmax` assigns that position a weight of $0$).
+A Boolean mask uses two logical values, but the meaning of `True` depends on the API. An additive mask is added to $QK^\top$ before softmax. Allowed positions receive $0$ and blocked positions receive $-\infty$, giving them a softmax weight of $0$.
 
-### Rows with all keys masked
+### All keys masked
 
-If, for some query, **no** key is allowed (e.g. a bug in mask construction), the row
-of $QK^\top$ after masking is all $-\infty$ — `softmax` computes $e^{-\infty}/\sum e^{-\infty} = 0/0$.
-**Verified in the notebook:** a naive, manual implementation
-(`masked_fill(-\infty)` + `softmax`) gives `NaN` in this situation. The optimized
-`F.scaled_dot_product_attention` kernel has a special case and returns $0$ instead of
-`NaN` — **but do not rely on this in your own "from scratch" implementation**: make
-sure every query position whose result you actually use has at least one allowed key
-(e.g. queries corresponding to real, non-padding tokens always have at least
-themselves available under a causal mask).
+If every key is blocked for a query, naive softmax receives only $-\infty$ values and calculates $0/0$. The manual notebook implementation returns `NaN`. `F.scaled_dot_product_attention` handles this case and returns zero.
 
-**An additional pitfall, specific to `nn.MultiheadAttention`** (verified
-empirically): whether a fully masked row gives `NaN` or a safe zero depends on the
-`need_weights` parameter. **The default value is `need_weights=True`** (needed when
-we want to **inspect** the attention weights themselves — as in the notebook and the
-lab) — this forces the explicit path with manual `softmax`, and in that case a fully
-masked row gives `NaN`, exactly like the naive "from scratch" implementation above.
-You must **explicitly set** `need_weights=False` so that `nn.MultiheadAttention` can
-use the same optimized path as `F.scaled_dot_product_attention` — a safe zero.
-Conclusion: even within **one** API, numerical behavior can depend on an argument
-unrelated to masking itself — another reason not to assume behavior without testing
-it.
+In `nn.MultiheadAttention`, the result also depends on `need_weights`. The default `need_weights=True` follows an explicit softmax path and may produce `NaN`. Setting `need_weights=False` allows an optimized path that returns zero. A custom implementation should ensure at least one allowed key for every query whose output is used.
 
-### An important implementation note: masks are NOT portable between APIs
+### Mask semantics in PyTorch APIs
 
-**Verified experimentally, not from documentation** (direct inspection of attention
-weights on a controlled example):
+Boolean masks are not portable between interfaces.
 
-| API | parameter | `True` means |
+| API | Parameter | Meaning of `True` |
 |---|---|---|
-| `F.scaled_dot_product_attention` | `attn_mask` (bool) | **allowed** (attend) |
-| `nn.MultiheadAttention` | `attn_mask` (bool) | **blocked** (ignore) |
-| `nn.MultiheadAttention` | `key_padding_mask` (bool) | **this is padding** (ignore) |
+| `F.scaled_dot_product_attention` | `attn_mask` | the position is allowed |
+| `nn.MultiheadAttention` | `attn_mask` | the position is blocked |
+| `nn.MultiheadAttention` | `key_padding_mask` | the position is padding and blocked |
 
-`nn.MultiheadAttention` is **internally consistent** (`attn_mask` and
-`key_padding_mask` both: `True`=block), but **opposite** to
-`F.scaled_dot_product_attention`. Copying a boolean mask from one API to the other
-without inverting it gives a **silently wrong result** — no exception, the model will
-still train, but it will "see" exactly the positions it was supposed to ignore (and
-vice versa). A verified test in the notebook checks this directly for both APIs,
-rather than trusting the documentation alone.
+`nn.MultiheadAttention` is internally consistent but uses the opposite convention from `F.scaled_dot_product_attention`. Moving a mask incorrectly may not raise an exception. It can silently invert the set of visible positions.
 
-## Position in the sequence: why self-attention needs it
+## Position information
 
-The formula $\text{Attention}(Q,K,V)$ **never refers anywhere to the position index**
-$i$ or $j$, beyond which specific rows of $X$ it takes — if we permute the rows of
-input $X$, the output permutes in **exactly the same way** (a property called
-**permutation equivariance**). Verified in the notebook: `output(permute(X))` matches
-`permute(output(X))` within numerical tolerance (`atol=1e-6`).
+The attention equation does not directly use the indices $i$ and $j$. Permuting the rows of $X$ causes the same permutation of the output. This property is called permutation equivariance. The notebook confirms it at `atol=1e-6`.
 
-Consequence: if we build a model that classifies a sequence via self-attention +
-**order-insensitive** aggregation (e.g. an average over positions), the whole thing
-is **permutation invariant** — permuting the input **does not change** the
-prediction. Verified: for the task from module 9 (the label depends solely on the
-order of two tokens), a self-attention + mean-pooling model **without** positional
-encoding reaches exactly chance level — an identical result on each of the 3 tested
-seeds (so this is not a matter of "unlucky" initialization — the model
-mathematically **cannot** represent a function that depends on order).
+Combining self-attention with an order-insensitive aggregation such as a mean is permutation invariant. Such a model cannot solve a task whose label depends only on token order.
 
-❌ "Self-attention automatically 'knows' which position is which, because it
-processes the sequence."
+❌ Self-attention automatically knows the positions of sequence elements.
 
-✅ The attention mechanism itself is blind to position — it "knows" only as much as
-it **explicitly** receives in the input representation. Hence **positional
-encoding**: we add to each token's embedding an extra vector that depends on its
-position, **before** it enters attention.
+✅ Position information must be added to the input. Positional encoding augments a token embedding before the attention layer.
 
-**Positional encoding — sinusoidal version** (the original Transformer):
+The sinusoidal encoding from the original Transformer is
 
-$$PE_{(pos,2i)} = \sin\!\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right), \qquad PE_{(pos,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right)$$
+$$PE_{(pos,2i)}=\sin\!\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right),\qquad PE_{(pos,2i+1)}=\cos\!\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right).$$
 
-Every pair of coordinates encodes position with a sinusoidal wave of a different
-frequency — deterministic, with no additional parameters to train, and it works (to
-a limited extent) for sequences longer than those seen during training. Alternative:
-a **learned positional embedding** (`nn.Embedding(max_len, d_model)`, exactly like
-the token embedding from module 8, just indexed by position instead of token
-identity) — simpler, but it does not extrapolate beyond the `max_len` seen during
-training.
+Each coordinate pair uses a different frequency. The encoding is deterministic, adds no parameters, and can partly support lengths unseen during training.
 
-❌ "Either of these two position-encoding methods works equally well in every
-situation."
+A learned position embedding such as `nn.Embedding(max_len, d_model)` is an alternative. It may adapt more closely to the task but cannot handle indices beyond `max_len`.
 
-✅ Sinusoidal encoding is deterministic and (partially) generalizes to longer
-sequences; learned positional embeddings can fit a specific task better, but only
-within the range of lengths seen during training — the choice is a trade-off, not an
-obvious default.
+## Transformer block
 
-## Transformer block architecture
+The Post-LN variant used in the original Transformer is
 
-$$x' = \text{LayerNorm}\big(x + \text{MultiHead}(x)\big), \qquad \text{out} = \text{LayerNorm}\big(x' + \text{FFN}(x')\big)$$
+$$x'=\operatorname{LayerNorm}\big(x+\operatorname{MultiHead}(x)\big),$$
 
-(the **Post-LN** variant, as in the original Transformer — normalization **after**
-adding the residual connection). The FFN is a simple network **applied independently
-to every position** (*position-wise*): $\text{FFN}(x) = W_2\,\text{ReLU}(W_1 x + b_1) + b_2$,
-usually with an inner dimension $4\times$ larger than $d_{\text{model}}$.
+$$\operatorname{out}=\operatorname{LayerNorm}\big(x'+\operatorname{FFN}(x')\big).$$
 
-- **Residual connections** ($x + \text{sublayer}(x)$): exactly the same mechanism as
-  in ResNet (module 7) — they ease gradient propagation through deep stacks of
-  blocks, for the same reasons (the gradient has a "shortcut" bypassing the
-  sublayer).
-- **LayerNorm**: normalizes every position **independently**, over the feature
-  dimension (not over the batch, like BatchNorm from modules 6-7) — verified in the
-  notebook: mean $\approx0$, standard deviation $\approx1$ for every position
-  separately.
-- **Dropout**: typically applied after attention and after the FFN, before adding to
-  the residual connection — as in module 5, but watch for the pitfall below.
+The FFN operates independently at every position.
 
-**Pre-LN** (the variant used in many newer models): normalization **before** the
-sublayer, not after: $x' = x + \text{MultiHead}(\text{LayerNorm}(x))$. The difference
-affects training stability for very deep stacks — we do not develop a full analysis
-here, only note that this is a real, deliberate design choice, not an insignificant
-detail.
+$$\operatorname{FFN}(x)=W_2\operatorname{ReLU}(W_1x+b_1)+b_2$$
 
-**Four different levels — do not confuse them:**
+Its inner dimension is commonly about four times larger than $d_{\text{model}}$.
 
-| Level | What it is |
+- Residual connections provide a shorter gradient path, as in ResNet from module 7.
+- LayerNorm normalizes every position independently over features rather than over the batch.
+- Dropout is usually applied after attention and FFN, before the residual addition.
+
+In the Pre-LN variant, normalization precedes the sublayer, for example $x'=x+\operatorname{MultiHead}(\operatorname{LayerNorm}(x))$. This choice affects the stability of deep models.
+
+| Level | Contents |
 |---|---|
-| A single head | one $\text{Attention}(XW^Q_i,XW^K_i,XW^V_i)$ |
-| A multi-head layer | $H$ heads + concatenation + projection $W^O$ |
-| A Transformer block | multi-head + residual + LN + FFN + residual + LN |
-| A model | $N$ blocks stacked one after another (plus an embedding + head at input/output) |
+| single head | one $\operatorname{Attention}(XW_i^Q,XW_i^K,XW_i^V)$ |
+| multi-head layer | $H$ heads, concatenation, and $W^O$ |
+| Transformer block | multi-head, FFN, two residual connections, and two normalizations |
+| model | $N$ blocks, embeddings, and an input or output head |
 
-❌ "Building a Transformer is basically one call to `nn.Transformer`."
+High-level PyTorch classes hide these elements. This module builds the block explicitly to expose the data flow.
 
-✅ `nn.Transformer`/`nn.TransformerEncoder` **hide** all of the above layers behind a
-single call — convenient in practice, but not useful pedagogically: in this module we
-build the block explicitly, layer by layer, so as to see what happens inside.
+## Encoder, decoder, and cross-attention
 
-## Encoder-only, decoder-only, encoder-decoder
+The original Transformer is an encoder-decoder architecture. The encoder processes the complete input without a causal mask. The decoder generates successive tokens with a causal mask and uses cross-attention over encoder outputs.
 
-The original Transformer (Vaswani et al., 2017) is an **encoder-decoder**
-architecture: the encoder processes the entire input sequence at once (self-attention
-with no causal mask — every position sees the rest), the decoder generates the
-output sequence token by token (self-attention **with** a causal mask, plus
-**cross-attention** to the encoder's output — $Q$ from the decoder, $K,V$ from the
-encoder).
+Self-attention derives $Q$, $K$, and $V$ from one sequence. In cross-attention, queries come from one sequence while keys and values come from another.
 
-- **Cross-attention vs. self-attention**: self-attention computes $Q,K,V$ from the
-  **same** sequence; cross-attention computes $Q$ from one sequence (e.g. the
-  decoder), and $K,V$ from **another** (e.g. the encoder) — the mathematical
-  mechanism is identical, only **where** the inputs come from differs.
-- **Encoder-only** (e.g. BERT-type architectures): encoder only, self-attention with
-  no causal mask — good for tasks where the whole sequence is available at once
-  (classification, as in our lab).
-- **Decoder-only** (e.g. GPT-type architectures): decoder only, self-attention with a
-  causal mask, no cross-attention (nothing to refer to) — good for generating text
-  token by token.
+- **Encoder-only** uses bidirectional self-attention and fits tasks such as classification.
+- **Decoder-only** uses causal self-attention and fits token-by-token generation.
+- **Encoder-decoder** connects both components through cross-attention.
 
-❌ "Encoder-only and decoder-only are basically the same architecture under a
-different name."
+❌ Encoder-only and decoder-only differ only in name.
 
-✅ They differ in **whether and how** they mask self-attention — encoder-only does
-not mask (bidirectional access to the whole sequence), decoder-only masks causally
-(unidirectional, consistent with generation). This is a real functional difference,
-not just a naming one — an encoder-only model is not directly suited to generating
-text token by token, because during training it "saw" the whole sequence at once.
+✅ A causal mask changes access to information. An encoder sees the full sequence, while a decoder sees only the current and preceding positions.
 
-## What we observe
+## Experiments and observations
 
-All numbers below come from actually running `examples.ipynb` (not from estimates) —
-see the notebook for the full output.
+The results come from the executed [`examples.en.ipynb`](examples.en.ipynb).
 
-- **Experiment A.** The manual implementation of scaled dot-product attention agrees,
-  within numerical tolerance (`atol=1e-6`), with `F.scaled_dot_product_attention` on
-  the 3-position numeric example. Changing one query changes **only** the
-  corresponding row of the result; changing one key/value changes **all** rows (every
-  query can "look at" it). Verified directly: `nn.MultiheadAttention` interprets the
-  boolean mask (`attn_mask`, `key_padding_mask`) **oppositely** to
-  `F.scaled_dot_product_attention` — the same logical intent written with the wrong
-  convention gives a reversed, silent result. A row with all keys masked: the naive
-  implementation gives `NaN`, `F.scaled_dot_product_attention` gives zero.
-  `model.eval()` does not disable dropout passed as a constant function argument
-  (confirmed: two calls to `NaiveAttention.eval()` give different results).
-- **Experiment B.** The manual construction of multi-head attention (slicing
-  `in_proj_weight`, splitting into heads, concatenation, `out_proj`) agrees, within
-  numerical tolerance (`atol=1e-5`), with `nn.MultiheadAttention`, both for the output
-  and the per-head weights. Parameter count for $d_{\text{model}}=8$, $H=2$: $288$,
-  matching the formula
-  $3d_{\text{model}}^2+3d_{\text{model}}+d_{\text{model}}^2+d_{\text{model}}$.
-- **Experiment C.** Permutation equivariance of self-attention and invariance of the
-  mean-pooled representation (as well as invariance of a CLS-style representation to
-  permutation of the *remaining* tokens) — confirmed within numerical tolerance
-  (`atol=1e-6`). On an order-dependent task (an 8-element vocabulary, label = order of
-  tokens 0 and 1): **with** positional encoding, `val_acc=test_acc=1.000`; **without**
-  PE, `val_acc=0.475`, `test_acc=0.485` — **identical on each of the 3 tested seeds**
-  (0, 1, 2), confirming that this is a representational limitation, not unlucky
-  initialization. Permuting the input **with** PE changes the prediction (logits
-  $[5.84,-4.49]\to[6.01,-4.66]$ after permutation in the checked example) — as
-  expected, since the order actually changes.
-- **Experiment D.** A small Transformer (2514 parameters at $T=8$) solves the order
-  task with no error (`val_acc=1.000`, 0/200 errors). Comparison with a GRU (1922
-  parameters) on a harder variant of the task (distractors appended after a fixed,
-  early decisive pair of tokens — forcing memory across the whole "tail" length):
-  $T=8,16,32$ — both models `val_acc=1.000`; **$T=64$ — Transformer $0.860$, GRU
-  $0.480$** (close to chance level) — an **observed accuracy difference**, measured
-  from a single run (unlike the with/without-PE comparison above in the same
-  experiment, this specific comparison is not checked across multiple seeds). Module
-  9 (Experiment B) **independently measured**, on a different task, that the GRU's
-  gradient norm with respect to a distant input vanishes exponentially with sequence
-  length. The GRU's accuracy drop at $T=64$ is **consistent with the hypothesis**
-  that the same mechanism contributed to this result — the GRU must carry
-  information about the positions of tokens 0/1 through $56$ steps of pure noise, the
-  Transformer has direct access to them regardless of distance — but in **this**
-  experiment we did not measure the GRU's gradient norm on this specific task: this
-  is a plausible, but not directly confirmed, hypothesis, not a proven cause. The
-  Transformer **also** degrades at $T=64$ (it does not "always win") — under the
-  same, unchanged training budget. Training time: the Transformer is faster than the
-  GRU at larger $T$ (e.g. $1.22$s vs. $2.41$s at $T=64$), but this is a
-  microbenchmark on very short sequences — we do not draw far-reaching conclusions
-  about real-world performance from it.
+### A. Scaled dot-product attention and masks
+
+The manual implementation agrees with `F.scaled_dot_product_attention` at `atol=1e-6`. Changing one query affects only its corresponding row. Changing a key or value may affect every query.
+
+The notebook confirms the opposite meanings of Boolean masks in the two APIs. It also shows `NaN` from a naive implementation for a fully masked row and zero from the optimized function.
+
+Dropout passed as a constant function argument is not disabled by `model.eval()`. Two calls to `NaiveAttention.eval()` may therefore produce different outputs.
+
+### B. Multi-head attention
+
+Manual projections, head splitting, concatenation, and `out_proj` agree with `nn.MultiheadAttention` at `atol=1e-5` for both the output and per-head weights.
+
+For $d_{\text{model}}=8$ and $H=2$, the model has 288 parameters. This matches $3d_{\text{model}}^2+3d_{\text{model}}+d_{\text{model}}^2+d_{\text{model}}$.
+
+### C. Order and positional encoding
+
+Self-attention is permutation equivariant, and a mean representation is permutation invariant. A CLS-style representation is also invariant when the remaining tokens are permuted. Numerical agreement is checked at `atol=1e-6`.
+
+In an eight-token task, the label depends on the order of tokens 0 and 1. The model with positional encoding reaches `val_acc=test_acc=1.000`. Without PE, it reaches `val_acc=0.475` and `test_acc=0.485`. The result repeats for seeds 0, 1, and 2.
+
+After adding PE, an input permutation changes the prediction. In the checked example, logits change from $[5.84,-4.49]$ to $[6.01,-4.66]$.
+
+### D. Transformer and GRU
+
+The small Transformer has 2514 parameters at $T=8$ and reaches `val_acc=1.000`, with no errors among 200 examples.
+
+In a harder task variant, the decisive tokens occur early and are followed by distractors. The GRU has 1922 parameters.
+
+| $T$ | Transformer | GRU |
+|---:|---:|---:|
+| 8 | 1.000 | 1.000 |
+| 16 | 1.000 | 1.000 |
+| 32 | 1.000 | 1.000 |
+| 64 | 0.860 | 0.480 |
+
+The $T=64$ result comes from one run. Accuracy was measured, not gradient norm. The GRU decline is consistent with a hypothesis based on the independent experiment from module 9, but it does not prove that vanishing gradients were the only cause. A fixed 30-epoch budget and a single seed remain confounding factors.
+
+The Transformer also becomes less accurate at $T=64$. Training takes about 1.22 s for the Transformer and 2.41 s for the GRU, but this is a microbenchmark on short sequences rather than a general performance comparison.
 
 ## Common misconceptions
 
-(Additional ones, not covered above)
+❌ A large attention weight proves that a token caused the prediction.
 
-❌ "A larger attention weight is proof that a given token causally influenced the
-prediction."
+✅ A weight describes the value's contribution to one weighted sum. The prediction still passes through FFNs, later blocks, and a head. Causality requires a separate experiment.
 
-✅ An attention weight says how much a given value **contributed** to the weighted
-sum at that step — this is a **descriptive** property of one computational step, not
-proof of causality with respect to the model's final prediction (which still passes
-through the FFN, further blocks, the output head). A high weight does not guarantee
-that removing that token would change the result — conversely, a low weight does not
-guarantee no influence (the information could have arrived another way, e.g. through
-an earlier block).
+❌ Attention removes every problem associated with long sequences.
 
-❌ "Attention eliminates all problems related to long sequences."
+✅ It shortens the information path, but the $T\times T$ matrix creates quadratic memory and compute costs.
 
-✅ Attention gives **direct** access to every position (instead of through a chain of
-states), which genuinely helps with long-range dependencies (see the comparison with
-a GRU below) — but memory and compute cost grow **quadratically** with sequence
-length (a $T\times T$ weight matrix), so very long sequences are expensive for a
-completely different reason than vanishing gradients.
+❌ A small Transformer always outperforms RNN, LSTM, and GRU.
 
-❌ "A small Transformer will always solve a sequential task better than an
-RNN/LSTM/GRU."
+✅ At $T=8$, $16$, and $32$, both models reach the same result. Architecture alone does not guarantee an advantage for every task and budget.
 
-✅ Measured directly (comparative experiment, "What we observe" section above): on
-short sequences ($T=8$) a GRU does equally well; at $T=64$, under the same, unchanged
-training budget, **our small Transformer is also not perfect** (not 100%) — model
-size and training budget matter, the architecture alone does not guarantee success.
+❌ The presence of an attention layer proves that content is understood.
 
-❌ "The mere presence of an attention layer means the model correctly understands the
-sequence's content."
-
-✅ Attention is a computational mechanism — whether a trained model actually
-"understands" content in any meaningful sense is a separate question, not settled by
-the architecture alone. We distinguish: the mathematical operation of the mechanism
-(what exactly it computes), the architecture's capacity (what it **could**
-represent), and a specific trained model's behavior (what it **actually** learned) —
-three different levels, none automatically implying the others.
+✅ A computation mechanism, the capacity of an architecture, and the behavior of a trained model are separate levels of description.
 
 ## Engineering implications
 
-- **The $T\times T$ cost.** The attention-weight matrix has size $T\times T$ (per
-  head, per example in the batch) — the number of position comparisons grows
-  **quadratically** with sequence length, unlike an RNN, where the cost grows
-  **linearly**. For short sequences (as in our experiments) this is irrelevant; for
-  very long ones (thousands of tokens) it becomes the dominant memory and time cost.
-- **Memory.** A simple implementation (like ours, in the notebook) **materializes**
-  the entire $T\times T\times H$ matrix (for $H$ heads) in memory — optimized kernels
-  (e.g. FlashAttention, mentioned only, not implemented) avoid explicitly
-  materializing the full matrix, giving a **different** memory-cost profile than our
-  teaching version, despite an identical mathematical result.
-- **Parallelism vs. actual wall-clock time.** Self-attention can process **all**
-  sequence positions in parallel during training (there is no dependency of $h_t$ on
-  $h_{t-1}$, as in an RNN) — but this **does not automatically mean** lower execution
-  time in every setting: for short sequences, small models, and on CPU (where
-  "parallelism" is limited by core count anyway), the difference can be small or even
-  reversed, measured directly in the comparative experiment.
-- **Number of heads and representation dimension.** More heads at the same
-  $d_{\text{model}}$ means a **smaller** $d_k$ per head (since $d_k=d_{\text{model}}/H$)
-  — not more parameters, just a different split of the same pool.
-- **Training vs. inference.** During training, an encoder/self-attention with no
-  causal mask processes the whole sequence at once. A decoder-only model, during
-  **generation** (inference), produces one token at a time — in practice it caches
-  the already-computed $K,V$ for earlier positions (*KV cache*), so as not to
-  recompute them for every new token — a topic developed further in module 11.
+- **Cost.** The number of position comparisons grows quadratically with $T$, while recurrent cost grows linearly.
+- **Memory.** A simple implementation materializes a $T\times T\times H$ matrix. Optimized kernels such as FlashAttention can avoid storing the complete matrix without changing the mathematical result.
+- **Parallelism.** Positions can be processed in parallel during training, but this does not guarantee lower runtime for small models on a CPU.
+- **Head count.** With fixed $d_{\text{model}}$, more heads mean smaller $d_k$ per head rather than automatically more parameters.
+- **Generation.** A decoder produces tokens sequentially. A KV cache stores earlier $K$ and $V$ values to avoid recomputation. Module 11 develops this mechanism further.
 
-## What to remember
+## Key points
 
-- $\text{Attention}(Q,K,V)=\text{softmax}(QK^\top/\sqrt{d_k})V$ — a weighted
-  aggregation of values, weights from query-key similarity, scaling prevents softmax
-  saturation.
-- Multi-head = $H$ independent projections in parallel, not a guarantee of
-  interpretable specialization for each head.
-- Boolean masks are **not portable** between `F.scaled_dot_product_attention` and
-  `nn.MultiheadAttention` — check the semantics every time.
-- Self-attention without positional encoding is permutation equivariant — it does not
-  distinguish token order without explicitly added positional information.
-- A Transformer block = multi-head attention + FFN + two residual connections + two
-  normalizations — four distinct levels (head/layer/block/model), not one entity.
-- A Transformer does not have to beat an RNN/LSTM/GRU on every task, especially a
-  small, short one — the advantage shows up for long-range dependencies, measured.
+- Attention calculates $\operatorname{softmax}(QK^\top/\sqrt{d_k})V$.
+- Multi-head attention uses independent projections but does not guarantee interpretable specialization.
+- Boolean mask semantics depend on the API.
+- Self-attention without position information is permutation equivariant.
+- A Transformer block combines multi-head attention, an FFN, residual connections, and LayerNorm.
+- Direct position access helps with long-range dependencies, but attention cost grows quadratically.
 
-## Questions for students
+## Questions
 
-1. You have a query $q$ identical to one of the keys $k_j$ and very different from
-   the rest. What will the attention-weight row for this query (approximately) look
-   like after softmax?
-2. Why do we divide by $\sqrt{d_k}$, rather than, say, $d_k$ or not at all? What would
-   happen to the attention weights at very large $d_k$ without this scaling?
-3. You have an encoder-only model (no causal mask) trained to classify a sequence by
-   averaging attention outputs over positions. Will permuting the order of the input
-   tokens change the prediction? Justify your answer using permutation equivariance.
-4. You have a batch with sequences of different lengths and want to build an
-   autoregressive (decoder-only) model. Which **two** masks do you need at the same
-   time, and how do they combine?
+1. What weight distribution results when a query closely matches one key and differs strongly from the others?
+2. Why is scaling by $\sqrt{d_k}$ used? What happens without it for large $d_k$?
+3. Does permuting tokens change the prediction of a model without positional encoding if self-attention outputs are averaged?
+4. Which two masks are required for an autoregressive batch of variable-length sequences?
 
 ## References
 
-- Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N.,
-  Kaiser, Ł., & Polosukhin, I. (2017). *Attention Is All You Need*. Advances in
-  Neural Information Processing Systems 30 (NeurIPS 2017). arXiv:1706.03762.
-- Ba, J. L., Kiros, J. R., & Hinton, G. E. (2016). *Layer Normalization*.
-  arXiv:1607.06450.
-- He, K., Zhang, X., Ren, S., & Sun, J. (2016). *Deep Residual Learning for Image
-  Recognition*. CVPR. (residual connections — see also module 7)
-- PyTorch documentation: *torch.nn.functional.scaled_dot_product_attention*,
-  `https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html`.
-- PyTorch documentation: *torch.nn.MultiheadAttention*,
-  `https://pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html`.
+- Vaswani, A. et al. (2017). *Attention Is All You Need*. NeurIPS 2017. arXiv:1706.03762.
+- Ba, J. L., Kiros, J. R., & Hinton, G. E. (2016). *Layer Normalization*. arXiv:1607.06450.
+- He, K., Zhang, X., Ren, S., & Sun, J. (2016). *Deep Residual Learning for Image Recognition*. CVPR.
+- PyTorch documentation. *torch.nn.functional.scaled_dot_product_attention*. `https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html`.
+- PyTorch documentation. *torch.nn.MultiheadAttention*. `https://pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html`.
