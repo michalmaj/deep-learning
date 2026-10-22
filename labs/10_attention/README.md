@@ -1,230 +1,144 @@
-Language: **English (default)** | [Polski](README.pl.md)
+Language: **English** | [Polski](README.pl.md)
 
-# Lab 10: a small Transformer for order-dependent sequence classification
+# Lab 10. A small Transformer for sequence classification
 
-Time: about 2 hours (**100-105 minutes of required core + 15-20 minutes of
-buffer**). Builds on
-[`lectures/10_attention/lecture.en.md`](../../lectures/10_attention/lecture.en.md)
-(scaled dot-product attention, multi-head attention, masking, positional
-encoding, the Transformer block), but on a **different, harder task** than
-the lecture: sequences of **variable length** (real padding, which the
-lecture's Experiment D did not require) with **distractors** (random tokens
-carrying zero information).
+The estimated time is about 2 hours. The required core takes 100-105 minutes, with a 15-20 minute buffer. This lab uses scaled dot-product attention, multi-head attention, masking, positional encoding, and the Transformer block from [`lecture.en.md`](../../lectures/10_attention/lecture.en.md).
 
-**Sections 0-10 are the required core. Sections R1-R4 (at the end of the
-notebook) are optional extensions** -- do them only if time remains after
-finishing the core. No core grading criterion requires completing the
-extensions.
+The task is harder than the lecture example. Sequences have variable lengths and contain real padding and random distractors.
+
+Sections 0-10 form the required core. Sections R1-R4 are optional and do not affect the core grade.
 
 ## Task
 
-Every sequence (random length from $[10,40]$) contains exactly two
-distinguished tokens, `A` and `B`, at random positions, with the remaining
-positions filled by random distractor tokens. **Label = whether `A` appears
-before `B`.** Sequence length is drawn **independently** of the label
-(verify this in section 1) -- the model cannot "cheat" the task with a
-heuristic that ignores order (e.g. "shorter sequences = class 0").
+Every sequence has a random length between 10 and 40. It contains tokens `A` and `B` at random positions and distractors elsewhere. The label indicates whether `A` appears before `B`.
 
-## 0. Setup (given)
+Length is sampled independently of the label. The model should therefore not solve the task through a relationship between class and length.
 
-Library imports, device, random seed, `torch.set_num_threads(4)`.
+## 0. Setup
 
-## 1. Data: the task generator (given + a short task)
+Imports, device selection, the random seed, and `torch.set_num_threads(4)` are provided.
 
-`make_dataset(n, seed)` (given) returns `(X, lengths, y)`: `X` is a tensor
-`(n, MAX_LEN)` filled with `PAD_ID` beyond each sequence's real length,
-`lengths` are the real lengths, `y` are the labels.
+## 1. Data generator
 
-**Task:** verify on the training set:
-1. class balance (about 50/50),
-2. that mean sequence length **does not differ** meaningfully between classes
-   (if it did, the model could "solve" the task by length alone, not by the
-   order of `A`/`B` -- exactly the trap this lab's brief warns about).
+The provided `make_dataset(n, seed)` returns `(X, lengths, y)`. Tensor `X` has shape `(n, MAX_LEN)` and is filled with `PAD_ID` beyond the real length. `lengths` contains the lengths, and `y` contains the labels.
 
-## 2. A baseline without order -- your task
+**Task.** Check the following properties on the training set:
 
-Build a classifier based on averaging token embeddings (no attention) --
-it **must skip padding** when averaging. You are given a helper
-`masked_mean_pool(x, real_mask, lengths)` -- exactly the same principle as in
-module 9, section 6 (already mastered, we do not reimplement it from
-scratch) -- you decide **where and how** to use it in
-`MeanPoolBaseline.forward`. Train it right away (the training loop is
-given) -- it is your reference point in section 10.
+1. class balance, expected near 50/50,
+2. mean length in both classes and the absence of a meaningful difference.
 
-## 3. Positional encoding (given)
+The second check rules out a simple length-based heuristic in place of the order of `A` and `B`.
 
-The `sinusoidal_positional_encoding(seq_len, d_model)` function from the
-lecture -- we do not reimplement it (already fully verified there), only
-**decide how and where** to attach it in the architecture (section 6).
+## 2. Order-insensitive baseline
 
-## 4. Padding mask -- your task
+Build a classifier that averages token embeddings without attention. Padding must be excluded. The provided helper `masked_mean_pool(x, real_mask, lengths)` implements the principle introduced in module 9. It should be used in the appropriate place in `MeanPoolBaseline.forward`.
 
-Build a `key_padding_mask` from `x` and `PAD_ID`. **Critical:** you are
-using `nn.MultiheadAttention`, so following the lecture (the "An important
-implementation note" section), `key_padding_mask` must use the convention
-**`True` = this is padding, ignore it** -- **not** `True` = allowed (this
-convention is **opposite** to `F.scaled_dot_product_attention`). Mix up
-these conventions and you will land squarely in the diagnostic task in
-section 9 -- before you get there, verify your own mask: a sequence with no
-padding should have a mask that is entirely `False`.
+The provided loop trains the baseline. Its result will be the reference point in section 10.
 
-## 5. Transformer block -- your task
+## 3. Positional encoding
 
-Build `TinyTransformerBlock`: self-attention (`nn.MultiheadAttention` -- the
-Q/K/V projections do not need to be written by hand, this is already
-verified in the lecture) **+ residual connection + LayerNorm + feed-forward
-(Linear->ReLU->Linear) + a second residual connection + a second LayerNorm**
-(Post-LN, as in `lecture.md`). **You** combine these components -- do not
-hide the architecture behind a single call to `nn.TransformerEncoderLayer`.
-Remember to pass the `key_padding_mask` from section 4 into `self.mha(...)`.
+The function `sinusoidal_positional_encoding(seq_len, d_model)` is provided. Its output must be added at the appropriate point in the architecture from section 6.
 
-## 6. Aggregation and classifier -- your task
+## 4. Padding mask
 
-Build `Classifier`: `nn.Embedding` (+ positional encoding from section 3, if
-`use_pos_enc=True`) -> the `TinyTransformerBlock` from section 5 ->
-**aggregation to a single vector per sequence** (use `masked_mean_pool` from
-section 2 -- the same principle: `real_mask` is the negation of
-`key_padding_mask`, dividing by `lengths`, not by `MAX_LEN`) -> a
-classification layer.
+Build `key_padding_mask` from `x` and `PAD_ID`. For `nn.MultiheadAttention`, `True` denotes padding that should be ignored. This is the opposite convention from the Boolean `attn_mask` in `F.scaled_dot_product_attention`.
 
-**Verification (a ready-made assertion is waiting in the notebook):** the
-same sequence, processed **alone** and **batched** with another, longer
-sequence (so padded differently), must give an **identical** representation
-in both cases. If it does not pass -- you have a bug in the mask (section 4)
-or in the aggregation (this section), before you even get to training.
+A sequence without padding should have a mask containing only `False`. Reversing the convention leads to the problem examined in section 9.
 
-## 7. Training (given) and comparing with vs. without positional encoding -- your task
+## 5. Transformer block
 
-`train_eval(model, epochs, lr, batch_size, seed)` is given (the same loop for
-all configurations in the rest of the lab). Train **two** configurations of
-your `Classifier` -- `use_pos_enc=True` and `use_pos_enc=False` -- with the
-same training budget, and save them as `model_with_pe`/`model_without_pe`.
-**`model_with_pe` is reused in section 8 and in extensions R1/R2 -- you do
-not train it a second time.**
+`TinyTransformerBlock` should contain:
 
-Also given is a short loop over **3 seeds** (0, 1, 2), running `train_eval`
-for both variants -- training takes mere seconds on CPU, so running it 6x
-takes less time than writing it from scratch would. **Your task is
-interpreting** the result (section 10, question 3): is "without PE = chance
-level" systematic, or is it a fluke of a single unlucky run?
+1. `nn.MultiheadAttention` with the mask from section 4,
+2. a residual connection and LayerNorm,
+3. an FFN built as Linear, ReLU, Linear,
+4. a second residual connection and LayerNorm.
 
-## 8. Evaluation on the test set -- your task
+This is a Post-LN block. The architecture should remain visible, so it must not be replaced by a single `nn.TransformerEncoderLayer`. Q, K, and V projections are provided by `nn.MultiheadAttention`.
 
-Evaluate `model_with_pe` from section 7 (this is the **first time** in this
-lab that you use the test set for **evaluation**, not for retraining):
-accuracy + the length distribution of misclassified examples (do errors
-concentrate at particular lengths?).
+## 6. Aggregation and classifier
+
+`Classifier` should combine `nn.Embedding`, optional positional encoding, `TinyTransformerBlock`, masked aggregation, and a classification layer.
+
+Aggregation uses `masked_mean_pool`. `real_mask` is the negation of `key_padding_mask`, and the denominator should come from `lengths` rather than `MAX_LEN`.
+
+A provided assertion compares the same sequence processed alone and in a batch with a longer sequence. The representations must be identical. A difference indicates a masking or aggregation error.
+
+## 7. Training with and without positional encoding
+
+The provided `train_eval(model, epochs, lr, batch_size, seed)` supports every configuration. Train `Classifier` with `use_pos_enc=True` and `use_pos_enc=False` under the same budget. Store the models as `model_with_pe` and `model_without_pe`.
+
+`model_with_pe` is reused in section 8 and extensions R1 and R2. It does not need to be trained again.
+
+A provided loop repeats both configurations for seeds 0, 1, and 2. The interpretation in section 10 should determine whether chance-level performance without PE is systematic.
+
+## 8. Test evaluation
+
+Evaluate `model_with_pe` on the test set for the first time in this section. Report accuracy and the length distribution of misclassified examples.
 
 ## 9. Diagnostic task
 
-The code below (in the notebook, `BuggyClassifier`) **looks** correct --
-it defines a mask, builds the block, trains without raising an exception --
-but has a bug related to the **mask convention**, exactly the one section 4
-warns about.
+`BuggyClassifier` defines a mask and trains without raising an exception, but it uses the reversed mask convention.
 
-**Task:**
-1. Diagnose the bug -- which line, and why.
-2. Run training and observe what happens to the loss (hint: check whether the
-   training set contains sequences **with no padding at all**, i.e. of
-   length `MAX_LEN` -- and what happens to attention masking when **every**
-   position of such a sequence ends up "blocked" by the inverted convention).
-3. Explain mathematically, referring to the "Rows with all keys masked"
-   section in `lecture.md`: what exactly happens to `softmax` when, for a
-   given query, zero keys are allowed?
-4. Fix the code (invert the mask convention).
-5. Verify that after the fix the loss is always finite (`torch.isfinite`) and
-   that the model trains to an accuracy close to the original, correct
-   implementation.
+The task requires:
 
-## 10. Conclusions -- your task
+1. identifying the faulty line and explaining the problem,
+2. running training and inspecting the loss, with attention to sequences of length `MAX_LEN`,
+3. explaining softmax behavior when no key is allowed,
+4. correcting the mask convention,
+5. using `torch.isfinite` to confirm a finite loss and comparing accuracy with the correct model.
 
-Answer, justifying with real numbers from your own run (sections 2, 7-9):
+For a sequence without padding, the reversed mask blocks every position. Softmax then receives a row of only $-\infty$ values, which produces `NaN` in the explicit implementation.
 
-1. Can you point by hand to which architectural elements (sections 5-6) are
-   responsible for: (a) mixing information between positions, (b)
-   introducing positional information, (c) reducing the sequence to a single
-   vector?
-2. How large is the accuracy gap between the baseline (section 2) and your
-   Transformer **with** PE (section 7) -- and what does that say about
-   whether the task actually requires order?
-3. Is the "without PE = chance level" result stable across several seeds
-   (section 7, given loop), or is it a one-run fluke?
-4. Is the masking correct -- do you have proof (the assertion from section 6)
-   that the model does not use information contained in the padding?
-5. What exactly does (and does **not**) this experiment show about the
-   attention mechanism? Does high accuracy by itself prove that the model
-   "understands" the `A`/`B` order relation, or only that it effectively
-   minimizes loss on this specific dataset?
-6. What is at least one limitation of this experiment that prevents
-   generalizing the conclusions to arbitrary sequential tasks?
+## 10. Conclusions
 
-## Extensions (optional -- R1-R4, if time remains)
+Answers should use results from sections 2 and 7-9.
 
-All of them reuse `model_with_pe` from section 7 -- **without** retraining.
+1. Which elements mix information, add position, and reduce the sequence to one vector?
+2. What is the accuracy gap between the baseline and Transformer with PE, and what does it show about order?
+3. Is performance without PE stable across three seeds?
+4. Does the section 6 assertion confirm correct padding exclusion?
+5. What does the experiment show about attention, and what does it not prove? High accuracy alone does not prove understanding of the `A` and `B` relationship.
+6. Which limitation prevents generalizing the result to other sequential tasks?
 
-- **R1.** Validation-set accuracy in at least 3 length buckets (e.g.
-  $[10,19]$, $[20,29]$, $[30,40]$) -- is accuracy stable, or does it drop for
-  longer/shorter sequences?
-- **R2.** For one correctly classified example: the attention weights
-  (query = position of `A`, any head). **Do not interpret** a high weight
-  toward `B` as "proof" that the model "understands" the order relation.
-- **R3.** Stack **two** `TinyTransformerBlock`s one after another -- does
-  this improve accuracy or stability on longer sequences?
-- **R4.** Swap Post-LN for Pre-LN (norm before the sublayer, not after) and
-  check whether anything changes in training stability.
+## Optional extensions
 
-## Time budget (indicative, not verified in a real class)
+Every extension reuses `model_with_pe` without retraining.
+
+- **R1.** Validation accuracy in at least three length ranges, such as $[10,19]$, $[20,29]$, and $[30,40]$.
+- **R2.** Attention weights for a correct example and the query at position `A`. A large weight toward `B` does not prove understanding of the relationship.
+- **R3.** A stack of two `TinyTransformerBlock` instances and a comparison of accuracy or stability.
+- **R4.** A change from Post-LN to Pre-LN and a comparison of training stability.
+
+## Estimated time allocation
 
 | Block | Time |
 |---|---:|
-| Sections 0-1 (setup, data, balance verification) | 8 min |
-| Section 2 (baseline without order) | 8 min |
-| Sections 3-4 (positional encoding -- review, padding mask) | 12 min |
-| Section 5 (Transformer block) | 20 min |
-| Section 6 (aggregation + classifier + verification) | 13 min |
-| Section 7 (training, with/without PE comparison, multi-seed) | 12 min |
-| Section 8 (test evaluation) | 6 min |
-| Section 9 (diagnostic task) | 13 min |
-| Section 10 (conclusions) | 8 min |
-| **Core (sections 0-10)** | **100 min** |
+| Sections 0-1, setup, data, and balance | 8 min |
+| Section 2, baseline | 8 min |
+| Sections 3-4, positional encoding and mask | 12 min |
+| Section 5, Transformer block | 20 min |
+| Section 6, aggregation, classifier, and assertion | 13 min |
+| Section 7, training and three seeds | 12 min |
+| Section 8, test evaluation | 6 min |
+| Section 9, diagnostics | 13 min |
+| Section 10, conclusions | 8 min |
+| **Core** | **100 min** |
 | Buffer | 15-20 min |
 | **Total** | **about 120 min** |
 
-Priority if time runs short even within the core: sections 4-6 (the
-architecture's core) and 9 (diagnostics) -- these are the elements with no
-sensible shortened variant. Training takes mere seconds on CPU for a single
-run (verified: the full model solution, including the 3-seed loop and the
-diagnostics, executes in under a minute) -- the time budget should go into
-correctly implementing masking/aggregation and into analysis, not into
-waiting for training.
-
-**Extensions R1-R4 are optional** and are not counted into the core -- see
-the section above.
+If time is limited, sections 4-6 and 9 have priority. The full solution, including three seeds and diagnostics, runs on a CPU in under one minute. Class time should be spent mainly on masking, aggregation, and analysis.
 
 ## Grading criteria
 
-All of the following criteria concern the **core (sections 0-10)** -- none
-requires completing extensions R1-R4.
+- Class balance and independence of length from the label are confirmed numerically.
+- The baseline excludes padding from the average.
+- `key_padding_mask` uses `True` to denote padding.
+- The block explicitly contains attention, residual, LayerNorm, FFN, residual, and LayerNorm.
+- Aggregation excludes padding, and the section 6 assertion passes.
+- The comparison with and without PE covers multiple seeds.
+- The test set is first used in section 8 and only for evaluation.
+- The diagnosis identifies the reversed mask and a fully masked row for a sequence without padding.
+- Conclusions refer to measured results and state the limits of the experiment.
 
-- Class balance and the independence of sequence length from the label are
-  verified numerically (section 1).
-- The baseline (section 2) correctly skips padding when averaging.
-- `key_padding_mask` (section 4) uses the correct convention for
-  `nn.MultiheadAttention` (`True` = padding).
-- The Transformer block (section 5) is built from visible components
-  (attention + residual + LayerNorm + FFN + residual + LayerNorm) -- not a
-  single call to `nn.TransformerEncoderLayer`.
-- The aggregation (section 6) excludes padding -- the "same sequence, same
-  result regardless of batch padding" assertion passes.
-- The with/without PE comparison (section 7) is checked across several
-  seeds (the given loop), not a single run.
-- The test set is used only in section 8, for evaluation, not for
-  retraining.
-- The diagnostic task (section 9) points to a specific cause (inverted mask
-  convention + a fully masked row for a sequence with no padding), not a
-  generality.
-- The conclusions refer to specific numbers from your own run and explicitly
-  answer what the experiment does **not** prove, not only what it does.
-
-A full model solution exists locally with the instructor
-(`decisions/solutions/10_attention/`) and is not part of this repository.
+A complete reference solution is stored locally by the instructor in `decisions/solutions/10_attention/` and is not part of this repository.
