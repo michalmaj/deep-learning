@@ -1,438 +1,211 @@
 Język: [English](lecture.en.md) | **Polski**
 
-# Wykład 11 — Od modelu Transformer do działającego systemu generowania tekstu
+# Wykład 11. Od Transformera do systemu generowania tekstu
 
 ## Cele wykładu
 
-1. Rozumieć autoregresyjne modelowanie języka jako faktoryzację rozkładu całej
-   sekwencji na iloczyn rozkładów warunkowych "następny token".
-2. Umieć ręcznie policzyć, jak logity zamieniają się w rozkład prawdopodobieństwa
-   (softmax), i jak temperature/top-k/top-p modyfikują ten rozkład **przed**
-   wyborem tokenu.
-3. Rozumieć tokenizację subword (BPE) jako kompromis między słownikiem znaków i
-   słownikiem słów — i wiedzieć, że liczba tokenów **nie** jest proporcjonalna
-   do liczby słów, zwłaszcza między językami.
-4. Znać różnicę między prefill i decode, rolę KV cache, i umieć zmierzyć
-   rzeczywisty koszt generowania (nie tylko go zadeklarować).
-5. Umieć poprawnie użyć `tokenizer.apply_chat_template()` i `model.generate()`
-   przez Hugging Face Transformers, rozumiejąc, co dokładnie robią.
-6. Krytycznie oceniać wygenerowany tekst: odróżniać poprawność wykonania
-   instrukcji od poprawności faktograficznej, i rozumieć ograniczenia małych
-   modeli językowych.
+1. opisać autoregresyjne modelowanie języka za pomocą rozkładów następnego tokenu,
+2. obliczyć softmax oraz wpływ temperature, top-k i top-p,
+3. wyjaśnić tokenizację subword i jej zależność od języka,
+4. rozróżnić etapy prefill i decode oraz określić rolę KV cache,
+5. poprawnie użyć chat template i `model.generate()`,
+6. oddzielić wykonanie instrukcji, płynność tekstu i poprawność faktograficzną.
 
 ## Dlaczego to jest ważne
 
-Moduły 8-10 zbudowały wszystkie elementy: embeddingi (moduł 8), modelowanie
-sekwencji (moduł 9), self-attention i blok Transformer (moduł 10). Ten wykład
-**nie dodaje nowej matematyki Transformera** — pyta o coś innego: mając już
-wytrenowany model, jak zamienia się jego surowe wyjście (logity) w tekst, który
-faktycznie widzimy na ekranie? To pytanie inżynierskie, nie architektoniczne —
-i ma własne, nietrywialne decyzje (strategia dekodowania, formatowanie
-promptu, budżet pamięci, koszt czasowy), które wpływają na wynik dokładnie
-tak samo, jak architektura modelu.
+Moduły 8-10 wprowadziły embeddingi, sekwencje, self-attention i blok Transformer. Ten moduł nie dodaje nowej matematyki architektury. Pokazuje, jak logity wytrenowanego modelu zmieniają się w tekst.
+
+Strategia dekodowania, format promptu, pamięć i budżet czasowy wpływają na działanie systemu. Są to decyzje inżynierskie niezależne od samej architektury.
 
 ## Intuicja
 
-Model językowy, w każdym kroku, nie "wie" z góry, jaką całą odpowiedź da — on
-oblicza **jedną** liczbę na token w słowniku: "jak prawdopodobne jest, że *ten*
-token będzie następny, biorąc pod uwagę wszystko, co było dotychczas?".
-Generowanie tekstu to **powtarzanie** tego kroku: policz rozkład, wybierz
-token (jakoś), dołącz go do kontekstu, policz rozkład na nowo, powtórz.
+Model językowy oblicza po jednym wyniku dla każdego tokenu słownika. Wyniki opisują możliwy następny token, a nie całą gotową odpowiedź.
 
-❌ "LLM generuje całą odpowiedź na raz, tak jak klasyfikator generuje jedną
-etykietę."
+Generowanie powtarza ten sam cykl. Powstaje rozkład, wybierany jest token, token trafia do kontekstu i model wykonuje kolejny krok.
 
-✅ Typowy autoregresyjny model generuje **jeden token na raz**, każdy kolejny
-token zależny od wszystkich poprzednich (włącznie z tymi, które sam model
-wygenerował chwilę wcześniej). Zobaczymy to dosłownie w Eksperymencie B —
-ręczna pętla generowania krok po kroku, porównana z `model.generate()`.
+❌ Model autoregresyjny generuje całą odpowiedź jednocześnie.
 
-## Formalny model: autoregresyjna faktoryzacja
+✅ Typowe dekodowanie tworzy jeden token na raz. Każdy krok zależy także od tokenów wygenerowanych wcześniej przez model.
 
-Niech $x_1,\ldots,x_T$ będzie sekwencją tokenów (identyfikatorów ze słownika
-o rozmiarze $V$ — ten sam $V$, co w module 8, `nn.Embedding(V, d)`; $T$ =
-długość sekwencji, jak w modułach 9-10). Reguła łańcuchowa prawdopodobieństwa
-(dokładna, bez żadnego założenia o modelu) daje:
+## Autoregresyjna faktoryzacja
 
-$$P(x_1,\ldots,x_T) = \prod_{t=1}^{T} P(x_t \mid x_1,\ldots,x_{t-1})$$
+Dla identyfikatorów tokenów $x_1,\ldots,x_T$ ze słownika o rozmiarze $V$ reguła łańcuchowa daje
 
-(dla $t=1$: $P(x_1 \mid x_1,\ldots,x_0) := P(x_1)$, czyli rozkład bez żadnego
-kontekstu — pusty warunek). To **nie jest założenie modelu** — to tożsamość
-matematyczna prawdziwa dla **każdego** rozkładu łącznego. Założenie modelu
-jest gdzie indziej: że $P(x_t \mid x_1,\ldots,x_{t-1})$ można **dobrze
-przybliżyć** siecią neuronową $\theta$ — stąd zapis $P_\theta(x_t \mid
-x_{<t})$ ($x_{<t} := x_1,\ldots,x_{t-1}$, standardowy skrót, używany dalej).
+$$P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t\mid x_1,\ldots,x_{t-1}).$$
 
-**Uwaga o notacji.** $x_t$ oznacza tutaj **identyfikator tokenu** (liczba
-całkowita $\in\{1,\ldots,V\}$), nie wektor — inaczej niż $x_t\in\mathbb R^d$ w
-module 9 (tam: embedding/cecha ciągła). To nie jest nowe znaczenie zastępujące
-stare — to pierwszy krok pipeline'u: $x_t$ (id) → $\mathbf e_t$ (embedding,
-pogrubione, moduł 8) → … → $z_t$ (logity, niżej). $V$ = rozmiar słownika,
-rozszerzenie notacji z modułu 8 (tam: parametr konstruktora `nn.Embedding`, tu:
-formalny wymiar logitów i rozkładu wyjściowego).
+Jest to tożsamość dla dowolnego rozkładu łącznego. Założenie modelu dotyczy możliwości przybliżenia każdego czynnika przez sieć z parametrami $\theta$.
 
-## Jak model przekształca kontekst w rozkład: logity i softmax
+$$P_\theta(x_t\mid x_{<t}),\qquad x_{<t}:=x_1,\ldots,x_{t-1}$$
 
-Dla kontekstu $x_{<t}$, model (encoder/decoder-only Transformer z modułu 10,
-**nie wyprowadzamy go tu ponownie**) produkuje wektor **logitów** dla
-pozycji $t$:
+Tutaj $x_t$ oznacza identyfikator całkowity, a nie wektor z modułu 9. Pipeline ma postać $x_t$ jako identyfikator, $\mathbf e_t$ jako embedding i $z_t$ jako logity. Symbol $V$ nadal oznacza rozmiar słownika.
 
-$$z_t = f_\theta(x_{<t}) \in \mathbb R^V$$
+## Logity i softmax
 
-($z$ = logity, moduł 2 i dalej — tu rozszerzone indeksem czasowym $t$, ten sam
-wzorzec co $h_t$, $c_t$, $\delta_t$ w module 9). $z_t$ ma **jeden wpis na
-token w słowniku** — nieinterpretowalny bezpośrednio jako prawdopodobieństwo
-(może być ujemny, nie sumuje się do 1). Softmax zamienia go w rozkład:
+Dla kontekstu $x_{<t}$ model produkuje jeden logit na token.
 
-$$\hat y_t = \text{softmax}(z_t), \qquad \hat y_{t,i} = \frac{e^{z_{t,i}}}{\sum_{j=1}^V e^{z_{t,j}}}$$
+$$z_t=f_\theta(x_{<t})\in\mathbb R^V$$
 
-(rozszerzenie $\hat y=\text{softmax}(z)$ z modułu 8, tam bez indeksu czasowego
-— klasyfikacja jednorazowa; tu $\hat y_t$ to rozkład nad **całym słownikiem**
-dla **tej konkretnej pozycji generowania**, nie nad zbiorem klas zadania).
-$\hat y_{t,i} = P_\theta(x_t = i \mid x_{<t})$ — składowa $i$ wektora $\hat
-y_t$ to prawdopodobieństwo, że następny token to konkretnie token $i$.
+Logity mogą być ujemne i nie sumują się do 1. Softmax zamienia je w rozkład.
 
-❌ "Najwyższe prawdopodobieństwo jednego tokenu gwarantuje najlepszą całą
-odpowiedź."
+$$\hat y_t=\operatorname{softmax}(z_t),\qquad \hat y_{t,i}=\frac{e^{z_{t,i}}}{\sum_{j=1}^{V}e^{z_{t,j}}}$$
 
-✅ $\hat y_t$ mówi tylko o **jednym** kroku. Wybranie najbardziej
-prawdopodobnego tokenu na każdym kroku (greedy decoding, niżej) **nie**
-gwarantuje najbardziej prawdopodobnej **całej** sekwencji — to dwa różne
-zadania optymalizacyjne. Zweryfikowany kontrprzykład liczbowy w sekcji
-"Greedy decoding" niżej.
+Składowa $\hat y_{t,i}$ przybliża $P_\theta(x_t=i\mid x_{<t})$.
 
-## Temperature: transformacja rozkładu, nie wybór tokenu
+❌ Najbardziej prawdopodobny token w każdym kroku gwarantuje najlepszą całą odpowiedź.
 
-**Temperature** skaluje logity **przed** softmaxem:
+✅ Rozkład dotyczy jednego kroku. Lokalnie najlepsze decyzje nie muszą tworzyć globalnie najbardziej prawdopodobnej sekwencji.
 
-$$\hat y_t^{(\tau)} = \text{softmax}\!\left(\frac{z_t}{\tau}\right), \qquad \tau > 0$$
+## Temperature
 
-**Uwaga o notacji.** Temperaturę oznaczamy $\tau$, **nie** $T$ — $T$ w tym
-kursie od modułu 9 oznacza **długość sekwencji**, a oba pojęcia pojawiają się
-w tym samym akapicie (temperatura przy generowaniu sekwencji długości $T$) —
-kolizja byłaby realna, nie tylko techniczna, więc tu naprawdę wprowadzamy
-nowy symbol, zamiast dodawać notkę disambiguacyjną do istniejącego. $\tau$ jest
-nieużywane wcześniej w kursie.
+Temperature skaluje logity przed softmaxem.
 
-- $\tau < 1$: dzielenie przez liczbę $<1$ **zwiększa** różnice między
-  logitami przed softmaxem → rozkład **ostrzejszy** (bardziej skoncentrowany
-  na już-najbardziej-prawdopodobnych tokenach).
-- $\tau > 1$: logity się "spłaszczają" → rozkład **bardziej płaski**
-  (bliższy jednorodnemu).
-- $\tau \to 0^+$: $\hat y_t^{(\tau)} \to$ rozkład skoncentrowany w 100% na
-  $\arg\max_i z_{t,i}$ — formalnie równoważne greedy decoding w granicy.
+$$\hat y_t^{(\tau)}=\operatorname{softmax}\!\left(\frac{z_t}{\tau}\right),\qquad \tau>0$$
 
-❌ "Temperature zwiększa kreatywność modelu."
+Symbol $\tau$ odróżnia temperature od długości sekwencji $T$.
 
-✅ To nieprecyzyjne antropomorfizowanie. Temperature jest **czysto
-matematyczną transformacją rozkładu prawdopodobieństwa** — nie zmienia tego,
-*czego* model "wie", tylko to, jak **skoncentrowany** albo **płaski** jest
-rozkład, z którego **później** coś wybieramy. Sama temperature **nie wybiera
-tokenu** — potrzebuje do tego procedury wyboru (sampling, niżej). Co więcej:
-**jeśli `do_sample=False` (greedy), temperature nie ma żadnego wpływu na
-wynik** — greedy bierze $\arg\max$ niezależnie od tego, jak rozkład został
-przeskalowany (monotoniczna transformacja logitów nie zmienia, który z nich
-jest największy). Przypisywanie temperature efektu w trybie, który jej nie
-używa, jest błędem konfiguracji, nie subtelnością.
+- Dla $\tau<1$ różnice między logitami rosną, więc rozkład jest ostrzejszy.
+- Dla $\tau>1$ rozkład staje się bardziej płaski.
+- Dla $\tau\to0^+$ cała masa skupia się na $\arg\max_i z_{t,i}$.
 
-## Procedury wyboru tokenu: deterministyczne vs losowe
+❌ Temperature zwiększa kreatywność modelu.
 
-**Greedy decoding**: $x_t = \arg\max_i \hat y_{t,i}$ — deterministyczne,
-zawsze ten sam wynik dla tego samego kontekstu i modelu.
+✅ Jest to matematyczna transformacja rozkładu, a nie zmiana wiedzy modelu. Temperature nie wybiera tokenu. Przy `do_sample=False` nie wpływa na wynik, ponieważ skalowanie nie zmienia argmaxu.
 
-❌ "Greedy decoding wybiera globalnie najbardziej prawdopodobną całą
-sekwencję."
+## Wybór tokenu
 
-✅ Greedy optymalizuje **lokalnie, krok po kroku**, nie globalnie. **Zweryfikowany
-kontrprzykład** (2 kroki, słownik $\{A,B\}\to\{X,Y\}$): krok 1,
-$P(A)=0{,}5498 > P(B)=0{,}4502$ — greedy wybiera $A$. Krok 2 pod warunkiem
-$A$: $P(X|A)=P(Y|A)=0{,}5$. Krok 2 pod warunkiem $B$: $P(X|B)=0{,}99$. Greedy
-daje sekwencję $(A,X)$ z $P=0{,}2749$. **Globalnie najlepsza** sekwencja to
-$(B,X)$ z $P=0{,}4457$ — większa, ale greedy jej nie znajduje, bo nigdy nie
-"patrzy w przyszłość" przy wyborze kroku 1. Zweryfikowane enumeracją
-wszystkich $4$ sekwencji w notebooku, nie zadeklarowane.
+### Greedy decoding
 
-**Sampling**: losujemy $x_t \sim \hat y_t^{(\tau)}$ — niedeterministyczne (bez
-ustalonego ziarna, różny wynik na różnych przebiegach; **z** ustalonym
-ziarnem PyTorcha, powtarzalne — zweryfikowane w notebooku).
+Greedy decoding wybiera $x_t=\arg\max_i\hat y_{t,i}$ i jest deterministyczny.
+
+Nie gwarantuje globalnie najlepszej sekwencji. W kontrprzykładzie z notebooka $P(A)=0{,}5498$ i $P(B)=0{,}4502$, więc pierwszy krok wybiera $A$. Następnie $P(X\mid A)=P(Y\mid A)=0{,}5$, a $P(X\mid B)=0{,}99$.
+
+Greedy tworzy $(A,X)$ z prawdopodobieństwem $0{,}2749$. Sekwencja $(B,X)$ ma większe prawdopodobieństwo $0{,}4457$, ale lokalna decyzja odrzuca ją w pierwszym kroku. Notebook potwierdza wynik przez enumerację czterech sekwencji.
+
+### Sampling
+
+Sampling losuje $x_t\sim\hat y_t^{(\tau)}$. Bez ustalonego ziarna wynik może się zmieniać. Ustawienie ziarna PyTorch zapewnia powtarzalność sprawdzoną w notebooku.
 
 ### Top-k
 
-Ograniczamy losowanie do $k$ tokenów o najwyższym $z_t$, zerujemy
-prawdopodobieństwo pozostałych, **renormalizujemy** tak, by zachowane
-prawdopodobieństwa sumowały się do $1$.
+Top-k pozostawia $k$ tokenów o najwyższych wynikach, zeruje pozostałe prawdopodobieństwa i renormalizuje rozkład. Liczba zachowanych tokenów jest stała.
 
-**Uwaga o notacji.** $k$ tutaj to liczba zachowanych tokenów — nazwa
-techniki ("top-k") jest ustandaryzowana w literaturze; symbol $k$ koliduje z
-rozmiarem filtra w module 6 i liczbą sąsiadów w module 8 k-NN — kontekst
-(dekodowanie vs konwolucja vs wyszukiwanie) jednoznacznie rozróżnia, zgodnie
-z tym samym wzorcem co poprzednie kolizje $k$ w tym kursie.
+### Top-p
 
-### Top-p (nucleus sampling)
+Top-p sortuje tokeny malejąco i zachowuje najmniejszy początkowy zbiór, którego skumulowane prawdopodobieństwo przekracza $p$. Liczba tokenów zależy od koncentracji rozkładu.
 
-Sortujemy tokeny po prawdopodobieństwie malejąco, bierzemy **najmniejszy**
-przedni zbiór, którego **skumulowane** prawdopodobieństwo przekracza próg
-$p$, odrzucamy resztę, renormalizujemy.
+Przy rozkładzie skupionym top-p może pozostawić jeden lub dwa tokeny. Przy płaskim rozkładzie zachowa ich więcej. Top-k nie dostosowuje liczności zbioru w ten sposób.
 
-**Uwaga o notacji.** Próg top-p oznaczamy $p$ — inne znaczenie niż
-prawdopodobieństwo dropoutu $p$ w module 5 (tam: prawdopodobieństwo
-wyzerowania neuronu). Różne tematy (dekodowanie vs regularizacja), ten sam
-symbol, zgodnie z ustaloną w kursie zasadą: kontekst rozróżnia, nota to
-nazywa explicite.
+## Przykład z pięcioma tokenami
 
-**Kluczowa różnica top-k vs top-p**: top-k zachowuje **stałą liczbę**
-tokenów niezależnie od tego, jak rozkład wygląda (nawet jeśli jeden token ma
-99% masy, i tak zachowujemy $k$ tokenów); top-p zachowuje **zmienną liczbę**
-tokenów, dopasowaną do faktycznej koncentracji rozkładu (przy rozkładzie
-bardzo skoncentrowanym, top-p może zachować tylko $1$-$2$ tokeny; przy
-płaskim — znacznie więcej).
+Dla słownika `kot, pies, dom, morze, xyz123` i logitów $z=[2{,}0,1{,}5,0{,}5,0{,}1,-1{,}0]$ softmax przy $\tau=1$ daje
 
-## Przykład rozwiązany: 5-tokenowy słownik
-
-Słownik: `kot, pies, dom, morze, xyz123`. Logity: $z=[2{,}0,\ 1{,}5,\ 0{,}5,\
-0{,}1,\ -1{,}0]$.
-
-**Softmax, $\tau=1$:** $\hat y = [0{,}4928,\ 0{,}2989,\ 0{,}1100,\ 0{,}0737,\
-0{,}0245]$ (suma $=1$, zweryfikowane).
-
-**Wpływ temperatury** (ten sam $z$, inne $\tau$):
+$$\hat y=[0{,}4928,0{,}2989,0{,}1100,0{,}0737,0{,}0245].$$
 
 | $\tau$ | kot | pies | dom | morze | xyz123 |
-|---|---|---|---|---|---|
-| $0{,}5$ (ostrzejszy) | $0{,}6932$ | $0{,}2550$ | $0{,}0345$ | $0{,}0155$ | $0{,}0017$ |
+|---|---:|---:|---:|---:|---:|
+| $0{,}5$ | $0{,}6932$ | $0{,}2550$ | $0{,}0345$ | $0{,}0155$ | $0{,}0017$ |
 | $1{,}0$ | $0{,}4928$ | $0{,}2989$ | $0{,}1100$ | $0{,}0737$ | $0{,}0245$ |
-| $2{,}0$ (płaski) | $0{,}3495$ | $0{,}2722$ | $0{,}1651$ | $0{,}1352$ | $0{,}0780$ |
+| $2{,}0$ | $0{,}3495$ | $0{,}2722$ | $0{,}1651$ | $0{,}1352$ | $0{,}0780$ |
 
-Mniejsze $\tau$ → rozkład bardziej skoncentrowany na `kot`; większe $\tau$ →
-bardziej jednorodny — **ten sam** wyjściowy $z$, tylko inna transformacja.
+Top-k z $k=3$ zachowuje `kot`, `pies` i `dom`, a po renormalizacji daje $[0{,}5465,0{,}3315,0{,}1220,0,0]$.
 
-**Top-k=3** (na $\tau=1$ rozkładzie): zachowuje $\{$`kot`,`pies`,`dom`$\}$,
-renormalizacja → $[0{,}5465,\ 0{,}3315,\ 0{,}1220,\ 0,\ 0]$.
+Skumulowane prawdopodobieństwa wynoszą $0{,}4928$, $0{,}7918$, $0{,}9017$, $0{,}9755$ i $1{,}0$. Top-p dla $p=0{,}7$ zachowuje `kot` i `pies`, a dla $p=0{,}9$ także `dom`.
 
-**Top-p**: skumulowane prawdopodobieństwa (malejąco) to $0{,}4928,\
-0{,}7918,\ 0{,}9017,\ 0{,}9755,\ 1{,}0$. Przy $p=0{,}7$: zachowujemy
-$\{$`kot`,`pies`$\}$ (skumulowane $0{,}7918 \geq 0{,}7$, `kot` samo nie
-wystarcza: $0{,}4928 < 0{,}7$). Przy $p=0{,}9$: zachowujemy
-$\{$`kot`,`pies`,`dom`$\}$ (skumulowane $0{,}9017 \geq 0{,}9$).
+## Tokenizacja subword
 
-Wszystkie liczby zweryfikowane programowo w notebooku (Eksperyment B/C), nie
-tylko przeliczone na papierze.
+Trzy poziomy granulacji mają różne koszty.
 
-## Tokenizacja: od znaków do podsłów
+- Znaki wymagają małego słownika, ale tworzą bardzo długie sekwencje.
+- Słowa skracają sekwencje, lecz wymagają ogromnego i zawsze niepełnego słownika.
+- Podsłowa pozwalają zapisać częste słowa jednym tokenem, a rzadkie rozłożyć na znane fragmenty.
 
-Trzy poziomy granulacji wejścia, z realnymi kompromisami:
+BPE zaczyna od znaków lub bajtów i wielokrotnie łączy najczęstsze sąsiadujące pary. W module używany jest gotowy tokenizer wytrenowany dla konkretnego modelu.
 
-- **Znaki**: słownik mały (dla alfabetu łacińskiego: dziesiątki symboli), ale
-  sekwencje **bardzo długie** (każdy znak to krok) — drogie obliczeniowo,
-  trudne do wyuczenia długozasięgowych zależności na poziomie znaków.
-- **Słowa**: sekwencje krótsze, ale słownik musiałby być **ogromny** (setki
-  tysięcy++ unikalnych form) i **nigdy kompletny** — każde nowe słowo,
-  nazwa własna, czy literówka to token "nieznany".
-- **Subword (BPE i podobne)**: kompromis — częste słowa to **jeden** token,
-  rzadkie/nieznane słowa rozbijają się na **znane fragmenty** (podsłowa),
-  bez potrzeby jawnego tokenu "`<UNK>`" dla większości przypadków.
+Każdy token ma identyfikator wskazujący wiersz tablicy embeddingów. Tokeny specjalne mogą obejmować BOS, EOS i PAD. `generate()` kończy pracę po wygenerowaniu EOS.
 
-**BPE (Byte-Pair Encoding), intuicja bez implementacji od zera**: zaczynamy od
-pojedynczych znaków (bajtów), iteracyjnie **łączymy najczęstszą sąsiadującą
-parę** w jeden nowy token, powtarzamy do ustalonego rozmiaru słownika. Częste
-ciągi (np. "ing", "the") stają się jednym tokenem wcześnie; rzadkie
-pozostają rozbite dłużej. Nie implementujemy tego algorytmu — używamy
-gotowego tokenizera wytrenowanego razem z modelem (Eksperyment A).
+❌ BOS, EOS i PAD zawsze są trzema różnymi tokenami.
 
-**Token ID i tokeny specjalne**: każdy token ma unikalny identyfikator
-całkowity (wiersz w tablicy embeddingów, moduł 8). Modele dodają tokeny
-**specjalne**, poza "zwykłym" słownikiem tekstu:
+✅ W używanym modelu `pad_token_id == eos_token_id`. Znaczenie identyfikatorów trzeba sprawdzić w konkretnym tokenizerze.
 
-- **BOS** (*beginning of sequence*) — oznacza początek sekwencji.
-- **EOS** (*end of sequence*) — oznacza, że model "uznał" generowanie za
-  zakończone; `generate()` **zatrzymuje się**, gdy go wygeneruje (zweryfikowane
-  w Eksperymencie B).
-- **PAD** — wypełnienie do wspólnej długości w batchu (ta sama zasada co w
-  module 9: padding to nie treść).
+❌ Jeden token zawsze odpowiada jednemu słowu.
 
-❌ "Każdy model ma inny, osobny token na BOS/EOS/PAD."
+✅ Angielskie zdanie z 9 słów ma 10 tokenów, a polskie zdanie z 7 słów ma 25 tokenów. Ten sam tokenizer tworzy około 3,6 tokenu na polskie słowo, ponieważ był trenowany głównie na angielskim tekście.
 
-✅ Prawda dla niektórych, ale **nie zawsze są to trzy różne tokeny** — w
-modelu użytym w tym module `pad_token` i `eos_token` to **ten sam** token
-(zweryfikowane: `tokenizer.pad_token_id == tokenizer.eos_token_id`).
-Konsekwencja: nie można zakładać, że sprawdzenie "czy to pad" i "czy to eos"
-to zawsze dwa różne warunki — zależy od konkretnego tokenizera, trzeba
-zweryfikować, nie zgadywać.
+## Prefill i decode
 
-❌ "Token to synonim słowa."
+Generowanie składa się z dwóch etapów.
 
-✅ Zweryfikowane w Eksperymencie A: angielskie zdanie 9 słów → 10 tokenów
-(blisko 1:1), ale polskie zdanie 7 słów → **25** tokenów (ok. 3,6 tokenów na
-słowo) — ten sam tokenizer, dramatycznie różna granulacja, bo był trenowany
-głównie na angielskim tekście. **Nie można zakładać stałego stosunku
-słowa:tokeny, zwłaszcza między językami** — to zmierzony fakt, nie
-przypuszczenie.
+1. **Prefill** przetwarza cały prompt w jednym przejściu równoległym po pozycjach. Powstają logity następnego tokenu oraz, przy `use_cache=True`, wartości K i V dla promptu.
+2. **Decode** generuje po jednym tokenie. Każdy nowy token wymaga osobnego przejścia i zależy od poprzedniego kroku.
 
-## Prefill i decode: dwa różne etapy inferencji
+Prefill jest zwykle szybszy w przeliczeniu na token, ponieważ wykorzystuje równoległość pozycji. Decode pozostaje sekwencyjny.
 
-Generowanie odpowiedzi na prompt to **dwa jakościowo różne** etapy:
+## KV cache
 
-1. **Prefill**: model przetwarza **cały prompt naraz** (jeden forward pass,
-   równoległy po pozycjach — ta sama własność co w module 10: self-attention
-   nie ma sekwencyjnej zależności między pozycjami **wewnątrz** jednego
-   forward passu). Wynik: logity dla *następnego* tokenu po promptcie, plus
-   (jeśli `use_cache=True`) zapisane reprezentacje K/V dla każdej pozycji
-   promptu.
-2. **Decode**: model generuje **jeden token na raz**, każdy krok to **osobny**
-   forward pass (tym razem tylko dla **jednej nowej** pozycji, korzystający z
-   zapisanego K/V z poprzednich pozycji — stąd KV cache, niżej). Decode jest
-   **z definicji sekwencyjny** — krok $t+1$ potrzebuje tokenu wygenerowanego w
-   kroku $t$.
+Bez cache każdy krok ponownie obliczałby K i V dla wszystkich wcześniejszych pozycji. Przy attention przyczynowym te reprezentacje nie zmieniają się, więc mogą zostać zachowane.
 
-Konsekwencja inżynierska: prefill jest (przy tej samej liczbie tokenów)
-zwykle **znacznie szybszy na token** niż decode, bo jest **jednym**
-równoległym przejściem, nie $T$ **osobnymi** przejściami.
+❌ KV cache jest trwałą pamięcią wiedzy modelu.
 
-## KV cache: czym jest, a czym nie jest
+✅ Cache przechowuje K i V tylko dla bieżącego przebiegu inferencji. Wiedza modelu znajduje się w parametrach $\theta$. Cache jest optymalizacją obliczeniową i nie zmienia wyniku matematycznego ani zdolności rozumowania.
 
-Bez cache, generowanie tokenu $t{+}1$ wymagałoby **ponownego** przeliczenia
-self-attention dla **wszystkich** pozycji $1,\ldots,t$ od zera — mimo że ich
-reprezentacje K/V **się nie zmieniają** między krokami (self-attention jest
-przyczynowe, moduł 10: pozycja $i$ nie zależy od $j>i$). KV cache **zapamiętuje**
-policzone $K,V$ dla już przetworzonych pozycji, żeby nie liczyć ich od nowa.
+Dokładny koszt pamięci wynosi
 
-❌ "KV cache to trwała pamięć wiedzy modelu."
+$$\text{bajty}=2\times N\times H_{kv}\times d_{\text{head}}\times T\times\text{bytes}_{\text{dtype}}.$$
 
-✅ KV cache przechowuje **wyłącznie** policzone reprezentacje $K,V$ dla
-pozycji **tego konkretnego, trwającego przebiegu inferencji** — zerowany na
-starcie nowej rozmowy, nie zawiera żadnej wiedzy wyuczonej podczas treningu
-(ta jest w parametrach $\theta$, nie w cache). Nie zwiększa też zdolności
-rozumowania modelu — to wyłącznie **optymalizacja obliczeniowa**, matematycznie
-równoważna liczeniu bez cache (różne tylko pod względem szybkości).
+$N$ oznacza liczbę bloków, $H_{kv}$ liczbę głów K/V, $d_{\text{head}}$ wymiar głowy, a czynnik 2 odpowiada osobnym K i V.
 
-**Koszt pamięci cache** (dokładny wzór, nie przybliżenie):
+❌ Liczba głów zapytań zawsze jest równa liczbie głów K/V.
 
-$$\text{bajty} = 2 \times N \times H_{kv} \times d_{\text{head}} \times T \times \text{bytes}_{\text{dtype}}$$
+✅ Używany model ma 9 głów Q i 3 głowy K/V. W grouped-query attention kilka głów zapytań współdzieli jedną głowę K/V, co zmniejsza pamięć cache. Tensor ma kształt `(batch, 3, T, 64)`.
 
-gdzie $N$ = liczba warstw (bloków Transformer) — ten sam $N$, co "$N$ bloków
-ułożonych jeden po drugim" w module 10, nie uniwersalny symbol liczby
-warstw z modułu 2/6 ($K$), bo $K$ (macierz kluczy) i $V$ (macierz wartości)
-pojawiają się chwilę niżej w **tym samym** wzorze/akapicie — użycie $K$ na
-"liczbę warstw" tutaj kolidowałoby **lokalnie**, nie tylko w skali kursu.
-$H_{kv}$ = liczba **głów KV** (patrz niżej — **nie** zawsze równa liczbie
-głów zapytań!), $d_{\text{head}}$ = wymiar jednej głowy, $T$ = długość
-sekwencji (ten sam $T$ co zawsze), czynnik $2$ = osobno $K$ i $V$.
+Dla $T=16$ wzór daje dokładnie 737 280 bajtów, zgodnie z rzeczywistym rozmiarem tensorów `past_key_values`.
 
-❌ "Każdy model ma identyczną liczbę głów zapytań (Q) i głów KV."
+## Chat templates
 
-✅ **Nieprawda, i to nie teoretyczna uwaga** — model użyty w tym module ma
-**9 głów Q, ale tylko 3 głowy KV** (*grouped-query attention*, GQA: kilka
-głów zapytań **współdzieli** tę samą głowę KV). Zweryfikowane wprost z
-konfiguracji modelu i z rzeczywistego kształtu tensora cache: `keys.shape ==
-(batch, 3, T, 64)`, nie `(batch, 9, T, 64)`. GQA to **świadoma** decyzja
-projektowa, która **zmniejsza** koszt pamięci cache (mniej głów do
-przechowania), nie błąd czy przeoczenie — i oznacza, że wzór wyżej **musi**
-używać $H_{kv}$, nie "liczby głów" w ogólności.
+Model instruct jest trenowany na rozmowach w określonym formacie. Role `system`, `user` i `assistant` oraz tokeny rozdzielające są zapisane w `tokenizer.chat_template`.
 
-Zweryfikowane programowo (Eksperyment E): wzór dał $737\,280$ bajtów dla
-$T=16$ pozycji tego konkretnego modelu — **bit-exact** zgodne z rzeczywistym
-rozmiarem tensorów `past_key_values` (nie oszacowanie).
+❌ Chat template jest tylko kosmetycznym formatowaniem.
 
-## Chat templates i role wiadomości
+✅ Format jest częścią kontraktu z modelem. Prompt spoza rozkładu używanego podczas dostrajania może znacznie obniżyć jakość bez zgłaszania błędu.
 
-Modele **instruct** są trenowane na rozmowach o konkretnym, ustalonym
-formacie tekstowym — nie na "zwykłym" tekście. Ten format (role `system`/
-`user`/`assistant`, specjalne tokeny rozgraniczające wiadomości) jest zapisany
-w `tokenizer.chat_template` i aplikowany przez `apply_chat_template()`.
+Przykład formatu ChatML:
 
-❌ "Chat template to kosmetyczne formatowanie tekstu, nie wpływa na wynik."
-
-✅ Model **nie widział** podczas treningu tekstu w innym formacie niż ten,
-na którym był fine-tunowany (instruction tuning, niżej) — podanie promptu
-**bez** właściwego formatu to podanie wejścia z **rozkładu, którego model
-nigdy nie widział**, co może dramatycznie obniżyć jakość odpowiedzi, nie
-tylko "wyglądać nieelegancko". To jest część **kontraktu** z modelem, nie
-stylistyka.
-
-Konkretny przykład (model użyty w tym module, format ChatML):
-```
+```text
 <|im_start|>system
 You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
 <|im_start|>user
 What is the capital of France?<|im_end|>
 <|im_start|>assistant
 ```
-`add_generation_prompt=True` dodaje **ostatnią** linię (`<|im_start|>assistant\n`)
-— sygnał dla modelu "teraz Twoja kolej", bez tego model "nie wie", że powinien
-zacząć generować odpowiedź, nie kontynuować wiadomość użytkownika.
 
-❌ "Trzeba samemu dopisać tokeny specjalne (BOS/EOS) do promptu."
+`add_generation_prompt=True` dodaje początek wiadomości asystenta. `apply_chat_template()` sam wstawia wymagane tokeny specjalne. Ręczne dodanie ich drugi raz powoduje błędne formatowanie.
 
-✅ `apply_chat_template()` **już** je wstawia (zweryfikowane: tekst po
-aplikacji template zaczyna się od `<|im_start|>`, nie od treści). Dopisanie
-ich ręcznie **na dodatek** do tego, co template już wstawił, daje
-zduplikowane/błędnie sformatowane tokeny — klasyczny, realny błąd
-konfiguracji (temat zadania diagnostycznego w laboratorium).
+### Historia rozmowy
 
-### Historia rozmowy nie jest pamięcią modelu
+Model jest bezstanowy między wywołaniami. Poprzednie wiadomości muszą zostać jawnie dołączone do kolejnego wejścia. Koszt każdej tury rośnie wraz z całą historią aż do limitu kontekstu.
 
-❌ "Model 'pamięta' poprzednie wiadomości rozmowy."
+## Okno kontekstowe
 
-✅ Model jest **bezstanowy** między wywołaniami — każde wywołanie `generate()`
-dostaje **tylko to, co jest w jego wejściu** w tym konkretnym wywołaniu. Jeśli
-chcemy, żeby model "pamiętał" wcześniejsze wiadomości, musimy **sami** dołączyć
-całą dotychczasową historię rozmowy (wszystkie wiadomości `user`/`assistant`)
-do wejścia kolejnego wywołania — co oznacza, że **koszt tokenowy rośnie z
-długością rozmowy** (każda kolejna tura płaci za **całą** dotychczasową
-historię, nie tylko za nową wiadomość), aż do limitu okna kontekstowego.
+`max_position_embeddings` określa maksymalną liczbę pozycji. Używany model ma limit 8192.
 
-## Okno kontekstowe i obcinanie
+❌ `max_length` i `max_new_tokens` oznaczają to samo.
 
-Model ma **maksymalną** liczbę pozycji, jakie może przyjąć na wejściu
-(`max_position_embeddings` w konfiguracji — $8192$ dla modelu użytego tu).
-To jest **twardy** limit architektury (positional encoding/cache nie są
-zdefiniowane poza nim), nie parametr generowania.
+✅ `max_length` ogranicza łączną długość promptu i odpowiedzi. `max_new_tokens` ogranicza tylko nową część. Długi prompt zmniejsza miejsce dostępne na odpowiedź, a przekroczenie okna wymaga świadomego obcięcia treści.
 
-❌ "`max_length` i `max_new_tokens` to to samo."
+## Model base i instruct
 
-✅ **Nie** — `max_length` to limit na **całkowitą** długość (prompt +
-wygenerowane), `max_new_tokens` to limit **tylko** na nowo wygenerowaną
-część. Pomylenie ich jest realnym, częstym błędem: ustawienie `max_length`
-zbyt małym względem **już długiego** promptu może **od razu** przyciąć
-wejście albo nie wygenerować nic nowego — temat zadania diagnostycznego w
-laboratorium.
+- Model bazowy uczy się przewidywania następnego tokenu podczas pretrainingu.
+- SFT dostraja go na parach instrukcja i odpowiedź w formacie rozmowy.
+- Dostrajanie preferencji, na przykład DPO, uczy preferować jedną odpowiedź nad inną.
 
-Długi prompt **zabiera budżet** z okna kontekstowego — jeśli prompt +
-pożądana długość odpowiedzi przekracza limit, trzeba **obciąć** coś (zwykle
-najstarszą część historii rozmowy) — decyzja inżynierska, nie automatyczna
-"magia".
+❌ Model instruct ma inną architekturę niż model bazowy.
 
-## Base vs instruct, i skąd się biorą (krótko)
-
-- **Model bazowy (base)**: trenowany na **pretrainingu** — przewidywanie
-  następnego tokenu na ogromnym korpusie tekstu, bez specjalnego formatu
-  rozmowy. Dobry w kontynuowaniu tekstu, nie w "wykonywaniu poleceń".
-- **Supervised fine-tuning (SFT)**: dodatkowy trening na parach
-  (instrukcja, pożądana odpowiedź) w ustalonym formacie (chat template,
-  wyżej) — model uczy się **formatu** rozmowy i **wykonywania** poleceń.
-- **Dostrajanie preferencji** (np. DPO — *Direct Preference Optimization*,
-  użyte przy modelu z tego modułu): dodatkowy krok, w którym model uczy się
-  **preferować** jedną z dwóch odpowiedzi nad drugą (oceniane przez ludzi
-  albo inny model) — dalsze dopasowanie stylu/jakości, nie nowa architektura.
-
-❌ "Model instruct to inna architektura niż model bazowy, zaprojektowana,
-żeby lepiej wykonywać polecenia."
-
-✅ **Ta sama architektura** (ten sam Transformer) — różnica jest **wyłącznie**
-w tym, na czym i jak był dalej trenowany (SFT + preferencje) **po**
-pretrainingu. "SmolLM2-135M" i "SmolLM2-135M-Instruct" różnią się wagami
-(efektem dodatkowego treningu), nie liczbą warstw czy mechanizmem attention.
-
-Nie rozwijamy tu procesu trenowania (ani SFT, ani DPO) jako głównego tematu —
-to świadomie poza zakresem tego modułu (moduły 12+ wracają do trenowania
-w innych kontekstach).
+✅ Architektura pozostaje taka sama. Dodatkowy trening zmienia wagi i zachowanie, a nie liczbę warstw lub mechanizm attention.
 
 ## Workflow Hugging Face Transformers
 
-Trzy klasy, które pokrywają prawie wszystko, czego tu potrzeba:
-
 ```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
 model = AutoModelForCausalLM.from_pretrained(MODEL_ID, revision=REVISION)
@@ -447,258 +220,100 @@ inputs = tokenizer.apply_chat_template(
 output = model.generate(**inputs, max_new_tokens=64, do_sample=False)
 ```
 
-`AutoTokenizer`/`AutoModelForCausalLM` wybierają właściwą klasę tokenizera/
-architektury na podstawie konfiguracji zapisanej razem z modelem — nie
-trzeba znać typu architektury z góry. `revision=` **przypina** dokładny
-commit wag (zweryfikowana, powtarzalna wersja — nie "cokolwiek jest aktualnie
-pod tą nazwą"). `pipeline("text-generation", ...)` istnieje jako wygodna
-abstrakcja wysokopoziomowa — pokazujemy ją krótko w notebooku, ale główny
-eksperyment **celowo** używa niższego poziomu (`generate`, nie `pipeline`),
-żeby etapy inferencji były widoczne, nie schowane.
+Klasy `AutoTokenizer` i `AutoModelForCausalLM` wybierają implementację z konfiguracji modelu. `revision` przypina konkretny commit wag. `pipeline("text-generation")` jest wygodną abstrakcją, ale niższy poziom `generate()` lepiej pokazuje etapy inferencji.
 
 ## Latency, throughput i koszt
 
-- **Latency** (opóźnienie): czas do otrzymania (pierwszego/całego) wyniku.
-- **Throughput**: tokenów na sekundę — ile "pracy" system wykonuje w czasie.
-- Te dwie miary **nie są** zamienne: wysoki throughput (dużo tokenów/s
-  łącznie, np. w batchu wielu zapytań naraz) nie oznacza niskiej latency dla
-  **jednego, konkretnego** zapytania — i odwrotnie.
+Latency oznacza czas oczekiwania na wynik, a throughput liczbę tokenów przetwarzanych na sekundę. Wysoki łączny throughput nie gwarantuje niskiego opóźnienia pojedynczego żądania.
 
-❌ "Krótszy czas inferencji automatycznie oznacza lepszy model."
+❌ Krótszy czas inferencji oznacza lepszy model.
 
-✅ Czas inferencji zależy od rozmiaru modelu, długości promptu/odpowiedzi,
-sprzętu i konfiguracji (cache, precyzja) — **nie** od jakości odpowiedzi.
-Mniejszy, szybszy model może dawać gorsze odpowiedzi; większy, wolniejszy —
-lepsze. To dwie **niezależne** osie oceny, nie jedna.
+✅ Czas zależy od modelu, długości, sprzętu, cache i precyzji. Jakość odpowiedzi jest osobną osią oceny.
 
-Zmierzone wprost (Eksperyment E, CPU, ten komputer — **nie** uniwersalny
-benchmark): `use_cache=True` dramatycznie szybsze niż `use_cache=False`,
-z przewagą **rosnącą** z długością generowania (bo bez cache koszt **każdego**
-kroku rośnie z pozycją — $O(T)$ na krok, $O(T^2)$ łącznie; z cache — $O(1)$
-na krok, $O(T)$ łącznie, dla ustalonego rozmiaru modelu).
+Bez cache koszt kolejnego kroku rośnie wraz z pozycją. Dla ustalonego modelu daje to w uproszczeniu $O(T^2)$ dla całego decode. Cache ogranicza ponowne obliczenia i prowadzi do kosztu $O(T)$, płacąc dodatkową pamięcią.
 
-## Ocena jakości i ograniczenia
+## Ocena jakości i ryzyka
 
-❌ "Ta odpowiedź wygląda lepiej, więc jest lepsza."
+Ocena powinna rozdzielać wykonanie instrukcji, poprawność faktograficzną, kompletność, wymagany format i powtarzalność. Subiektywne wrażenie nie wystarcza.
 
-✅ Subiektywne "wygląda lepiej" nie jest procedurą oceny. Rozdzielamy
-**przynajmniej**: (1) poprawność wykonania instrukcji (czy model zrobił to,
-o co prosiliśmy — sprawdzalne często automatycznie), (2) poprawność
-faktograficzną (tam, gdzie da się zweryfikować względem źródła), (3)
-kompletność, (4) zgodność z wymaganym formatem (też często automatycznie
-sprawdzalne), (5) powtarzalność (czy wynik jest stabilny, czy przypadkowy
-pod sampling). Rozwijamy to w laboratorium jako systematyczną procedurę, nie
-wrażenie.
+Model z modułu ma 135 milionów parametrów. Może tworzyć płynne odpowiedzi na proste zadania, ale nie należy oczekiwać niezawodnego rozumowania wieloetapowego ani specjalistycznej wiedzy.
 
-❌ "Mały model lokalny oferuje jakość dużego modelu komercyjnego."
+Podstawowe ryzyka obejmują:
 
-✅ Model użyty w tym module ma $135$ milionów parametrów — rząd wielkości (albo
-więcej) mniej niż współczesne duże modele komercyjne. Oczekujemy spójnych,
-gramatycznych odpowiedzi na proste zadania (zweryfikowane), **nie**
-rozumowania wieloetapowego, głębokiej wiedzy specjalistycznej, czy
-niezawodnej poprawności faktograficznej na złożonych pytaniach.
+- halucynacje, czyli wiarygodnie brzmiący, lecz fałszywy tekst,
+- niestabilność przy samplingu,
+- wrażliwość na sformułowanie promptu,
+- prompt injection w nieufnych danych,
+- przekazywanie poufnych treści zewnętrznej usłudze,
+- ograniczenia licencji modelu i danych,
+- traktowanie wygenerowanej treści jako zweryfikowanego faktu.
 
-## Halucynacje i podstawowe ryzyka (krótko — nie osobny wykład)
+Poprawne wykonanie kodu, gramatyczna poprawność tekstu i poprawność merytoryczna są niezależnymi kryteriami. Każde wymaga osobnego sprawdzenia.
 
-- **Halucynacje**: model generuje tekst **brzmiący** wiarygodnie i gramatycznie,
-  **niezależnie** od tego, czy jest faktycznie prawdziwy — model nie ma
-  wbudowanego mechanizmu odróżniania "wiem to na pewno" od "to brzmi
-  prawdopodobnie". Poprawna składnia i gramatyka **nie gwarantują**
-  poprawności merytorycznej — to dwa zupełnie inne kryteria.
-- **Niestabilność przy sampling**: ten sam prompt, inny wynik na innym
-  przebiegu (bez ustalonego ziarna) — istotne przy ocenie ("czy to był
-  pech, czy systematyczny problem?").
-- **Wrażliwość na formę promptu**: inne sformułowanie tego samego pytania
-  może dać inną jakość odpowiedzi — nie tylko inny tekst.
-- **Prompt injection**: jeśli model przetwarza tekst z **nieufnego** źródła
-  (np. treść strony internetowej, e-mail, dokument od użytkownika) **razem**
-  z instrukcją systemową, ten nieufny tekst może zawierać sformułowania
-  **wyglądające jak instrukcje** ("zignoruj powyższe i zrób X") — traktowanie
-  treści danych jako polecenia jest ryzykiem bezpieczeństwa, nie tylko
-  teoretyczną ciekawostką.
-- **Dane poufne**: wysyłanie promptów do zewnętrznej usługi (API modelu
-  komercyjnego) oznacza przekazanie treści promptu stronie trzeciej —
-  konsekwencja do rozważenia **przed**, nie po.
-- **Licencje**: wagi modelu i dane treningowe mają własne licencje/warunki
-  (ten moduł: Apache 2.0, zweryfikowane — zobacz `data/registry.yml`) — nie
-  każdy model jest "wolny do użycia w każdym celu" tylko dlatego, że jest
-  publicznie dostępny.
-- **Wygenerowana treść jako "zweryfikowany fakt"**: traktowanie odpowiedzi
-  modelu jako automatycznie prawdziwej (bez weryfikacji) jest błędem
-  użytkownika/systemu, nie modelu — model nigdy nie obiecał poprawności.
+## Eksperymenty i obserwacje
 
-**Trzy różne, niezależne kryteria — żadne nie gwarantuje pozostałych:**
+Wyniki pochodzą z wykonanego [`examples.ipynb`](examples.ipynb) na CPU i nie stanowią uniwersalnego benchmarku.
 
-1. **Poprawne wykonanie kodu** — jeśli model generuje kod, czy ten kod
-   **faktycznie się wykonuje** bez błędu (kwestia składniowa języka
-   programowania, nie języka naturalnego).
-2. **Poprawność składni wygenerowanego tekstu** — czy tekst jest
-   gramatycznie/strukturalnie dobrze sformułowany (np. w tym module: czy
-   odpowiedź jest płynnym, gramatycznym angielskim).
-3. **Poprawność merytoryczna** — czy treść odpowiedzi jest **faktycznie
-   prawdziwa/trafna**.
+### A. Tokenizacja
 
-Kod może się wykonać bez błędu i dać **złą** odpowiedź (błąd logiczny, nie
-składniowy). Tekst może być gramatycznie bezbłędny i **merytorycznie
-fałszywy** (halucynacja, wyżej). Żadne z tych trzech kryteriów automatycznie
-nie implikuje pozostałych — oceniając wygenerowaną treść (sekcja "Ocena
-jakości" wyżej, i laboratorium), trzeba sprawdzić **każde z nich osobno**.
+Angielskie zdanie osiąga 0,90 słowa na token, a polskie 0,28. Liczba `1234.56` dzieli się na pojedyncze cyfry i znak kropki. Znak `§` tworzy bajtowy artefakt `ĠÂ§`. Rzadkie słowa są rozbijane na podsłowa zamiast `<UNK>`.
 
-To jest **wprowadzenie** do tych tematów (świadomość, nie głęboka analiza) —
-pełne bezpieczeństwo LLM to osobny obszar, poza zakresem tego modułu.
+### B. Rozkład i generowanie greedy
 
-## Co obserwujemy
+Prompt `The capital of France is` ma po chat template 35 tokenów. Pięć najwyższych następnych tokenów to `The` z $0{,}3113$, `B` z $0{,}0674$, `"` z $0{,}0616$, `Bon` z $0{,}0353$ oraz `Paris` z $0{,}0344$.
 
-Wszystkie liczby niżej pochodzą z rzeczywistego wykonania `examples.ipynb`
-(CPU, ten komputer — nie uniwersalny benchmark) — zobacz notebook po pełne
-wyjście.
+Dla $\tau=0{,}5$ prawdopodobieństwo `The` rośnie do $0{,}866$, a dla $\tau=2{,}0$ spada do $0{,}026$. Ręczna pętla ośmiu kroków, zakończona przez EOS, daje te same identyfikatory co `model.generate(do_sample=False)` i tekst `The capital of France is Paris.`.
 
-- **Eksperyment A (tokenizacja).** Zgodnie z tabelą wyżej: angielskie zdanie
-  $0{,}90$ słowa/token, polskie $0{,}28$ (ok. $3{,}6\times$ więcej tokenów na
-  słowo), liczby dzielone na pojedyncze cyfry (`1234.56` →
-  `1`,`2`,`3`,`4`,`.`,`5`,`6`), znak `§` (poza ASCII) daje bajtowy artefakt BPE
-  (`ĠÂ§`), rzadkie/długie słowa rozbite na sensowne podsłowa, nigdy na jeden
-  token `<UNK>`.
-- **Eksperyment B.** Dla promptu "The capital of France is" (po chat
-  template, $35$ tokenów): top-5 następnych tokenów to `The` ($p=0{,}3113$),
-  `B` ($0{,}0674$), `"` ($0{,}0616$), `Bon` ($0{,}0353$), `Paris`
-  ($0{,}0344$) — model **nie** jest od razu pewny jednego tokenu. Temperature
-  na tym samym rozkładzie: $\tau=0{,}5$ → `The` skacze do $0{,}866$;
-  $\tau=2{,}0$ → `The` spada do $0{,}026$ (ten sam $z_t$, inna koncentracja).
-  Ręczna pętla generowania (8 kroków, zatrzymana przez EOS) dała token po
-  tokenie **identyczne** jak `model.generate(do_sample=False)`: `The capital
-  of France is Paris.` — zweryfikowane programowo (`==` na liście id, nie
-  deklaracja).
-- **Eksperyment C.** Na otwartym, kreatywnym prompcie (robot odkrywa muzykę):
-  greedy, sampling ($\tau=0{,}7$/$1{,}5$), top-k=10, top-p=0,9 dały **pięć
-  wyraźnie różnych** kontynuacji. Na skoncentrowanym, faktograficznym
-  prompcie ("capital of France"): wszystkie pięć strategii dało **tę samą
-  odpowiedź** ("Paris") z drobnymi różnicami tylko w kontynuacji **po** niej
-  — ta sama konfiguracja, radykalnie różna widoczna różnorodność, bo zależy
-  od **kształtu rozkładu** dla danego promptu, nie tylko od parametrów
-  samplingu. Z ustalonym ziarnem (`torch.manual_seed(42)`): dwa przebiegi
-  dały **identyczny** tekst.
-- **Eksperyment D.** Zwykły tekst (bez chat template, 7 tokenów) dał **pusty**
-  wygenerowany tekst (`''`) — model natychmiast wygenerował EOS, bo nigdy nie
-  widział tego formatu podczas fine-tuningu; z chat template (37 tokenów, z
-  automatycznie dodanym system promptem) dał poprawną odpowiedź "The capital
-  of France is Paris." Historia rozmowy: po pierwszej turze $36$ tokenów, po
-  drugiej (z pełną historią dołączoną) $72$ tokeny — model odpowiedział
-  poprawnie na "What is my name?" **tylko** dlatego, że pierwsza tura została
-  jawnie dołączona do wejścia.
-- **Eksperyment E.** `use_cache=True` wyraźnie szybsze niż `False`, z
-  przewagą rosnącą z długością: przy $16$ nowych tokenach $0{,}18$s vs
-  $0{,}44$s ($2{,}5\times$); przy $128$ tokenach $1{,}29$s vs $5{,}64$s
-  ($4{,}4\times$) — rosnąca przewaga, zgodna z teorią ($O(T)$ na krok bez
-  cache vs $O(1)$ na krok z cache). Dłuższy prompt ($437$ vs $31$ tokenów,
-  to samo generowanie=$32$ tokeny): $0{,}47$s vs $0{,}32$s — dłuższy prefill,
-  ale decode wciąż dominuje przy tej skali. Wzór pamięci cache
-  ($2NH_{kv}d_{\text{head}}T\cdot\text{bytes}$) dał $737\,280$ bajtów dla
-  $T=16$ — **dokładnie** (identyczność bitowa, nie przybliżenie) zgodne z
-  rzeczywistym rozmiarem tensorów `past_key_values.layers[i].keys/values`.
-  Model: $9$ głów Q, **$3$ głowy KV** — GQA, nie błąd.
+### C. Strategie dekodowania
 
-## Częste błędne przekonania
+Dla otwartego promptu o robocie odkrywającym muzykę greedy, dwa poziomy temperature, top-k i top-p tworzą pięć różnych kontynuacji. Dla pytania o stolicę Francji wszystkie strategie odpowiadają `Paris`, ponieważ rozkład jest bardziej skoncentrowany. Dwa przebiegi z `torch.manual_seed(42)` dają identyczny tekst.
 
-(Zbiorcze podsumowanie — każde ma pełny ❌/✅ blok wyżej, w odpowiedniej
-sekcji merytorycznej)
+### D. Format i historia
 
-1. LLM nie generuje całej odpowiedzi jednocześnie w typowym autoregresyjnym
-   dekodowaniu.
-2. Token nie jest synonimem słowa.
-3. Większa temperatura nie gwarantuje lepszej odpowiedzi (i nie ma żadnego
-   wpływu, gdy `do_sample=False`).
-4. Greedy decoding nie musi wybierać globalnie najbardziej prawdopodobnej
-   kompletnej sekwencji.
-5. Dłuższy prompt nie musi poprawiać jakości.
-6. Kontekst modelu nie jest trwałą pamięcią — historia rozmowy musi być
-   jawnie dołączona do każdego wywołania.
-7. KV cache nie przechowuje całej wiedzy wyuczonej przez model — tylko K/V
-   bieżącego przebiegu.
-8. Model instruct nie jest inną architekturą wyłącznie dlatego, że lepiej
-   wykonuje polecenia — różni się dalszym treningiem (SFT + preferencje).
-9. Chat template nie jest wyłącznie kosmetycznym formatowaniem tekstu.
-10. Mniejszy czas inferencji nie oznacza automatycznie lepszego modelu.
-11. Poprawnie wygenerowany (gramatycznie) tekst może zawierać błędy
-    faktograficzne.
-12. Model lokalny nie musi oferować jakości dużego modelu udostępnianego
-    komercyjnie.
+Zwykły tekst bez chat template ma 7 tokenów i prowadzi do natychmiastowego EOS oraz pustej odpowiedzi. Chat template tworzy 37 tokenów wraz z promptem systemowym i prowadzi do odpowiedzi `The capital of France is Paris.`.
+
+Historia ma 36 tokenów po pierwszej turze i 72 po drugiej. Model odpowiada na pytanie o imię tylko wtedy, gdy wcześniejsza wiadomość jest dołączona do wejścia.
+
+### E. Cache i długość
+
+Przy 16 nowych tokenach czas z cache wynosi 0,18 s, a bez cache 0,44 s. Przy 128 tokenach wyniki to 1,29 s i 5,64 s. Przewaga rośnie z około $2{,}5\times$ do $4{,}4\times$.
+
+Dla promptów długości 31 i 437 tokenów oraz odpowiedzi długości 32 czas wynosi odpowiednio 0,32 s i 0,47 s. Dłuższy prefill zwiększa koszt, lecz w tym eksperymencie decode nadal dominuje.
 
 ## Implikacje inżynierskie
 
-- **Koszt rośnie z długością generowania, nie tylko z rozmiarem modelu.**
-  Decode jest sekwencyjny z definicji — podwojenie `max_new_tokens` z grubsza
-  podwaja czas decode (zmierzone: throughput w tok/s względnie stabilny z
-  cache, ale **całkowity** czas rośnie liniowo z liczbą generowanych tokenów).
-- **KV cache to kompromis pamięć-za-czas**, nie "darmowe" przyspieszenie —
-  rozmiar cache rośnie **liniowo** z długością sekwencji i **liniowo** z
-  liczbą warstw/głów KV (wzór wyżej) — dla bardzo długich kontekstów/wielu
-  równoległych rozmów, pamięć cache może stać się realnym ograniczeniem.
-- **GQA (mniej głów KV niż głów Q) to świadoma optymalizacja** zmniejszająca
-  koszt pamięci cache — nie każdy model z tej samej "rodziny" architektur ma
-  identyczną konfigurację, trzeba sprawdzić `config.json`, nie zgadywać.
-- **Prefill vs decode mają różną charakterystykę kosztu** — długi prompt
-  kosztuje głównie w prefill (jeden, równoległy przebieg), długa odpowiedź
-  kosztuje głównie w decode (sekwencyjne kroki) — optymalizacja jednego nie
-  automatycznie optymalizuje drugiego.
-- **Format promptu (chat template) jest częścią kontraktu z modelem**, nie
-  szczegółem stylistycznym — błędny format to cichy spadek jakości, nie
-  zawsze wyjątek/błąd.
-- **Pomylenie `max_length` z `max_new_tokens`** jest realnym, częstym błędem
-  konfiguracji z konkretnymi, złymi konsekwencjami (przycięte wejście albo
-  brak nowej treści) — nie teoretyczną pomyłką.
+- Czas rośnie z liczbą generowanych tokenów, ponieważ decode jest sekwencyjny.
+- KV cache wymienia dodatkową pamięć na krótszy czas i rośnie liniowo z długością.
+- GQA zmniejsza pamięć przez mniejszą liczbę głów K/V niż Q.
+- Prefill i decode mają różne profile kosztu.
+- Chat template jest częścią interfejsu modelu.
+- Pomylenie `max_length` z `max_new_tokens` może uciąć wejście lub zablokować generowanie.
 
 ## Co warto zapamiętać
 
-- $P(x_1,\ldots,x_T) = \prod_{t=1}^T P_\theta(x_t\mid x_{<t})$ — dokładna
-  tożsamość, nie założenie; założenie jest w tym, że sieć neuronowa dobrze
-  przybliża każdy czynnik.
-- Logity → softmax → rozkład; temperature skaluje logity **przed**
-  softmaxem i **nie ma wpływu** przy `do_sample=False`.
-- Top-k zachowuje stałą liczbę tokenów, top-p zachowuje zmienną liczbę
-  dopasowaną do koncentracji rozkładu.
-- Tokenizacja subword to kompromis znaki/słowa — liczba tokenów na słowo
-  **nie** jest stała, zwłaszcza między językami (zmierzone: 1,1 dla
-  angielskiego, 3,6 dla polskiego, ten sam tokenizer).
-- Prefill (równoległy, cały prompt) i decode (sekwencyjny, token po tokenie)
-  to różne etapy z różną charakterystyką kosztu; KV cache przyspiesza decode,
-  unikając ponownego liczenia niezmiennych K/V.
-- Chat template, BOS/EOS/PAD są częścią kontraktu z modelem, nie
-  kosmetyką — i nie zawsze są to trzy różne tokeny.
-- Model instruct = ten sam Transformer + SFT + dostrajanie preferencji, nie
-  inna architektura.
+- Reguła łańcuchowa rozkłada prawdopodobieństwo sekwencji na rozkłady następnego tokenu.
+- Temperature zmienia koncentrację rozkładu i nie wpływa na greedy decoding.
+- Top-k zachowuje stałą, a top-p zmienną liczbę tokenów.
+- Liczba tokenów na słowo zależy od tokenizera i języka.
+- Prefill jest równoległy po pozycjach, a decode sekwencyjny.
+- KV cache zachowuje K i V bieżącego przebiegu, nie wiedzę modelu.
+- Chat template i tokeny specjalne należą do kontraktu z modelem.
+- Model instruct różni się treningiem, nie architekturą.
 
-## Pytania dla studentów
+## Pytania
 
-1. Masz rozkład $\hat y_t$ bardzo skoncentrowany (jeden token ma $99\%$ masy).
-   Czy top-k=$50$ i top-p=$0{,}9$ dadzą ten sam efektywny zbiór tokenów do
-   wylosowania? Uzasadnij.
-2. Dlaczego `do_sample=False` i `temperature=5.0` dają identyczny wynik co
-   `do_sample=False` i `temperature=1.0`?
-3. Masz model z $40$ warstwami, $8$ głowami KV, wymiarem głowy $128$,
-   precyzją fp16 ($2$ bajty). Jaki jest koszt pamięci KV cache dla sekwencji
-   długości $4096$? Jak zmienia się ten koszt, jeśli liczba głów KV spadnie
-   do $2$ (GQA)?
-4. Masz rozmowę wieloturową z modelem. Dlaczego koszt (w tokenach) **każdej
-   kolejnej** tury rośnie, nawet jeśli nowa wiadomość użytkownika jest
-   bardzo krótka?
+1. Czy top-k z $k=50$ i top-p z $p=0{,}9$ zachowają ten sam zbiór, jeśli jeden token ma 99% masy?
+2. Dlaczego temperature nie zmienia wyniku przy `do_sample=False`?
+3. Jaki jest koszt KV cache dla 40 warstw, 8 głów K/V, wymiaru 128, fp16 i $T=4096$? Jak zmieni się dla 2 głów K/V?
+4. Dlaczego koszt tokenowy kolejnej tury rozmowy rośnie mimo krótkiej nowej wiadomości?
 
 ## Bibliografia
 
-- Ben Allal, L., Lozhkov, A., Bakouch, E., i in. (2025). *SmolLM2: When Smol
-  Goes Big — Data-Centric Training of a Small Language Model*.
-  arXiv:2502.02737.
-- Sennrich, R., Haddow, B., & Birch, A. (2016). *Neural Machine Translation
-  of Rare Words with Subword Units*. ACL (wprowadzenie BPE do NLP).
-- Holtzman, A., Buys, J., Du, L., Forbes, M., & Choi, Y. (2020). *The
-  Curious Case of Neural Text Degeneration*. ICLR (nucleus sampling / top-p).
-- Vaswani, A., i in. (2017). *Attention Is All You Need*. NeurIPS 30 (zobacz
-  też moduł 10 — architektura Transformer, nie wyprowadzana ponownie tutaj).
-- Pope, R., i in. (2022). *Efficiently Scaling Transformer Inference*.
-  arXiv:2211.05102 (KV cache, koszt inferencji).
-- Hugging Face Transformers documentation: *Generation strategies*,
-  `https://huggingface.co/docs/transformers/generation_strategies`.
-- Hugging Face Transformers documentation: *Chat templates*,
-  `https://huggingface.co/docs/transformers/chat_templating`.
-- Model card: *HuggingFaceTB/SmolLM2-135M-Instruct*,
-  `https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct`.
+- Ben Allal, L. et al. (2025). *SmolLM2: When Smol Goes Big. Data-Centric Training of a Small Language Model*. arXiv:2502.02737.
+- Sennrich, R., Haddow, B., & Birch, A. (2016). *Neural Machine Translation of Rare Words with Subword Units*. ACL.
+- Holtzman, A. et al. (2020). *The Curious Case of Neural Text Degeneration*. ICLR.
+- Vaswani, A. et al. (2017). *Attention Is All You Need*. NeurIPS 30.
+- Pope, R. et al. (2022). *Efficiently Scaling Transformer Inference*. arXiv:2211.05102.
+- Hugging Face Transformers documentation. *Generation strategies*. `https://huggingface.co/docs/transformers/generation_strategies`.
+- Hugging Face Transformers documentation. *Chat templates*. `https://huggingface.co/docs/transformers/chat_templating`.
+- Model card. *HuggingFaceTB/SmolLM2-135M-Instruct*. `https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct`.
