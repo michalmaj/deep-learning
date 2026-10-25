@@ -1,311 +1,207 @@
 Language: **English (default)** | [Polski](README.pl.md)
 
-# Lab 12: anomaly detection with an autoencoder, and analyzing reconstruction's limits
+# Lab 12. Anomaly detection with an autoencoder
 
-Time: about 120 minutes. Builds on
-[`lectures/12_autoencoders/lecture.en.md`](../../lectures/12_autoencoders/lecture.en.md)
-(AE, VAE, latent space), but this is **a different problem** than the
-lecture's experiment: not generating new images, but **anomaly
-detection** via reconstruction error -- with an emphasis on **when this
-method fails**, not only on when it works.
+This lab takes about 120 minutes and uses the concepts introduced in
+[`lecture.en.md`](../../lectures/12_autoencoders/lecture.en.md). Reconstruction
+is used for anomaly detection rather than image generation. The analysis covers
+both the method's performance and the cases where it fails.
 
-**Data**: Fashion-MNIST (MIT License -- see
-[`data/registry.yml`](../../data/registry.yml)). **Normal class**:
-*Sneaker* (class 7) -- chosen because it is a coherent, unambiguous visual
-category (a specific type of footwear). **Anomalies**: the remaining 9
-Fashion-MNIST classes (T-shirt/top, Trouser, Pullover, Dress, Coat,
-Sandal, Shirt, Bag, Ankle boot) -- treated as "anything that is not a
-sneaker," pedagogically justified: in practical applications (e.g.
-quality control on a production line), "anomaly" often means "something
-outside a narrowly defined normal category," not one specific, known-in-
-advance defect class.
+The data is Fashion-MNIST under the MIT License, registered in
+[`data/registry.yml`](../../data/registry.yml). *Sneaker* (class 7) is the
+normal class, and the other nine classes form the anomalies. This resembles a
+setting where normality is narrowly defined and anything outside that group is
+an anomaly.
 
-❌ "This is a 10-class classification task, just renamed."
+This is not ten-class classification. During training, the autoencoder receives
+neither labels nor anomaly examples. It learns only to reconstruct images from
+the normal class.
 
-✅ **No** -- the model (the autoencoder) **never** sees class labels
-during training, and **never** sees **any** anomaly example during
-training. We train exclusively on images of the normal class, with no
-labels -- the very fact of "detecting anomalies" must come from how well
-the model reconstructs what it learned vs. what it never saw.
+## 0. Setup
 
-## 0. Setup (provided)
+The provided section contains imports, device selection, a random seed, and
+Fashion-MNIST loading through `torchvision.datasets.FashionMNIST`.
 
-Library imports, device, random seed, loading Fashion-MNIST
-(`torchvision.datasets.FashionMNIST`).
+## 1. Data and split
 
-## 1. Data and split -- your task
+Prepare disjoint subsets:
 
-This is the **most important** methodological step in this lab -- a
-mistake here undermines everything that follows.
+1. **`ae_train`** contains only Sneaker images from the original training set.
+   This is the only subset used to train the autoencoder.
+2. **`val_normal`** contains different Sneaker images from the original
+   training set. `torch.randperm` and a split of the class 7 indices can be used.
+3. **`val_anomaly`** contains a sample of the remaining classes from the
+   original training set, preferably with the same count per class.
+4. **`test_normal`** and **`test_anomaly`** come from the original test set.
+   The first contains class 7, and the second contains a sample of other classes.
 
-Build **four** disjoint subsets, with **no** information leakage between
-them:
+The `test_*` subsets are reserved for one final evaluation. They must not affect
+architecture, hyperparameters, or the detection threshold. The notebook should
+print every subset size and programmatically confirm that their indices do not
+overlap.
 
-1. **`ae_train`** -- images of **only** the normal class (Sneaker), from
-   the original Fashion-MNIST training set. The autoencoder sees **only
-   this**.
-2. **`val_normal`** -- **other** images of the normal class, from the
-   same original training set (disjoint from `ae_train` -- split class
-   7's training set into two parts, e.g. `torch.randperm` + slicing).
-3. **`val_anomaly`** -- a sample of images from **other** classes, also
-   from the original Fashion-MNIST training set (e.g. an equal number
-   from each of the 9 classes).
-4. **`test_normal`**/**`test_anomaly`** -- from the **original
-   Fashion-MNIST test set** (separate, never touched until this point),
-   respectively: all class-7 images, and a sample of images from other
-   classes.
+## 2. Autoencoder
 
-**A rule that must not be broken at any later step:** `test_*` **must
-not** influence any decision (architecture, hyperparameters, detection
-threshold) -- we use it **only** for the final evaluation, once.
+Implement an `AE(nn.Module)` class with an MLP encoder, a bottleneck, and a
+decoder back to a $28\times28$ image. The training function uses MSE and only
+`ae_train`. The main model for sections 3-7 has $d_e=16$.
 
-❌ "I can later 'fine-tune' or adjust the threshold based on the results
-on the test set, since I already have it anyway."
+Training takes from a fraction of a second to a few seconds on a CPU. Most of
+the lab time is intended for data preparation and result analysis.
 
-✅ This is **exactly** the methodological bug we investigate in the
-diagnostic task (section 7). If the test set influences any decision, the
-measured result stops being a trustworthy estimate of performance on new
-data.
+## 3. Reconstruction error
 
-**Task (code):** print the sizes of all four/five subsets and **verify
-programmatically** (not "by eye") that no two of them overlap (e.g. by
-comparing indices, not just sizes).
+The `per_image_error(model, X)` function should return a separate error for
+each image:
 
-## 2. Autoencoder -- architecture and training -- your task
+```python
+((x_hat - x) ** 2).flatten(1).mean(dim=1)
+```
 
-Build a small AE (MLP, following the lecture's pattern): an `encoder` to
-a latent dimension $d_e$, a `decoder` back to $28\times 28$, MSE loss.
+Compute the error for `val_normal` and `val_anomaly`. Plot both distributions on
+one histogram or density chart. Also report the mean, standard deviation, and
+median of each distribution.
 
-**Task:** implement the `AE(nn.Module)` class and a training function.
-Train it **only** on `ae_train` (never on `val_*` or `test_*`). Start
-with $d_e=16$ -- this is your **main** model for sections 3-7.
+Partial overlap is expected. The method's usefulness depends on separation at a
+chosen threshold and on the examples found in the overlap region.
 
-**A note on cost**: this training is **very** fast on CPU (a fraction of
-a second to a few seconds, depending on the number of epochs/dataset
-size) -- this lab's time budget should go into **analysis**, not into
-waiting for training.
+## 4. Threshold selection
 
-## 3. Reconstruction error and the normal-vs-anomaly distributions -- your task
+The threshold must come **only** from the `val_normal` distribution. One option
+is the mean plus $k$ standard deviations, provided that the choice of $k$ is
+justified. `val_anomaly` must not influence the specific threshold value.
 
-Implement `per_image_error(model, X)` -- the reconstruction error **per
-image** (not aggregated over the whole set):
-`((x_hat - x)**2).flatten(1).mean(dim=1)`.
+This procedure is not fully unsupervised. Labels are used to create the normal
+set and to make general validation decisions. The threshold itself uses only
+normal examples, which matches a setting with no anomalies available during
+system configuration.
 
-Compute this error for `val_normal` and `val_anomaly`. **Visualize** both
-distributions (a histogram or overlapping density plots) on one plot.
-Compute the mean/standard deviation/median for each.
+## 5. Test metrics
 
-❌ "If the two distributions overlap at all, the method is useless."
+First verify the metric implementation on a known example:
 
-✅ Partial overlap is **normal** and expected -- the question is not "do
-the distributions overlap," but "how well do they **separate** at a
-**specific** threshold choice" (section 4) and "what happens in the
-overlap region" (section 6, error analysis).
+```text
+scores = [0.1, 0.2, 0.3, 0.4, 0.9, 0.5, 0.6, 0.7, 0.8, 1.0]
+labels = [0,   0,   0,   0,   0,   1,   1,   1,   1,   1]
+threshold = 0.45
+```
 
-## 4. Choosing a threshold -- your task
+Calculate TP, FP, TN, FN, precision, recall, and F1 by hand, then confirm the
+result with code. The expected values are:
 
-Set the detection threshold **only** based on the `val_normal` error
-distribution (e.g. mean + $k\times$ standard deviation, for a $k$ of your
-choice -- justify the choice). **Do not** use `val_anomaly` to choose the
-threshold -- this is explicitly a **validation-supervised** procedure
-(you have labels in validation and decide the architecture/
-hyperparameters in general based on them), but choosing the **specific
-threshold value** based only on the normal class's distribution is closer
-to the practical scenario where you have no anomalies at all while
-configuring the system.
+- TP = 5, FP = 1, TN = 4, FN = 0,
+- precision $\approx0.833$,
+- recall $=1.0$,
+- F1 $\approx0.909$.
 
-❌ "This is fully unsupervised anomaly detection."
+The repository does not include `scikit-learn`, so ROC-AUC and PR-AUC must be
+implemented directly.
 
-✅ **Not true, name it precisely.** You have access to labels throughout
-the data-preparation process (you know which images are "normal") -- this
-is a **validation-supervised** procedure, not fully unsupervised. Truly
-unsupervised anomaly detection (with no labels at all, even for "normal"
-data) is a different, harder task, out of scope for this lab.
+- **ROC-AUC** can be calculated as
+  $P(\text{score}_{\text{anomaly}}>\text{score}_{\text{normal}})$ over
+  anomaly-normal pairs. Two loops are acceptable for the small verification.
+- **PR-AUC**, represented here by average precision, requires sorting scores in
+  descending order and averaging precision at positions occupied by true
+  positives.
 
-## 5. Metrics on the test set -- your task
+On the test set, report precision, recall, F1, a $2\times2$ confusion matrix,
+ROC-AUC, and PR-AUC. AUC metrics assess ranking independently of a threshold.
+Precision, recall, and F1 describe behavior at the threshold selected in
+section 4. Both groups are needed.
 
-**First, on a small example with a known result** (before using the real
-data): for `scores = [0.1,0.2,0.3,0.4,0.9, 0.5,0.6,0.7,0.8,1.0]`,
-`labels = [0,0,0,0,0, 1,1,1,1,1]` (the first five normal, the second five
-anomalies), threshold $=0.45$ -- **compute by hand** (on paper or in a
-comment) TP/FP/TN/FN, precision/recall/F1, **then** verify with your code
-that the result matches (expected: TP=5, FP=1, TN=4, FN=0,
-precision$\approx 0.833$, recall$=1.0$, F1$\approx 0.909$).
+## 6. Baseline and error analysis
 
-**Note**: `scikit-learn` is **not** installed in this repository --
-implement ROC-AUC and PR-AUC (*average precision*) by hand:
+The training-free baseline uses distance from the mean normal image:
 
-- **ROC-AUC** via pairwise comparison (ranking): $P(\text{score}_{\text{anomaly}}
-  > \text{score}_{\text{normal}})$ over all pairs (you may use ranking,
-  it need not be $O(n^2)$ for large sets -- but for **verification** on
-  the small example, $O(n^2)$ via two loops is fine and helps check the
-  correctness of the faster version).
-- **PR-AUC** (*average precision*): sort examples by score in decreasing
-  order, for each **true positive** (anomaly) compute precision at that
-  point in the ranking, average those precisions.
+```python
+mean_normal_image = ae_train.mean(dim=0)
+((x - mean_normal_image) ** 2).mean()
+```
 
-Compute, **on the real test data** (section 1): precision, recall, F1, a
-2x2 confusion matrix, ROC-AUC, PR-AUC.
+Calculate the same test metrics for this baseline and compare them with the AE.
+Weak autoencoder performance relative to a simple reference is useful evidence.
+It may mean that the classes differ mainly through simple image properties that
+do not require a learned representation.
 
-❌ "ROC-AUC/PR-AUC is the ultimate quality measure for an anomaly-
-detection model -- I don't need anything else."
+The error analysis must include two concrete cases:
 
-✅ ROC-AUC/PR-AUC evaluate the **ranking** (do anomalies generally have a
-higher error than normal examples, regardless of a specific threshold) --
-but the **decision** "is THIS specific image an anomaly" requires a
-**specific threshold** (section 4). A high AUC does not tell you how well
-you will do at the **chosen** threshold -- hence you need **both** kinds
-of metrics, not one.
+1. an anomaly with low reconstruction error, or a false negative, together with
+   its class and a visual comment,
+2. a Sneaker image with high error, or a false positive, also displayed and
+   discussed.
 
-## 6. Error analysis and a simple baseline -- your task
+An autoencoder may reconstruct an anomaly that resembles the normal class, such
+as another kind of footwear. This is a limitation of reconstruction error, not
+automatically an implementation bug.
 
-**A baseline with no learning**: compute the error as the distance to the
-**mean image of the normal class** (`ae_train.mean(dim=0)`), with no
-training at all -- `((x - mean_normal_image)**2).mean()`. Compute the
-same metrics (section 5) for this baseline on the test set.
+## 7. Diagnosing data leakage
 
-**Compare** AE against this trivial baseline.
+The provided code searches thresholds and selects the highest F1 on test-set
+labels. It works technically but violates evaluation methodology.
 
-❌ "A trained autoencoder must radically beat a trivial baseline, because
-it is 'smarter.'"
+Complete the following steps:
 
-✅ **Not necessarily** -- check this **empirically on your data**, rather
-than assuming it. If the autoencoder does not clearly beat the trivial
-baseline, that is an **important, valuable conclusion**, not a failed
-experiment: it means the normal/anomaly separation in this specific task
-largely comes from simple pixel differences between classes (a sneaker's
-shape vs. other clothing), not from something subtle the autoencoder
-alone learned. A critical evaluation of the method **always** requires
-this comparison, not only when we expect it to "work out."
+1. run the search on `test_normal` and `test_anomaly`,
+2. compare its threshold with the one based on `val_normal`,
+3. compare the leaked F1 with the honest test result,
+4. explain why using the test set for a decision is wrong regardless of the
+   size of the difference in this run,
+5. identify the correction already applied in section 4.
 
-**Error analysis (required):** find **at least one specific** case of:
-1. An anomaly (an image outside the normal class) with a **low**
-   reconstruction error (a false negative) -- check which class it comes
-   from, and whether it makes visual sense (e.g. does it resemble a
-   sneaker).
-2. A normal example (a sneaker) with a **high** reconstruction error (a
-   false positive) -- check visually whether it is unusual within its own
-   class.
+A small difference does not remove the problem. The same leakage on another
+dataset or model could strongly inflate the result. The test set must remain
+independent of every modeling decision.
 
-❌ "An autoencoder that generally separates normal/anomaly well must
-reconstruct **every** anomaly example poorly."
+## 8. Conclusions
 
-✅ **Not true in general** -- an anomaly visually/structurally similar to
-the normal class (e.g. a different type of footwear, if the normal class
-is a specific type of footwear) can be reconstructed **quite well**,
-despite formally being an anomaly. This is **not** an implementation bug
--- it is a real limitation of the method, which you must **demonstrate
-with a specific example**, not just cite from the lecture.
+Answers should refer to numbers and examples from sections 3-7:
 
-## 7. Diagnostic task: data leakage in threshold selection
+1. What precision, recall, F1, and ROC-AUC did the autoencoder achieve?
+2. How does it compare with the baseline, and what does this indicate about the
+   source of class separation?
+3. Which specific false negative or false positive best demonstrates the
+   method's limitation?
+4. What caused the data leakage, and what general rule follows from it?
+5. What is still needed before practical deployment, including acceptable FP
+   and FN costs?
 
-The following code (in the notebook) **looks** reasonable -- it searches
-many threshold values and picks the one giving the **best F1** -- but it
-has a bug: the search and selection happen **using the test set's
-labels**.
+## Optional extension
 
-**Task:**
-1. Run the provided code: search a grid of thresholds, for each compute F1
-   **on `test_normal`/`test_anomaly`** (with their true labels), choose
-   the threshold with the highest F1.
-2. Compare the threshold chosen this way with **your** threshold from
-   section 4 (chosen only from `val_normal`). Are they identical?
-3. Compare the reported F1: the "leaky" one (chosen and evaluated on the
-   same test set) vs. your honest one (the threshold from section 4, F1
-   measured on the test set). **Even if the difference is small** --
-   explain **why the size of the difference alone is not what makes this
-   procedure wrong**.
-4. Write down why this procedure is methodologically wrong,
-   **regardless** of whether the difference turned out large or small in
-   your specific run.
-5. Propose a fix (exactly what you did in section 4) and verify it is
-   consistent with the rule from section 1 (the threshold never sees test
-   labels).
+Choose one of two tasks:
 
-❌ "If the data leakage did not change the result significantly, it was
-not a real bug."
+- repeat sections 2-5 for $d_e\in\{4,32\}$ and compare how the bottleneck
+  affects class separation,
+- build an analogous VAE and use reconstruction error or $-$ELBO as the anomaly
+  score, without assuming that it must outperform the AE.
 
-✅ **This is not true.** A methodological bug (using test labels to make a
-modeling decision) is a bug **regardless** of how large an effect it had
-in a specific run -- with a different dataset, a different model, or a
-smaller/less separated test set, the same bug could give a dramatically
-inflated result. You cannot know this in advance by looking at just one
-run -- hence the rule "never touch the test set when choosing a
-threshold" must be **absolute**, not dependent on whether "this time it
-happened not to hurt."
-
-## 8. Conclusions -- your task
-
-Answer, justified with actual numbers/examples from sections 3-7:
-
-1. How well (specific numbers: precision/recall/F1/ROC-AUC) does your
-   autoencoder separate the normal class from anomalies on the test set?
-2. How does it compare to the trivial baseline (section 6)? What does
-   that say about **where** the discriminative ability in this task comes
-   from?
-3. What is your most convincing **specific example** of the method's
-   limitation (a false negative or false positive from section 6)? Does
-   it make visual sense?
-4. What bug did the data leakage in section 7 introduce, and what is the
-   **general** rule (not just for this dataset) you draw from it?
-5. Would you consider this system ready for practical use? What would it
-   still need (e.g. what FP/FN error cost is acceptable for what
-   application)?
-
-## Extension (optional, if time remains)
-
-Choose **one** of the following:
-
-- **Effect of latent dimension**: repeat sections 2-5 for $d_e \in
-  \{4, 32\}$ (besides the main $d_e=16$) and compare the metrics. Does a
-  larger/smaller bottleneck change the normal/anomaly separation -- and is
-  this effect what you intuitively expect?
-- **VAE as an alternative**: implement an analogous VAE (following the
-  lecture's pattern), use the reconstruction error (or $-$ELBO) as the
-  anomaly signal. Compare with AE **without** assuming in advance which
-  one "must" do better (see the lecture: VAE is not automatically a
-  better anomaly detector).
-
-## Time budget (realistic, verified against actual training cost)
+## Time budget
 
 | Block | Time |
-|---|---|
-| Section 0 (setup) | 5 min |
-| Section 1 (data and split, no leakage) | 15 min |
-| Section 2 (AE: architecture and training) | 15 min |
-| Section 3 (reconstruction error, distributions) | 10 min |
-| Section 4 (choosing a validation threshold) | 10 min |
-| Section 5 (metrics: known example + test) | 15 min |
-| Section 6 (error analysis + baseline) | 15 min |
-| Section 7 (diagnostic task: leakage) | 20 min |
-| Section 8 (conclusions) | 10 min |
+|---|---:|
+| Setup | 5 min |
+| Data and split | 15 min |
+| AE architecture and training | 15 min |
+| Reconstruction error and distributions | 10 min |
+| Validation threshold | 10 min |
+| Metrics | 15 min |
+| Error analysis and baseline | 15 min |
+| Leakage diagnosis | 20 min |
+| Conclusions | 10 min |
 
-Total: **115 min**, with a 5-minute buffer. Training the AE on this
-dataset takes a fraction of a second to a few seconds on CPU -- the time
-budget should go into designing the data split, error analysis, and the
-diagnostic task, not into waiting for the model. The extension (above) is
-**optional** and is **not** counted in these 115 minutes.
+The core takes 115 minutes, leaving a 5-minute buffer. The extension is not
+included in this limit.
 
 ## Grading criteria
 
-- The data split (section 1) is verified programmatically to be
-  disjoint; the autoencoder is trained **only** on normal data.
-- The detection threshold (section 4) is chosen **only** based on
-  `val_normal`, never based on `val_anomaly` or any `test_*`.
-- The metrics (section 5) are verified on the given known-result
-  example **before** being used on the real data.
-- The comparison with the trivial baseline (section 6) is **actually
-  carried out and described** -- regardless of whether AE did better,
-  similarly, or worse.
-- The error analysis (section 6) points to a **specific** case (not a
-  generality) of a false negative or false positive, with a sensible
-  visual comment.
-- The diagnostic task (section 7) correctly identifies the data leakage
-  and explains why the bug is real regardless of the size of the
-  observed difference.
-- The conclusions refer to specific numbers/examples from your own run,
-  not to generalities from the lecture.
+- Subset disjointness is confirmed programmatically.
+- The autoencoder is trained only on normal data.
+- The threshold depends only on `val_normal`.
+- Metrics pass the known-example check before use on the dataset.
+- The baseline comparison is completed regardless of the result.
+- The analysis displays and discusses a specific false negative and false
+  positive.
+- The diagnosis identifies the leakage and explains its consequences.
+- Conclusions use evidence from the actual run.
 
-A full reference solution exists locally with the instructor
-(`decisions/solutions/12_autoencoders/`) and is not part of this
-repository.
+The complete reference solution is stored locally by the instructor in
+`decisions/solutions/12_autoencoders/` and is not part of this repository.

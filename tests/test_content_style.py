@@ -94,6 +94,14 @@ REVIEWED_PROSE_PATHS = (
     "labs/11_llm_engineering/README.pl.md",
     "labs/11_llm_engineering/lab.ipynb",
     "labs/11_llm_engineering/lab.en.ipynb",
+    "lectures/12_autoencoders/lecture.md",
+    "lectures/12_autoencoders/lecture.en.md",
+    "lectures/12_autoencoders/examples.ipynb",
+    "lectures/12_autoencoders/examples.en.ipynb",
+    "labs/12_autoencoders/README.md",
+    "labs/12_autoencoders/README.pl.md",
+    "labs/12_autoencoders/lab.ipynb",
+    "labs/12_autoencoders/lab.en.ipynb",
 )
 
 FORBIDDEN_DASHES = {
